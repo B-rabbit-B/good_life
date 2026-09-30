@@ -76,12 +76,14 @@ REVIEW_PHRASE_RE = re.compile(
     r"(?:下次|下一次|门诊|到院|来院|回院)?(?:" + "|".join(REVIEW_WORDS) + r")"
     r"(?:(?:之前|以前|前)(?:" + DURATION_RE.pattern + r")?)?"
 )
-SENTENCE_SPLIT_RE =re.compile(r"[。；;！!？?\n]+|(?<![\d.])\d{1,2}[.、．](?!\d)|[（(]\d{1,2}[)）]")
+SENTENCE_SPLIT_RE = re.compile(r"[。；;！!？?\n]+|(?<![\d.])\d{1,2}[.、．](?!\d)|[（(]\d{1,2}[)）]")
 LABEL_RE = re.compile(r"^(?:出院诊断|出院医嘱|饮食建议|注意事项|诊断|医嘱|建议|处理|嘱咐|饮食)[：:]")
 PART_SPLIT_RE = re.compile(r"以及|[、和及与或/]")
 CLAUSE_END_RE = re.compile(r"[，,]")
 NEGATION_RE = re.compile(r"(?:不需要|不需|无需|无须|不必|不用|可以不|不再|不)$")
-DOSAGE_SUBJECT_RE =re.compile(r"^\d|(?:\d|[一二两三四五六七八九十半]+)\s*(?:次|片|粒|袋|支|毫克|克)")
+DOSAGE_SUBJECT_RE = re.compile(r"^\d|(?:\d|[一二两三四五六七八九十半]+)\s*(?:次|片|粒|袋|支|毫克|克)")
+# "包括但不限于辣椒"里的"不限于"是列举，不是否定；按顿号接在前一个对象后面处理
+NOT_LIMITED_RE = re.compile(r"[，,、]?\s*(?:包括但不仅限于|包括但不限于|不仅限于|不限于)")
 _CONDITION_STARTS = tuple(word for word in CONDITIONAL_WORDS if word != "必要时")
 _TRIGGER_RE = re.compile("|".join(map(re.escape, sorted(AVOID_TRIGGERS, key=len, reverse=True))))
 _STYLE_RE = re.compile("|".join(map(re.escape, sorted(REQUIRE_STYLES, key=len, reverse=True))))
@@ -140,8 +142,6 @@ def add_months(day: date, months: int) -> date:
 
 
 def add_duration(start: date, amount: int, unit: str) -> date:
-    if unit == "小时":
-        return start  # 按小时计的时间只精确到日期，算作开具当天
     if unit in ("天", "日"):
         return start + timedelta(days=amount)
     if unit in ("周", "星期", "个星期"):
@@ -161,9 +161,10 @@ def split_sentences(text: str) -> list[str]:
 
 
 def _first_duration(text: str) -> tuple[int, str] | None:
+    """句中第一个天、周、月、年的时间；小时不当作持续时间（只从涉及对象里去掉），也不挡住后面的天、周、月、年。"""
     for match in DURATION_RE.finditer(text):
         amount = parse_number(match.group(1))
-        if amount:
+        if amount and match.group(2) != "小时":
             return amount, match.group(2)
     return None
 
@@ -199,6 +200,7 @@ def _avoid_subjects(sentence: str) -> tuple[list[str], bool]:
     触发词前面紧挨着否定词（"不需要限制""不必戒"）时，这个触发词后面的对象不算；
     "不要吃""不宜"这类本身以"不"开头的触发词不受影响，因为只看触发词前面的文字。
     """
+    sentence = NOT_LIMITED_RE.sub("、", sentence)
     subjects: list[str] = []
     negated = False
     matches = list(_TRIGGER_RE.finditer(sentence))
@@ -207,7 +209,10 @@ def _avoid_subjects(sentence: str) -> tuple[list[str], bool]:
             negated = True
             continue
         stop = matches[index + 1].start() if index + 1 < len(matches) else len(sentence)
-        segment = CLAUSE_END_RE.split(sentence[match.end():stop])[0]
+        segment = sentence[match.end():stop]
+        if index + 1 < len(matches) and NEGATION_RE.search(sentence[: stop]):
+            segment = NEGATION_RE.sub("", segment)  # 后一个触发词被否定：它前面的"不"不属于这里的对象（限盐不限水）
+        segment = CLAUSE_END_RE.split(segment)[0]
         for part in PART_SPLIT_RE.split(segment):
             cleaned = _clean_subject(part)
             if cleaned and not DOSAGE_SUBJECT_RE.search(cleaned) and cleaned not in subjects:
@@ -370,7 +375,7 @@ class RuleBasedExtractor:
         duration = _requirement_duration(sentence)
         end_date = None
         if duration and not long_term:
-            # "一周内"到第 7 天为止；按小时计的持续时间在开具当天结束
+            # "一周内"到第 7 天为止
             end_date = max(order_date, add_duration(order_date, *duration) - timedelta(days=1))
         hedge = any(word in sentence for word in HEDGE_WORDS)
         items = [

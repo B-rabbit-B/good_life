@@ -321,14 +321,12 @@ def test_negation_only_drops_its_own_trigger():
     assert _summary(result) == [("diet_avoid", ["辛辣"], date(2026, 10, 6), None, "high")]
 
 
-def test_hours_are_a_duration_ending_on_the_order_date():
+def test_hours_are_stripped_from_subjects_but_never_a_duration():
+    # 旧断言"结束日是开具当天"会让长期规则第二天自动失效，属于回归，现改为没有结束日期
     result = _extract("术后禁食禁水6小时。")
-    assert len(result.items) == 1
-    item = result.items[0]
-    assert item.category == "diet_avoid"
-    assert not any("小时" in subject for subject in item.subjects)
-    assert item.end_date == ORDER_DATE
-    assert item.missing_fields == []
+    assert _summary(result) == [("diet_avoid", ["水"], None, None, "medium")]
+    assert not any("小时" in subject for subject in result.items[0].subjects)
+    assert result.items[0].missing_fields == ["end_date"]
 
 
 def test_eating_hint_counts_for_medication_diet():
@@ -342,3 +340,37 @@ def test_triggers_starting_with_bu_are_not_negations():
     assert _summary(_extract("不宜辛辣。")) == [("diet_avoid", ["辛辣"], None, None, "medium")]
     assert _summary(_extract("不要吃辣。")) == [("diet_avoid", ["辣"], None, None, "medium")]
     assert _summary(_extract("不能喝酒。")) == [("diet_avoid", ["酒"], None, None, "medium")]
+
+
+# ---- 修复轮 3：Ruling 10 ----
+
+
+def test_hours_near_a_restriction_give_no_end_date():
+    result = _extract("饭后2小时内避免剧烈运动。")
+    assert _summary(result) == [("exercise_limit", ["剧烈运动"], None, None, "medium")]
+    assert result.items[0].missing_fields == ["end_date"]
+    result = _extract("睡前2小时避免进食。")
+    assert _summary(result) == [("diet_avoid", ["进食"], None, None, "medium")]
+
+
+def test_hours_do_not_block_a_later_day_or_week_duration():
+    result = _extract("术后6小时内禁食禁水，一周内忌辛辣。")
+    assert len(result.items) == 1
+    item = result.items[0]
+    assert item.subjects == ["水", "辛辣"]
+    assert not any("小时" in subject for subject in item.subjects)
+    assert item.end_date == date(2026, 10, 6)
+
+
+def test_dropped_negated_trigger_leaves_no_negation_word_behind():
+    assert _summary(_extract("限盐不限水。")) == [("diet_avoid", ["盐"], None, None, "medium")]
+    result = _extract("禁食不禁水。")
+    assert result.items == []
+    assert _ignored(result) == [("禁食不禁水", REASON_NEGATION)]
+
+
+def test_not_limited_to_is_not_a_negation():
+    for text in ("忌辛辣，包括但不限于辣椒、花椒", "忌辛辣，不限于辣椒、花椒"):
+        result = _extract(text + "。")
+        assert _summary(result) == [("diet_avoid", ["辛辣", "辣椒", "花椒"], None, None, "medium")], text
+        assert result.ignored == [], text
