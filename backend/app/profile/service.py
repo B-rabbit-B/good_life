@@ -1,6 +1,7 @@
 import uuid
 from typing import Any
 
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.common.ownership import owned_by
@@ -17,10 +18,14 @@ _NULL_MEANS_DEFAULT: dict[str, Any] = {
 def get_or_create_profile(db: Session, user_id: uuid.UUID) -> Profile:
     profile = db.scalar(owned_by(Profile, user_id))
     if profile is None:
-        profile = Profile(user_id=user_id, diet_preferences=[], food_avoidances=[], cycle_tracking_opt_out=False)
-        db.add(profile)
+        # 并发的首次请求可能同时走到这里；主键冲突时什么都不做，再统一查一次。
+        db.execute(
+            insert(Profile)
+            .values(user_id=user_id, diet_preferences=[], food_avoidances=[], cycle_tracking_opt_out=False)
+            .on_conflict_do_nothing(index_elements=[Profile.user_id])
+        )
         db.commit()
-        db.refresh(profile)
+        profile = db.scalar(owned_by(Profile, user_id))
     return profile
 
 
@@ -42,5 +47,9 @@ def update_profile(db: Session, user_id: uuid.UUID, changes: dict[str, Any]) -> 
 
 
 def list_profile_changes(db: Session, user_id: uuid.UUID, limit: int = 50) -> list[ProfileChange]:
-    query = owned_by(ProfileChange, user_id).order_by(ProfileChange.changed_at.desc()).limit(limit)
+    query = (
+        owned_by(ProfileChange, user_id)
+        .order_by(ProfileChange.changed_at.desc(), ProfileChange.seq.desc())
+        .limit(limit)
+    )
     return list(db.scalars(query))

@@ -1,6 +1,11 @@
-from sqlalchemy import text
+from datetime import UTC, datetime
 
-from app.db import Base, get_engine
+from sqlalchemy import func, select, text
+
+from app.auth.service import register_user
+from app.db import Base, get_engine, get_sessionmaker
+from app.profile.models import Profile, ProfileChange
+from app.profile.service import get_or_create_profile, list_profile_changes
 from app.security.crypto import decrypt_value
 from tests.helpers import accept_disclaimer, register_and_login
 
@@ -123,3 +128,33 @@ def test_every_business_table_has_user_id():
         if name == "users":
             continue
         assert "user_id" in table.columns, f"{name} 缺少 user_id 列"
+
+
+def test_profile_creation_survives_concurrent_first_request(monkeypatch):
+    with get_sessionmaker()() as db:
+        user_id = register_user(db, "alice", "secret-pass-1").id
+    with get_sessionmaker()() as first, get_sessionmaker()() as second:
+        real_scalar = second.scalar
+        calls = []
+
+        def stale_first_select(statement, *args, **kwargs):
+            # 模拟并发：second 的首次查询发生在 first 插入并提交之前，所以看不到这一行。
+            calls.append(statement)
+            return None if len(calls) == 1 else real_scalar(statement, *args, **kwargs)
+
+        monkeypatch.setattr(second, "scalar", stale_first_select)
+        get_or_create_profile(first, user_id)
+        profile = get_or_create_profile(second, user_id)
+        assert profile.user_id == user_id
+        assert second.scalar(select(func.count()).select_from(Profile)) == 1
+
+
+def test_changes_with_same_timestamp_are_listed_newest_insert_first():
+    with get_sessionmaker()() as db:
+        user_id = register_user(db, "alice", "secret-pass-1").id
+        same_moment = datetime(2026, 1, 1, tzinfo=UTC)
+        for n in range(5):
+            db.add(ProfileChange(user_id=user_id, changed_at=same_moment, changes={"n": n}))
+            db.commit()
+        listed = [change.changes["n"] for change in list_profile_changes(db, user_id)]
+    assert listed == [4, 3, 2, 1, 0]

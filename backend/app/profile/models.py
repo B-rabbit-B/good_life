@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func, text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Identity, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,3 +37,5 @@ class ProfileChange(UserOwnedMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     changes: Mapped[dict[str, Any]] = mapped_column(EncryptedJSON)
+    # 自增序号：changed_at 相同时按插入先后稳定排序。
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True))
