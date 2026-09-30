@@ -1,0 +1,119 @@
+[
+  {
+    "id": "menstrual-iron",
+    "phase": "menstrual",
+    "category": "nutrition",
+    "severity": "info",
+    "title": "适当补铁",
+    "content": "经期可以适当多吃富含铁的食物，比如瘦红肉、动物血和深绿色蔬菜，同时搭配富含维生素 C 的水果，帮助铁的吸收。动物肝脏含铁多，但维生素 A 也很高，少量偶尔吃即可，孕期或备孕期尤其不要多吃。",
+    "basis": "月经失血会带走铁，缺铁性贫血在育龄女性中较常见；维生素 C 可以促进植物性食物中铁的吸收；动物肝脏维生素 A 含量很高，孕期过量摄入有风险。"
+  },
+  {
+    "id": "menstrual-warm",
+    "phase": "menstrual",
+    "category": "tradition",
+    "severity": "info",
+    "title": "偏好温热饮食",
+    "content": "可以优先选择温热的饮食和饮品，少吃冰饮和生冷食物。",
+    "basis": "传统饮食经验，部分人感觉这样更舒服；目前缺少充分的现代医学研究证据，是否采纳以自身感受为准。"
+  },
+  {
+    "id": "menstrual-salt-water",
+    "phase": "menstrual",
+    "category": "nutrition",
+    "severity": "info",
+    "title": "少盐多喝水",
+    "content": "保持充足饮水，少吃过咸的食物，可能有助于减轻水肿和腹胀感。",
+    "basis": "高钠饮食与水钠潴留有关，充足饮水有助于身体调节水盐平衡。"
+  },
+  {
+    "id": "menstrual-caffeine-alcohol",
+    "phase": "menstrual",
+    "category": "lifestyle",
+    "severity": "info",
+    "title": "痛经时少喝咖啡和酒",
+    "content": "如果痛经比较明显，可以暂时减少咖啡、浓茶和酒精。",
+    "basis": "部分人反映咖啡因和酒精会加重经期不适，研究结论并不一致，可按自身感受调整。"
+  },
+  {
+    "id": "menstrual-see-doctor",
+    "phase": "menstrual",
+    "category": "lifestyle",
+    "severity": "caution",
+    "title": "这些情况请就医",
+    "content": "如果痛经严重到影响日常生活、出血量明显多于以往，或经期持续超过 7 天，请及时就医。",
+    "basis": "严重痛经、月经过多或经期过长可能与需要医学评估的情况有关，不应只靠饮食调理。"
+  },
+  {
+    "id": "follicular-balanced",
+    "phase": "follicular",
+    "category": "nutrition",
+    "severity": "info",
+    "title": "恢复均衡饮食",
+    "content": "经期结束后可以恢复正常的均衡饮食，保证优质蛋白、全谷物和足量蔬果。",
+    "basis": "均衡膳食是中国居民膳食指南的基本原则，这一阶段没有特别的饮食限制。"
+  },
+  {
+    "id": "follicular-exercise",
+    "phase": "follicular",
+    "category": "lifestyle",
+    "severity": "info",
+    "title": "适合安排运动",
+    "content": "这一阶段不少人精力较好，可以按自己的状态安排强度稍高的运动。",
+    "basis": "部分人在经期结束后主观精力更好，个体差异很大，以自身感受为准。"
+  },
+  {
+    "id": "ovulation-not-contraception",
+    "phase": "ovulation",
+    "category": "lifestyle",
+    "severity": "caution",
+    "title": "预测的排卵日前后",
+    "content": "现在处于预测的排卵日前后。按日历推算的排卵日误差较大，实际的易孕时间可能比这几天更长，预测不能用来避孕；有备孕或避孕需求请咨询医生。",
+    "basis": "日历法只根据以往周期长度推算，排卵时间会受多种因素影响而变化。"
+  },
+  {
+    "id": "ovulation-balanced",
+    "phase": "ovulation",
+    "category": "nutrition",
+    "severity": "info",
+    "title": "保持均衡即可",
+    "content": "排卵期没有特别的饮食要求，保持均衡饮食和充足饮水即可。",
+    "basis": "目前没有可靠证据表明排卵期需要特殊饮食。"
+  },
+  {
+    "id": "luteal-slow-carbs",
+    "phase": "luteal",
+    "category": "nutrition",
+    "severity": "info",
+    "title": "经前少盐少糖",
+    "content": "经前可能出现水肿、情绪波动或特别想吃甜食，可以少吃高盐和高糖零食，主食多选全谷物等慢碳。",
+    "basis": "有研究提示减少盐和精制糖、增加复合碳水化合物，可能有助于缓解部分经前不适，但证据有限。"
+  },
+  {
+    "id": "luteal-calcium",
+    "phase": "luteal",
+    "category": "nutrition",
+    "severity": "info",
+    "title": "注意补钙",
+    "content": "保证奶类、豆制品等富含钙的食物。",
+    "basis": "有研究显示钙摄入充足可能与经前不适减轻有关，但证据有限。"
+  },
+  {
+    "id": "luteal-rest",
+    "phase": "luteal",
+    "category": "lifestyle",
+    "severity": "info",
+    "title": "留意情绪和休息",
+    "content": "经前情绪容易波动，尽量保证睡眠，适度活动；如果情绪低落明显影响生活，请寻求专业帮助。",
+    "basis": "睡眠与规律活动有助于情绪稳定；严重的经前情绪问题需要专业评估。"
+  },
+  {
+    "id": "any-follow-medical-advice",
+    "phase": "any",
+    "category": "lifestyle",
+    "severity": "info",
+    "title": "有医嘱以医嘱为准",
+    "content": "以上提示是一般性的生活建议；如果你有医生给出的饮食或用药要求，请以医嘱为准。",
+    "basis": "本产品只提供生活方式参考，不替代医生的个体化建议。"
+  }
+]
