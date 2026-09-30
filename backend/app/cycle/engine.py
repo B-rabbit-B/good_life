@@ -8,6 +8,7 @@ import math
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 LUTEAL_DAYS = 14  # 黄体期按 14 天估算：排卵日 = 下次月经开始日 - 14 天
@@ -87,6 +88,11 @@ def round_half_up(value: float) -> int:
     return math.floor(value + 0.5)
 
 
+def round_one_decimal(value: float) -> float:
+    """保留 1 位小数，0.05 进位（内置 round 会把 5.25 舍成 5.2，与手算不一致）。"""
+    return float(Decimal(str(value)).quantize(Decimal("0.1"), ROUND_HALF_UP))
+
+
 def _sorted(periods: list[Period]) -> list[Period]:
     return sorted(periods, key=lambda period: period.start)
 
@@ -116,11 +122,11 @@ def compute_stats(periods: list[Period]) -> CycleStats:
     return CycleStats(
         cycle_count=len(all_cycles),
         period_count=len(periods),
-        avg_cycle_length=None if mean is None else round(mean, 1),
-        cycle_length_std=None if std is None else round(std, 1),
+        avg_cycle_length=None if mean is None else round_one_decimal(mean),
+        cycle_length_std=None if std is None else round_one_decimal(std),
         shortest_cycle=min(recent) if recent else None,
         longest_cycle=max(recent) if recent else None,
-        avg_period_length=round(sum(lengths) / len(lengths), 1) if lengths else None,
+        avg_period_length=round_one_decimal(sum(lengths) / len(lengths)) if lengths else None,
         recent_cycle_lengths=recent,
     )
 
@@ -150,12 +156,13 @@ def predict(periods: list[Period], today: date) -> Prediction:
         flags.append("long_gap")
 
     ovulation = next_start - timedelta(days=LUTEAL_DAYS)
+    not_before = last_start + timedelta(days=1)  # 区间不能早于最近一次记录的月经
     return Prediction(
         status="ok",
         next_period_start=next_start,
-        next_period_range=DateRange(next_start - window, next_start + window),
+        next_period_range=DateRange(max(next_start - window, not_before), next_start + window),
         ovulation_day=ovulation,
-        ovulation_range=DateRange(ovulation - window, ovulation + window),
+        ovulation_range=DateRange(max(ovulation - window, not_before), ovulation + window),
         fertile_window=DateRange(ovulation - timedelta(days=5), ovulation + timedelta(days=1)),
         flags=flags,
         notes=[FLAG_NOTES[flag] for flag in flags],
@@ -173,7 +180,7 @@ def summarize_symptoms(day_details: list[dict[str, Any]]) -> SymptomSummary:
     return SymptomSummary(
         logged_days=len(day_details),
         top_symptoms=[SymptomCount(symptom, days) for symptom, days in counter.most_common(5)],
-        average_pain_on_bleeding_days=round(sum(pains) / len(pains), 1) if pains else None,
+        average_pain_on_bleeding_days=round_one_decimal(sum(pains) / len(pains)) if pains else None,
     )
 
 

@@ -33,7 +33,9 @@ def _validate_period(
     if end is not None and (end - start).days > MAX_PERIOD_DAYS - 1:
         raise AppError(422, "period_too_long", f"单次经期不能超过 {MAX_PERIOD_DAYS} 天，请检查日期")
     if end is None and (today - start).days > MAX_PERIOD_DAYS - 1:
-        raise AppError(422, "period_too_long", "这次经期已超过 15 天还没有填写结束日期，请补全结束日期")
+        raise AppError(
+            422, "period_too_long", f"这次经期已超过 {MAX_PERIOD_DAYS} 天还没有填写结束日期，请补全结束日期"
+        )
     new_last = end or today  # 没有结束日视为一直持续到今天
     for other in list_periods(db, user_id):
         if other.id == exclude_id:

@@ -73,6 +73,25 @@ def test_stats_ignore_open_period_for_period_length():
     assert stats.period_count == 2
 
 
+def test_stats_round_half_up_to_one_decimal():
+    starts = ["2026-05-01", "2026-05-29", "2026-06-26", "2026-07-25"]
+    periods = [
+        Period(date.fromisoformat(start), date.fromordinal(date.fromisoformat(start).toordinal() + length - 1))
+        for start, length in zip(starts, [5, 5, 5, 6])
+    ]
+    assert compute_stats(periods).avg_period_length == 5.3  # 5.25 按四舍五入进位
+    summary = summarize_symptoms([{"flow": "heavy", "pain": pain} for pain in (1, 1, 1, 2)])
+    assert summary.average_pain_on_bleeding_days == 1.3
+
+
+def test_prediction_ranges_never_start_before_the_last_period():
+    periods = _periods("2026-01-01", "2026-05-01", "2026-05-29")
+    prediction = predict(periods, today=date(2026, 6, 1))
+    assert prediction.next_period_range.earliest == date(2026, 5, 30)
+    assert prediction.ovulation_range.earliest == date(2026, 5, 30)
+    assert prediction.next_period_range.latest == date(2026, 10, 2)
+
+
 def test_regular_prediction_is_narrow():
     prediction = predict(REGULAR, today=date(2026, 9, 1))
     assert prediction.status == "ok"
