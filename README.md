@@ -59,7 +59,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 重要：
 
 - `backend/.env` 含密钥，绝对不能提交到仓库（已在 `.gitignore` 中忽略）。仓库里只保留 `.env.example`。
-- `FIELD_ENCRYPTION_KEY` 用来加密档案中的身高、体重、健康状况、备注和修改记录。这个密钥一旦丢失或更换，已经加密的数据就无法再解密，请自行妥善备份。
+- `FIELD_ENCRYPTION_KEY` 用来加密档案中的身高、体重、健康状况、备注和修改记录，以及经期模块的每日记录内容和经期状态。这个密钥一旦丢失或更换，已经加密的数据就无法再解密，请自行妥善备份。
 - `JWT_SECRET` 更换后，所有已签发的登录令牌立即失效，用户需要重新登录。
 
 ## 5. 建表
