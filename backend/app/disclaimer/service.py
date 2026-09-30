@@ -1,9 +1,9 @@
 import uuid
 
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.common.ownership import owned_by
 from app.disclaimer.content import DISCLAIMER_VERSION
 from app.disclaimer.models import DisclaimerAcceptance
 from app.errors import AppError
@@ -11,10 +11,7 @@ from app.errors import AppError
 
 def get_current_acceptance(db: Session, user_id: uuid.UUID) -> DisclaimerAcceptance | None:
     return db.scalar(
-        select(DisclaimerAcceptance).where(
-            DisclaimerAcceptance.user_id == user_id,
-            DisclaimerAcceptance.version == DISCLAIMER_VERSION,
-        )
+        owned_by(DisclaimerAcceptance, user_id).where(DisclaimerAcceptance.version == DISCLAIMER_VERSION)
     )
 
 

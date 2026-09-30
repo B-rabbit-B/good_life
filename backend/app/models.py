@@ -2,3 +2,4 @@
 
 from app.auth import models as auth_models  # noqa: F401
 from app.disclaimer import models as disclaimer_models  # noqa: F401
+from app.profile import models as profile_models  # noqa: F401
