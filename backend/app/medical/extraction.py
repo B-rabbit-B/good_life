@@ -8,9 +8,11 @@
 - 含复查词的句子按逗号拆开：含复查词的分句只用来取复查日期，其余分句当作独立句子照常提取，
   避免"避免提重物，一周后复查"里的限制被悄悄丢掉。
 - 分句以"如、若、如果、一旦"开头或含"必要时"，是条件性提醒，不取日期；
-  句子的第一个分句是条件时，整句记为条件性提醒。
+  任何句子（不只是含复查词的）第一个分句是条件时，整句记为条件性提醒。
+  条件分句出现在后面时，只忽略它自己，不影响前面的分句。
 - 持续时间只在含忌口触发词、饮食方式词或运动词的分句里找，不读"患病10年""一日三餐"这类时间。
-- 剂量、次数（以数字开头，或含次、片、粒、克等）不算涉及对象；用药句没有涉及对象时整句忽略。
+- 剂量、次数（以数字开头，或"数字加次、片、粒、袋、支、克"）不算涉及对象，"薯片""巧克力"这类食物名照常保留；
+  用药句没有涉及对象时整句忽略。
 - 句首标签只认固定的几种（诊断、医嘱等），"忌口：辛辣"里的"忌口"不是标签。
 """
 
@@ -62,7 +64,7 @@ SENTENCE_SPLIT_RE = re.compile(r"[。；;！!？?\n]+|(?<![\d.])\d{1,2}[.、．]
 LABEL_RE = re.compile(r"^(?:出院诊断|出院医嘱|饮食建议|注意事项|诊断|医嘱|建议|处理|嘱咐|饮食)[：:]")
 PART_SPLIT_RE = re.compile(r"以及|[、和及与或/]")
 CLAUSE_END_RE = re.compile(r"[，,]")
-DOSAGE_SUBJECT_RE = re.compile(r"^\d|[次片粒袋支]|(?<!巧)克(?!力)")
+DOSAGE_SUBJECT_RE = re.compile(r"^\d|(?:\d|[一二两三四五六七八九十半]+)\s*(?:次|片|粒|袋|支|毫克|克)")
 _CONDITION_STARTS = tuple(word for word in CONDITIONAL_WORDS if word != "必要时")
 _TRIGGER_RE = re.compile("|".join(map(re.escape, sorted(AVOID_TRIGGERS, key=len, reverse=True))))
 _STYLE_RE = re.compile("|".join(map(re.escape, sorted(REQUIRE_STYLES, key=len, reverse=True))))
@@ -219,12 +221,12 @@ class RuleBasedExtractor:
         reviews: list[date] = []
         notes: list[str] = []
         for sentence in split_sentences(text):
-            if not any(word in sentence for word in REVIEW_WORDS):
-                self._add_sentence(sentence, order_date, items, ignored)
-                continue
             clauses = _clauses(sentence)
             if clauses and _is_conditional(clauses[0]):
                 ignored.append(IgnoredSentence(sentence, REASON_CONDITIONAL))
+                continue
+            if not any(word in sentence for word in REVIEW_WORDS):
+                self._add_sentence(sentence, order_date, items, ignored)
                 continue
             for clause in clauses:
                 if not any(word in clause for word in REVIEW_WORDS):

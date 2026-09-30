@@ -195,3 +195,29 @@ def test_meals_per_day_is_not_a_duration():
 def test_avoid_word_inside_label_is_not_stripped():
     result = _extract("忌口：辛辣、油腻。")
     assert _summary(result) == [("diet_avoid", ["辛辣", "油腻"], None, None, "medium")]
+
+
+# ---- 修复轮 2：Ruling 5 的回归测试 ----
+
+
+def test_food_names_containing_unit_characters_are_kept():
+    assert _summary(_extract("忌薯片、辛辣。")) == [("diet_avoid", ["薯片", "辛辣"], None, None, "medium")]
+    assert _summary(_extract("避免巧克力。")) == [("diet_avoid", ["巧克力"], None, None, "medium")]
+
+
+def test_dosage_with_chinese_numeral_is_not_an_avoid_subject():
+    result = _extract("每次一片，每日限3次。")
+    assert result.items == []
+    assert _ignored(result) == [("每次一片，每日限3次", REASON_NO_REQUIREMENT)]
+
+
+def test_leading_conditional_sentence_is_ignored_as_a_whole():
+    result = _extract("如腹泻加重，请忌辛辣。")
+    assert result.items == []
+    assert _ignored(result) == [("如腹泻加重，请忌辛辣", REASON_CONDITIONAL)]
+
+
+def test_trailing_conditional_clause_does_not_swallow_earlier_clauses():
+    result = _extract("忌辛辣，一周后复查，如复查异常请就医。")
+    assert _summary(result) == [("diet_avoid", ["辛辣"], None, date(2026, 10, 7), "medium")]
+    assert _ignored(result) == [("如复查异常请就医", REASON_CONDITIONAL)]
