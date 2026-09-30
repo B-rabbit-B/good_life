@@ -380,3 +380,45 @@ def test_unconfirmed_item_can_be_edited_to_empty_subjects(db, alice):
     avoid, _ = _order(db, alice)
     assert items.update_item(db, alice, avoid.id, {"subjects": []}).subjects == []
 
+
+# ---- 最终评审修复：I4 只能由用户调用的操作与生效日期 ----
+
+
+def test_user_only_operations_are_module_functions():
+    assert items.USER_ONLY_OPERATIONS == frozenset(
+        {"confirm_item", "resolve_item", "void_item", "continue_item", "update_item", "cancel_resolution_proposal"}
+    )
+    for name in items.USER_ONLY_OPERATIONS:
+        assert callable(getattr(items, name)), name
+    assert "propose_resolution" not in items.USER_ONLY_OPERATIONS
+
+
+@pytest.mark.parametrize("stage", ["active", "pending_review"])
+def test_live_item_start_date_cannot_move_after_today(db, alice, stage):
+    avoid, _ = _order(db, alice)
+    items.confirm_item(db, alice, avoid.id, {}, TODAY)
+    today = TODAY
+    if stage == "pending_review":
+        today = date(2026, 10, 5)
+        items.refresh_statuses(db, alice, today)
+    assert items.get_item(db, alice, avoid.id).status == stage
+    before = _snapshot(db, alice, avoid.id)
+    with pytest.raises(AppError) as exc:
+        items.update_item(db, alice, avoid.id, {"start_date": date(2026, 10, 6)}, today=today)
+    assert (exc.value.status_code, exc.value.code, exc.value.message) == (
+        422, "invalid_item_dates", "生效中的条目不能把生效日期改到今天之后"
+    )
+    assert _snapshot(db, alice, avoid.id) == before
+    # 改到今天、改早、原样提交都可以
+    assert items.update_item(db, alice, avoid.id, {"start_date": today}, today=today).start_date == today
+    assert items.update_item(db, alice, avoid.id, {"start_date": today}, today=today).start_date == today
+    assert items.update_item(db, alice, avoid.id, {"start_date": date(2026, 9, 29)}, today=today).start_date == date(
+        2026, 9, 29
+    )
+
+
+def test_unconfirmed_item_start_date_can_move_after_today(db, alice):
+    avoid, _ = _order(db, alice)
+    moved = items.update_item(db, alice, avoid.id, {"start_date": date(2026, 10, 3)}, today=TODAY)
+    assert moved.start_date == date(2026, 10, 3)
+

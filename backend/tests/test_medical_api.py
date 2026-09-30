@@ -326,6 +326,24 @@ def test_edit_cannot_leave_active_item_without_subjects(medical):
     assert ok.json()["subjects"] == ["辛辣"]
 
 
+def test_edit_cannot_move_live_item_start_after_today(medical):
+    client, _ = medical
+    headers = ready_user(client, "alice")
+    avoid, require = _order(client, headers)["items"]
+    client.post(f"/api/medical/items/{avoid['id']}/confirm", headers=headers)
+    url = f"/api/medical/items/{avoid['id']}"
+    before = client.get(url, headers=headers).json()
+    response = client.patch(url, json={"start_date": "2026-10-01"}, headers=headers)
+    assert response.status_code == 422
+    assert response.json()["error"] == {
+        "code": "invalid_item_dates", "message": "生效中的条目不能把生效日期改到今天之后"
+    }
+    assert client.get(url, headers=headers).json() == before
+    assert client.patch(url, json={"start_date": "2026-09-30"}, headers=headers).status_code == 200
+    pending = client.patch(f"/api/medical/items/{require['id']}", json={"start_date": "2026-10-01"}, headers=headers)
+    assert (pending.status_code, pending.json()["start_date"]) == (200, "2026-10-01")
+
+
 def test_continue_with_empty_body_means_long_term(medical):
     client, state = medical
     headers = ready_user(client, "alice")

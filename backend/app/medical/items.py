@@ -23,6 +23,13 @@ EDITABLE_STATUSES = (PENDING_CONFIRMATION, ACTIVE, PENDING_REVIEW)
 EDITABLE_FIELDS = ("category", "content", "subjects", "start_date", "end_date", "review_date")
 SOURCES = ("user", "system", "extractor", "agent")
 
+# 只能由用户本人通过接口触发的操作（交给步骤 06）：它们会确认、移除、放宽或改写医嘱约束，
+# 并把审计来源记为 user，因此绝不能做成大模型或智能体可以调用的工具。
+# 智能体只能调用 propose_resolution（提出解除建议，不改变约束）。
+USER_ONLY_OPERATIONS = frozenset(
+    {"confirm_item", "resolve_item", "void_item", "continue_item", "update_item", "cancel_resolution_proposal"}
+)
+
 
 def now() -> datetime:
     return datetime.now(UTC)
@@ -158,10 +165,21 @@ def refresh_statuses(db: Session, user_id: uuid.UUID, today: date) -> int:
     return changed
 
 
-def update_item(db: Session, user_id: uuid.UUID, item_id: uuid.UUID, changes: dict[str, Any]) -> MedicalItem:
+def update_item(
+    db: Session, user_id: uuid.UUID, item_id: uuid.UUID, changes: dict[str, Any], *, today: date | None = None
+) -> MedicalItem:
     item = get_item(db, user_id, item_id)
     if item.status not in EDITABLE_STATUSES:
         raise AppError(409, "item_closed", "已解除或已作废的条目不能再修改")
+    new_start = changes.get("start_date", item.start_date)
+    if (
+        today is not None
+        and item.status in HARD_CONSTRAINT_STATUSES
+        and new_start != item.start_date
+        and new_start > today
+    ):
+        # 把生效日期往后挪会让一条已确认的约束暂时不生效，等于悄悄放宽
+        raise AppError(422, "invalid_item_dates", "生效中的条目不能把生效日期改到今天之后")
     if changes:
         # 生效中与待复核的条目是硬约束，编辑后同样必须有涉及对象；待确认的条目可以自由修改
         _apply_changes(item, changes, require_subjects=item.status in HARD_CONSTRAINT_STATUSES)

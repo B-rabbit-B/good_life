@@ -105,8 +105,10 @@ def get_item(item_id: uuid.UUID, user: MedicalUser, db: DbSession) -> MedicalIte
 
 
 @router.patch("/items/{item_id}", response_model=ItemOut)
-def update_item(item_id: uuid.UUID, body: ItemUpdate, user: MedicalUser, db: DbSession) -> MedicalItem:
-    return items.update_item(db, user.id, item_id, body.model_dump(exclude_unset=True))
+def update_item(
+    item_id: uuid.UUID, body: ItemUpdate, user: MedicalUser, db: DbSession, today: Today
+) -> MedicalItem:
+    return items.update_item(db, user.id, item_id, body.model_dump(exclude_unset=True), today=today)
 
 
 @router.post("/items/{item_id}/confirm", response_model=ItemOut)

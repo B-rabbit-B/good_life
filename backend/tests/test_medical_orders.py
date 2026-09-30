@@ -118,11 +118,16 @@ def test_orders_and_items_are_private(db, alice, bella):
 
 
 def test_sensitive_columns_are_encrypted_at_rest(db, alice):
-    orders.create_order(db, alice, SAMPLE_ORDERS["short_term"], TODAY, TODAY)
+    order = orders.create_order(db, alice, SAMPLE_ORDERS["short_term"], TODAY, TODAY)
+    item = orders.list_order_items(db, alice, order.id)[0]
+    items.confirm_item(db, alice, item.id, {}, TODAY)
+    items.resolve_item(db, alice, item.id, "复诊一切正常")
     with get_engine().connect() as conn:
         source = conn.execute(text("SELECT source_text, extraction_notes FROM medical_orders")).one()
-        rows = conn.execute(text("SELECT content, subjects, source_excerpt FROM medical_items")).all()
-    raw = " ".join(source) + " ".join(" ".join(row) for row in rows)
-    for plaintext in ("急性胃肠炎", "辛辣", "生冷食物", "补液盐"):
+        rows = conn.execute(text("SELECT content, subjects, source_excerpt, resolution_reason FROM medical_items")).all()
+        details = conn.execute(text("SELECT detail FROM medical_item_events WHERE detail IS NOT NULL")).scalars().all()
+    raw = " ".join(source) + " ".join(" ".join(value for value in row if value) for row in rows) + " ".join(details)
+    for plaintext in ("急性胃肠炎", "辛辣", "生冷食物", "补液盐", "复诊一切正常"):
         assert plaintext not in raw
     assert decrypt_value(source[0]) == SAMPLE_ORDERS["short_term"]
+    assert {"reason": "复诊一切正常"} in [decrypt_value(detail) for detail in details]
