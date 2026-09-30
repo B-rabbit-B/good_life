@@ -2,9 +2,11 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import text
 
 from app.common.clock import get_today
+from app.cycle.schemas import PhaseOut, PredictionOut, TipOut
 from app.db import get_engine
 from app.main import create_app
 from tests.helpers import ready_user
@@ -210,3 +212,40 @@ def test_male_user_cannot_use_insight_endpoints(cycle_client):
         response = cycle_client.get(path, headers=headers)
         assert response.status_code == 403, path
         assert response.json()["error"]["code"] == "cycle_not_available"
+
+
+def test_response_models_only_accept_known_codes():
+    phase = {
+        "day": "2026-09-01",
+        "phase": "unknown",
+        "cycle_day": None,
+        "days_until_next_period": None,
+        "is_predicted": False,
+        "reason": "overdue",
+        "flags": ["overdue", "long_gap"],
+        "disclaimer": "x",
+    }
+    PhaseOut.model_validate(phase)
+    for field, bad in (("reason", "bogus"), ("flags", ["bogus"])):
+        with pytest.raises(ValidationError):
+            PhaseOut.model_validate({**phase, field: bad})
+    prediction = {
+        "status": "ok",
+        "next_period_start": None,
+        "next_period_range": None,
+        "ovulation_day": None,
+        "ovulation_range": None,
+        "fertile_window": None,
+        "flags": ["few_cycles", "irregular", "cycle_out_of_range", "overdue", "long_gap"],
+        "notes": [],
+        "disclaimer": "x",
+    }
+    PredictionOut.model_validate(prediction)
+    with pytest.raises(ValidationError):
+        PredictionOut.model_validate({**prediction, "flags": ["bogus"]})
+    tip = {"id": "t", "phase": "any", "category": "tradition", "severity": "caution",
+           "title": "t", "content": "c", "basis": "b"}
+    TipOut.model_validate(tip)
+    for field in ("phase", "category", "severity"):
+        with pytest.raises(ValidationError):
+            TipOut.model_validate({**tip, field: "bogus"})

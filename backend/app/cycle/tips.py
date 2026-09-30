@@ -5,6 +5,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 RULES_FILE = Path(__file__).with_name("tips_rules.json")
+TipPhase = Literal["menstrual", "follicular", "ovulation", "luteal", "any"]
+TipCategory = Literal["nutrition", "tradition", "lifestyle"]
+TipSeverity = Literal["info", "caution"]
 TIPS_DISCLAIMER = "以上内容是一般性的生活方式建议，不构成医疗建议，不能用于避孕，也不能用于诊断；身体不适请及时就医。"
 
 
@@ -12,9 +15,9 @@ class TipRule(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str
-    phase: Literal["menstrual", "follicular", "ovulation", "luteal", "any"]
-    category: Literal["nutrition", "tradition", "lifestyle"]
-    severity: Literal["info", "caution"]
+    phase: TipPhase
+    category: TipCategory
+    severity: TipSeverity
     title: str
     content: str
     basis: str

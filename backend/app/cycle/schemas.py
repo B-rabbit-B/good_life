@@ -4,7 +4,20 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
+from app.cycle.tips import TipCategory, TipPhase, TipSeverity
+
 CycleStatus = Literal["tracking", "pregnant", "paused"]
+PredictionFlag = Literal["few_cycles", "irregular", "cycle_out_of_range", "overdue", "long_gap"]
+PhaseReason = Literal[
+    "no_data",
+    "before_first_record",
+    "insufficient_data",
+    "overdue",
+    "long_gap",
+    "too_far_ahead",
+    "pregnant",
+    "paused",
+]
 
 
 class PeriodCreate(BaseModel):
@@ -95,7 +108,7 @@ class PredictionOut(BaseModel):
     ovulation_day: date | None
     ovulation_range: DateRangeOut | None
     fertile_window: DateRangeOut | None
-    flags: list[str]
+    flags: list[PredictionFlag]
     notes: list[str]
     disclaimer: str
 
@@ -108,8 +121,8 @@ class PhaseOut(BaseModel):
     cycle_day: int | None
     days_until_next_period: int | None
     is_predicted: bool
-    reason: str | None
-    flags: list[str]
+    reason: PhaseReason | None
+    flags: list[PredictionFlag]
     disclaimer: str
 
 
@@ -138,9 +151,9 @@ class TipOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    phase: str
-    category: str
-    severity: str
+    phase: TipPhase
+    category: TipCategory
+    severity: TipSeverity
     title: str
     content: str
     basis: str
