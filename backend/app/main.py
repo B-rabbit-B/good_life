@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.auth.router import router as auth_router
 from app.config import get_settings
+from app.cycle.router import router as cycle_router
 from app.disclaimer.router import router as disclaimer_router
 from app.errors import register_error_handlers
 from app.profile.router import router as profile_router
@@ -14,6 +15,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(disclaimer_router)
     app.include_router(profile_router)
+    app.include_router(cycle_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

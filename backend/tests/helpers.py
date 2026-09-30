@@ -10,3 +10,12 @@ def accept_disclaimer(client, headers: dict[str, str]) -> None:
     version = client.get("/api/disclaimer").json()["version"]
     response = client.post("/api/disclaimer/accept", json={"version": version}, headers=headers)
     assert response.status_code == 200, response.text
+
+
+def ready_user(client, username: str, profile: dict | None = None) -> dict[str, str]:
+    headers = register_and_login(client, username)
+    accept_disclaimer(client, headers)
+    if profile:
+        response = client.patch("/api/profile", json=profile, headers=headers)
+        assert response.status_code == 200, response.text
+    return headers
