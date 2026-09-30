@@ -114,6 +114,7 @@ def test_insufficient_data_gives_no_dates():
         assert prediction.ovulation_day is None
         assert prediction.fertile_window is None
         assert prediction.notes
+        assert "数据不足" in prediction.notes[0]
 
 
 def test_overdue_and_long_gap_flags():
@@ -140,3 +141,59 @@ def test_summarize_symptoms_empty():
     assert summary.logged_days == 0
     assert summary.top_symptoms == []
     assert summary.average_pain_on_bleeding_days is None
+
+
+from app.cycle.engine import PhaseInfo, get_phase  # noqa: E402
+
+
+def _phase(periods, day: str) -> PhaseInfo:
+    return get_phase(periods, date.fromisoformat(day))
+
+
+def test_phase_in_latest_cycle_of_regular_user():
+    expected = {
+        "2026-08-22": ("menstrual", 1, 28),
+        "2026-08-26": ("menstrual", 5, 24),
+        "2026-08-27": ("follicular", 6, 23),
+        "2026-09-03": ("follicular", 13, 16),
+        "2026-09-04": ("ovulation", 14, 15),
+        "2026-09-06": ("ovulation", 16, 13),
+        "2026-09-07": ("luteal", 17, 12),
+        "2026-09-18": ("luteal", 28, 1),
+        "2026-09-19": ("menstrual", 1, 28),
+        "2026-09-24": ("follicular", 6, 23),
+    }
+    for day, (phase, cycle_day, days_until) in expected.items():
+        info = _phase(REGULAR, day)
+        assert (info.phase, info.cycle_day, info.days_until_next_period) == (phase, cycle_day, days_until), day
+        assert info.is_predicted is True, day
+        assert info.reason is None
+
+
+def test_phase_in_a_finished_cycle_uses_real_length():
+    info = _phase(REGULAR, "2026-07-10")
+    assert (info.phase, info.cycle_day, info.is_predicted) == ("ovulation", 15, False)
+    info = _phase(REGULAR, "2026-07-24")
+    assert (info.phase, info.cycle_day, info.days_until_next_period, info.is_predicted) == ("luteal", 29, 1, False)
+
+
+def test_phase_without_enough_data():
+    assert _phase([], "2026-09-01").reason == "no_data"
+    assert _phase(REGULAR, "2026-04-30").reason == "before_first_record"
+    during = _phase(SPARSE, "2026-08-30")
+    assert (during.phase, during.cycle_day) == ("menstrual", 2)
+    after = _phase(SPARSE, "2026-09-10")
+    assert (after.phase, after.cycle_day, after.reason) == ("unknown", 13, "insufficient_data")
+    assert after.days_until_next_period is None
+
+
+def test_open_latest_period_uses_average_length():
+    periods = [*REGULAR[:-1], Period(date(2026, 8, 22))]
+    assert _phase(periods, "2026-08-26").phase == "menstrual"
+    assert _phase(periods, "2026-08-27").phase == "follicular"
+
+
+def test_short_cycle_keeps_ovulation_after_period():
+    periods = _periods("2026-06-01", "2026-06-20", "2026-07-09", "2026-07-28", length=7)
+    info = _phase(periods, "2026-08-04")  # 周期 19 天，经期 7 天：排卵日被推到第 9 天
+    assert (info.phase, info.cycle_day) == ("ovulation", 8)

@@ -26,7 +26,7 @@ FLAG_NOTES = {
     "long_gap": "距离上次记录的月经已经超过 90 天，预测可能不准；如有需要请咨询医生。",
 }
 PREDICTION_DISCLAIMER = "预测仅供参考，不能用于避孕或诊断。"
-INSUFFICIENT_DATA_NOTE = "至少需要记录 3 次月经的开始日期，才能给出预测。"
+INSUFFICIENT_DATA_NOTE = "数据不足：至少需要记录 3 次月经的开始日期，才能给出预测，目前的结果仅供参考。"
 
 
 @dataclass(frozen=True)
@@ -170,4 +170,73 @@ def summarize_symptoms(day_details: list[dict[str, Any]]) -> SymptomSummary:
         logged_days=len(day_details),
         top_symptoms=[SymptomCount(symptom, days) for symptom, days in counter.most_common(5)],
         average_pain_on_bleeding_days=round(sum(pains) / len(pains), 1) if pains else None,
+    )
+
+
+PHASES = ("menstrual", "follicular", "ovulation", "luteal")
+
+
+@dataclass(frozen=True)
+class PhaseInfo:
+    day: date
+    phase: str  # 四个阶段之一，或 unknown
+    cycle_day: int | None = None
+    days_until_next_period: int | None = None
+    is_predicted: bool = False  # 所在周期的下一次月经尚未记录，阶段按预测推算
+    reason: str | None = None  # phase 为 unknown 时说明原因
+
+
+def _period_length(period: Period, typical: int) -> int:
+    return (period.end - period.start).days + 1 if period.end is not None else typical
+
+
+def get_phase(periods: list[Period], day: date) -> PhaseInfo:
+    ordered = _sorted(periods)
+    if not ordered:
+        return PhaseInfo(day=day, phase="unknown", reason="no_data")
+    past = [period for period in ordered if period.start <= day]
+    if not past:
+        return PhaseInfo(day=day, phase="unknown", reason="before_first_record")
+
+    anchor = past[-1]
+    later = ordered[len(past):]
+    stats = compute_stats(ordered)
+    typical_period = (
+        round_half_up(stats.avg_period_length) if stats.avg_period_length else DEFAULT_PERIOD_LENGTH
+    )
+
+    if later:
+        cycle_start = anchor.start
+        cycle_length = (later[0].start - anchor.start).days
+        menstrual_days = _period_length(anchor, typical_period)
+        is_predicted = False
+    else:
+        recent = stats.recent_cycle_lengths
+        if len(recent) < MIN_CYCLES_FOR_PREDICTION:
+            cycle_day = (day - anchor.start).days + 1
+            if cycle_day <= _period_length(anchor, typical_period):
+                return PhaseInfo(day=day, phase="menstrual", cycle_day=cycle_day, is_predicted=anchor.end is None)
+            return PhaseInfo(day=day, phase="unknown", cycle_day=cycle_day, reason="insufficient_data")
+        cycle_length = round_half_up(weighted_mean_std(recent)[0])
+        cycles_ahead = (day - anchor.start).days // cycle_length
+        cycle_start = anchor.start + timedelta(days=cycles_ahead * cycle_length)
+        menstrual_days = _period_length(anchor, typical_period) if cycles_ahead == 0 else typical_period
+        is_predicted = True
+
+    cycle_day = (day - cycle_start).days + 1
+    ovulation_cycle_day = max(cycle_length - LUTEAL_DAYS + 1, menstrual_days + 2)
+    if cycle_day <= menstrual_days:
+        phase = "menstrual"
+    elif cycle_day < ovulation_cycle_day - 1:
+        phase = "follicular"
+    elif cycle_day <= ovulation_cycle_day + 1:
+        phase = "ovulation"
+    else:
+        phase = "luteal"
+    return PhaseInfo(
+        day=day,
+        phase=phase,
+        cycle_day=cycle_day,
+        days_until_next_period=(cycle_start + timedelta(days=cycle_length) - day).days,
+        is_predicted=is_predicted,
     )
