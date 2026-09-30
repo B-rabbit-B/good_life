@@ -7,6 +7,7 @@ from app.medical.extraction import (
     NOTE_REVIEW_SAME_CLAUSE,
     REASON_CONDITIONAL,
     REASON_MEDICATION,
+    REASON_NEGATION,
     REASON_NO_REQUIREMENT,
     REASON_REVIEW_WITHOUT_DATE,
     RuleBasedExtractor,
@@ -270,3 +271,57 @@ def test_review_only_order_gets_order_level_note():
     assert result.items == []
     assert result.ignored == []
     assert result.notes == ["识别到复查时间 2026-12-30，但没有识别到需要遵守的饮食或运动要求，请在条目里手动补充。"]
+
+
+# ---- 最终评审修复：I2 句中的条件分句 ----
+
+
+def test_mid_sentence_conditional_drops_the_rest_of_the_sentence():
+    result = _extract("一周内忌辛辣，如腹泻加重请禁食牛奶。")
+    assert _summary(result) == [("diet_avoid", ["辛辣"], date(2026, 10, 6), None, "high")]
+    assert _ignored(result) == [("如腹泻加重请禁食牛奶", REASON_CONDITIONAL)]
+
+
+def test_mid_sentence_conditional_after_review_clause():
+    result = _extract("一周内忌辛辣，一周后复查，如出血请忌酒。")
+    # 复查日 10-07 晚于预计结束日期 10-06，按原规则不挂到这条上
+    assert _summary(result) == [("diet_avoid", ["辛辣"], date(2026, 10, 6), None, "high")]
+    assert _ignored(result) == [("如出血请忌酒", REASON_CONDITIONAL)]
+    assert result.notes == []
+    result = _extract("忌辛辣，一周后复查，如出血请忌酒。")
+    assert _summary(result) == [("diet_avoid", ["辛辣"], None, date(2026, 10, 7), "medium")]
+    assert _ignored(result) == [("如出血请忌酒", REASON_CONDITIONAL)]
+
+
+def test_conditional_after_review_clause_keeps_following_clauses_out():
+    result = _extract("一周后复查，如腹泻加重，忌辛辣。")
+    assert result.items == []
+    assert _ignored(result) == [("如腹泻加重，忌辛辣", REASON_CONDITIONAL)]
+    assert result.notes == ["识别到复查时间 2026-10-07，但没有识别到需要遵守的饮食或运动要求，请在条目里手动补充。"]
+
+
+def test_mid_sentence_conditional_in_non_review_sentence():
+    result = _extract("低盐饮食，如血压升高，限制饮水。")
+    assert _summary(result) == [("diet_require", ["低盐"], None, None, "medium")]
+    assert _ignored(result) == [("如血压升高，限制饮水", REASON_CONDITIONAL)]
+
+
+# ---- 最终评审修复：I3 否定说法 ----
+
+
+def test_negated_trigger_is_not_a_constraint():
+    for text in ("术后一个月内不需要限制饮水", "一周内不必戒酒", "不限饮水"):
+        result = _extract(text + "。")
+        assert result.items == [], text
+        assert _ignored(result) == [(text, REASON_NEGATION)], text
+
+
+def test_negation_only_drops_its_own_trigger():
+    result = _extract("一周内忌辛辣，不必戒酒。")
+    assert _summary(result) == [("diet_avoid", ["辛辣"], date(2026, 10, 6), None, "high")]
+
+
+def test_triggers_starting_with_bu_are_not_negations():
+    assert _summary(_extract("不宜辛辣。")) == [("diet_avoid", ["辛辣"], None, None, "medium")]
+    assert _summary(_extract("不要吃辣。")) == [("diet_avoid", ["辣"], None, None, "medium")]
+    assert _summary(_extract("不能喝酒。")) == [("diet_avoid", ["酒"], None, None, "medium")]

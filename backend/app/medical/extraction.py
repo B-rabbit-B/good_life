@@ -5,11 +5,16 @@
 实现同一个 Extractor 接口的模型提取器，并在 get_extractor() 中切换即可。
 
 几条容易出错的规则（都是为了不让提取器给出"看起来很确定"的错误约束）：
-- 含复查词的句子按逗号拆开：含复查词的分句只用来取复查日期，其余分句当作独立句子照常提取，
+- 含复查词的句子按逗号拆开：只有复查说法的分句只用来取复查日期，其余分句当作独立句子照常提取，
   避免"避免提重物，一周后复查"里的限制被悄悄丢掉。
-- 分句以"如、若、如果、一旦"开头或含"必要时"，是条件性提醒，不取日期；
-  任何句子（不只是含复查词的）第一个分句是条件时，整句记为条件性提醒。
-  条件分句出现在后面时，只忽略它自己，不影响前面的分句。
+  限制和复查写在同一分句里（"两周内避免提重物并于两周后复查""忌辛辣直至复诊"）时，
+  去掉复查说法后照常提取，条目一律低把握并提示核对时间范围；只有紧挨在复查词前面的时间算复查时间，
+  "复查前一周"里的一周不算。识别到复查时间却没有任何条目时，给整份医嘱加一条提示。
+- 分句以"如、若、如果、一旦"开头或含"必要时"，是条件性提醒，不取日期。
+  每个句子（含不含复查词都一样）找第一个条件分句：它是第一个分句时整句记为条件性提醒；
+  它在后面时，它和它后面的分句一起记为条件性提醒（后面的要求也属于这个条件），只提取它前面的分句。
+- 否定：触发词前面紧挨着否定词（不需要、不必、无需、不等）时，这个触发词后面的对象不算；
+  句子因此没有条目时记为否定说法。"不要吃""不宜"这类本身以"不"开头的触发词照常识别。
 - 持续时间只在含忌口触发词、饮食方式词或运动词的分句里找，不读"患病10年""一日三餐"这类时间。
 - 剂量、次数（以数字开头，或"数字加次、片、粒、袋、支、克"）不算涉及对象，"薯片""巧克力"这类食物名照常保留；
   用药句没有涉及对象时整句忽略。
@@ -45,6 +50,7 @@ REASON_NO_REQUIREMENT = "没有识别到饮食、用药相关饮食或运动方�
 REASON_MEDICATION = "用药信息（药名、用法、剂量）不在本系统判断范围内，请遵医嘱或咨询医生、药师"
 REASON_CONDITIONAL = "条件性提醒（出现某种情况时就医），不作为固定约束，请留意身体变化"
 REASON_REVIEW_WITHOUT_DATE = "提到复查但没有写明时间，请在条目里手动填写复查日期"
+REASON_NEGATION = "含否定或例外的说法（如不需要、不必），不作为约束，请核对原文"
 
 NOTE_NO_DURATION = "没有识别到持续时间，请补充预计结束日期，或确认这是长期要求"
 NOTE_HEDGE = "原文措辞不确定（如适量、酌情），请核对具体要求"
@@ -74,7 +80,8 @@ SENTENCE_SPLIT_RE =re.compile(r"[。；;！!？?\n]+|(?<![\d.])\d{1,2}[.、．](
 LABEL_RE = re.compile(r"^(?:出院诊断|出院医嘱|饮食建议|注意事项|诊断|医嘱|建议|处理|嘱咐|饮食)[：:]")
 PART_SPLIT_RE = re.compile(r"以及|[、和及与或/]")
 CLAUSE_END_RE = re.compile(r"[，,]")
-DOSAGE_SUBJECT_RE = re.compile(r"^\d|(?:\d|[一二两三四五六七八九十半]+)\s*(?:次|片|粒|袋|支|毫克|克)")
+NEGATION_RE = re.compile(r"(?:不需要|不需|无需|无须|不必|不用|可以不|不再|不)$")
+DOSAGE_SUBJECT_RE =re.compile(r"^\d|(?:\d|[一二两三四五六七八九十半]+)\s*(?:次|片|粒|袋|支|毫克|克)")
 _CONDITION_STARTS = tuple(word for word in CONDITIONAL_WORDS if word != "必要时")
 _TRIGGER_RE = re.compile("|".join(map(re.escape, sorted(AVOID_TRIGGERS, key=len, reverse=True))))
 _STYLE_RE = re.compile("|".join(map(re.escape, sorted(REQUIRE_STYLES, key=len, reverse=True))))
@@ -184,17 +191,26 @@ def _clean_subject(part: str) -> str:
     return part.strip(" 　：:的等内")
 
 
-def _avoid_subjects(sentence: str) -> list[str]:
+def _avoid_subjects(sentence: str) -> tuple[list[str], bool]:
+    """返回忌口触发词后面的对象，以及是否有触发词被否定。
+
+    触发词前面紧挨着否定词（"不需要限制""不必戒"）时，这个触发词后面的对象不算；
+    "不要吃""不宜"这类本身以"不"开头的触发词不受影响，因为只看触发词前面的文字。
+    """
     subjects: list[str] = []
+    negated = False
     matches = list(_TRIGGER_RE.finditer(sentence))
     for index, match in enumerate(matches):
+        if NEGATION_RE.search(sentence[: match.start()]):
+            negated = True
+            continue
         stop = matches[index + 1].start() if index + 1 < len(matches) else len(sentence)
         segment = CLAUSE_END_RE.split(sentence[match.end():stop])[0]
         for part in PART_SPLIT_RE.split(segment):
             cleaned = _clean_subject(part)
             if cleaned and not DOSAGE_SUBJECT_RE.search(cleaned) and cleaned not in subjects:
                 subjects.append(cleaned)
-    return subjects
+    return subjects, negated
 
 
 def _clauses(sentence: str) -> list[str]:
@@ -237,25 +253,31 @@ class RuleBasedExtractor:
         notes: list[str] = []
         for sentence in split_sentences(text):
             clauses = _clauses(sentence)
-            if clauses and _is_conditional(clauses[0]):
+            cut = next((index for index, clause in enumerate(clauses) if _is_conditional(clause)), None)
+            if cut == 0:
                 ignored.append(IgnoredSentence(sentence, REASON_CONDITIONAL))
                 continue
+            conditional_tail = None
+            if cut is not None:
+                # 条件分句及其后面的分句都属于这个条件，一起忽略；只提取条件前面的分句
+                conditional_tail = IgnoredSentence("，".join(clauses[cut:]), REASON_CONDITIONAL)
+                sentence, clauses = "，".join(clauses[:cut]), clauses[:cut]
             if not any(word in sentence for word in REVIEW_WORDS):
                 self._add_sentence(sentence, order_date, items, ignored)
-                continue
-            for clause in clauses:
-                if not any(word in clause for word in REVIEW_WORDS):
-                    self._add_sentence(clause, order_date, items, ignored)
-                elif _is_conditional(clause):
-                    ignored.append(IgnoredSentence(clause, REASON_CONDITIONAL))
-                elif _has_requirement(clause):
-                    self._add_review_clause(clause, order_date, items, ignored, reviews)
-                else:
-                    found = self._review_dates(clause, order_date)
-                    if found:
-                        reviews.extend(found)
+            else:
+                for clause in clauses:
+                    if not any(word in clause for word in REVIEW_WORDS):
+                        self._add_sentence(clause, order_date, items, ignored)
+                    elif _has_requirement(clause):
+                        self._add_review_clause(clause, order_date, items, ignored, reviews)
                     else:
-                        ignored.append(IgnoredSentence(clause, REASON_REVIEW_WITHOUT_DATE))
+                        found = self._review_dates(clause, order_date)
+                        if found:
+                            reviews.extend(found)
+                        else:
+                            ignored.append(IgnoredSentence(clause, REASON_REVIEW_WITHOUT_DATE))
+            if conditional_tail is not None:
+                ignored.append(conditional_tail)
 
         if reviews:
             review_date = min(reviews)
@@ -318,18 +340,18 @@ class RuleBasedExtractor:
         self, sentence: str, order_date: date
     ) -> tuple[list[ExtractedItem], IgnoredSentence | None]:
         candidates: list[tuple[str, list[str], list[str]]] = []
+        avoid, negated = _avoid_subjects(sentence)
         if any(word in sentence for word in MEDICATION_WORDS):
             rest = sentence
             for word in MEDICATION_WORDS:
                 rest = rest.replace(word, "")
             if not any(hint in rest for hint in MEDICATION_DIET_HINTS):
                 return [], IgnoredSentence(sentence, REASON_MEDICATION)
-            subjects = _avoid_subjects(sentence) or _styles(sentence)
+            subjects = avoid or _styles(sentence)
             if not subjects:
-                return [], IgnoredSentence(sentence, REASON_MEDICATION)
+                return [], IgnoredSentence(sentence, REASON_NEGATION if negated else REASON_MEDICATION)
             candidates.append(("medication_diet", subjects, [NOTE_MEDICATION]))
         else:
-            avoid = _avoid_subjects(sentence)
             exercise = [s for s in avoid if any(word in s for word in EXERCISE_WORDS)]
             diet = [s for s in avoid if s not in exercise]
             styles = _styles(sentence)
@@ -340,7 +362,7 @@ class RuleBasedExtractor:
             if exercise:
                 candidates.append(("exercise_limit", exercise, []))
         if not candidates:
-            return [], IgnoredSentence(sentence, REASON_NO_REQUIREMENT)
+            return [], IgnoredSentence(sentence, REASON_NEGATION if negated else REASON_NO_REQUIREMENT)
 
         long_term = any(word in sentence for word in LONG_TERM_WORDS)
         duration = _requirement_duration(sentence)
