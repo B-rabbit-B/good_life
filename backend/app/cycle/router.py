@@ -106,11 +106,11 @@ def get_prediction(user: CycleUser, db: DbSession, today: Today) -> PredictionOu
 def get_phase(
     user: CycleUser, db: DbSession, today: Today, day: Annotated[date | None, Query(alias="date")] = None
 ) -> PhaseOut:
-    return PhaseOut.model_validate(insights.get_phase_info(db, user.id, day or today))
+    return PhaseOut.model_validate(insights.get_phase_info(db, user.id, day or today, today))
 
 
 @router.get("/tips", response_model=TipsOut)
 def get_tips(
     user: CycleUser, db: DbSession, today: Today, day: Annotated[date | None, Query(alias="date")] = None
 ) -> TipsOut:
-    return insights.get_tips(db, user.id, day or today)
+    return insights.get_tips(db, user.id, day or today, today)

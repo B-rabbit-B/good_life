@@ -83,6 +83,7 @@ def test_sparse_prediction_is_marked_insufficient(cycle_client):
     assert body["next_period_start"] is None
     assert body["next_period_range"] is None
     assert body["notes"]
+    assert "不能用于避孕" in body["disclaimer"]
 
 
 def test_phase_endpoint(cycle_client):
@@ -93,6 +94,20 @@ def test_phase_endpoint(cycle_client):
     assert (today["day"], today["phase"], today["cycle_day"]) == ("2026-09-01", "follicular", 11)
     early = cycle_client.get("/api/cycle/phase", params={"date": "2026-04-01"}, headers=headers).json()
     assert (early["phase"], early["reason"]) == ("unknown", "before_first_record")
+    for body in (ovulation, today, early):
+        assert "不能用于避孕" in body["disclaimer"]
+        assert body["flags"] == []
+
+
+def test_phase_endpoint_reports_overdue():
+    app = create_app()
+    app.dependency_overrides[get_today] = lambda: date(2026, 9, 22)
+    with TestClient(app) as client:
+        headers = _user_with(client, "late", REGULAR)
+        body = client.get("/api/cycle/phase", headers=headers).json()
+    assert (body["day"], body["phase"], body["reason"]) == ("2026-09-22", "unknown", "overdue")
+    assert "overdue" in body["flags"]
+    assert "不能用于避孕" in body["disclaimer"]
 
 
 def test_tips_follow_phase(cycle_client):
@@ -103,6 +118,8 @@ def test_tips_follow_phase(cycle_client):
     assert "menstrual-iron" in ids and "menstrual-warm" in ids and "any-follow-medical-advice" in ids
     assert not any(tip_id.startswith("luteal-") for tip_id in ids)
     assert "不构成医疗建议" in body["disclaimer"]
+    assert "不能用于避孕" in body["disclaimer"]
+    assert "不能用于避孕" in body["phase"]["disclaimer"]
     tradition = next(tip for tip in body["tips"] if tip["id"] == "menstrual-warm")
     assert tradition["category"] == "tradition"
 
@@ -115,8 +132,10 @@ def test_pregnant_or_paused_stops_prediction(cycle_client):
         assert prediction["status"] == "paused"
         assert prediction["next_period_start"] is None and prediction["ovulation_day"] is None
         assert prediction["notes"]
+        assert "不能用于避孕" in prediction["disclaimer"]
         phase = cycle_client.get("/api/cycle/phase", params={"date": "2026-09-04"}, headers=headers).json()
         assert (phase["phase"], phase["reason"]) == ("unknown", status)
+        assert "不能用于避孕" in phase["disclaimer"]
         tips = cycle_client.get("/api/cycle/tips", params={"date": "2026-09-04"}, headers=headers).json()
         assert {tip["phase"] for tip in tips["tips"]} == {"any"}
     cycle_client.put("/api/cycle/settings", json={"status": "pregnant"}, headers=headers)

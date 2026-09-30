@@ -40,15 +40,15 @@ def get_prediction(db: Session, user_id: uuid.UUID, today: date) -> engine.Predi
     return engine.predict(engine_periods(db, user_id), today)
 
 
-def get_phase_info(db: Session, user_id: uuid.UUID, day: date) -> engine.PhaseInfo:
+def get_phase_info(db: Session, user_id: uuid.UUID, day: date, today: date) -> engine.PhaseInfo:
     paused = _paused_status(db, user_id)
     if paused:
         return engine.PhaseInfo(day=day, phase="unknown", reason=paused)
-    return engine.get_phase(engine_periods(db, user_id), day)
+    return engine.get_phase(engine_periods(db, user_id), day, today)
 
 
-def get_tips(db: Session, user_id: uuid.UUID, day: date) -> TipsOut:
-    phase = get_phase_info(db, user_id, day)
+def get_tips(db: Session, user_id: uuid.UUID, day: date, today: date) -> TipsOut:
+    phase = get_phase_info(db, user_id, day, today)
     return TipsOut(
         phase=PhaseOut.model_validate(phase),
         tips=[TipOut.model_validate(rule) for rule in tips_for_phase(phase.phase)],

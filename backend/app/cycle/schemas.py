@@ -109,6 +109,8 @@ class PhaseOut(BaseModel):
     days_until_next_period: int | None
     is_predicted: bool
     reason: str | None
+    flags: list[str]
+    disclaimer: str
 
 
 class SymptomCountOut(BaseModel):

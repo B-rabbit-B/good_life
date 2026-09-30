@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 RULES_FILE = Path(__file__).with_name("tips_rules.json")
-TIPS_DISCLAIMER = "以上内容是一般性的生活方式建议，不构成医疗建议，也不能用于诊断；身体不适请及时就医。"
+TIPS_DISCLAIMER = "以上内容是一般性的生活方式建议，不构成医疗建议，不能用于避孕，也不能用于诊断；身体不适请及时就医。"
 
 
 class TipRule(BaseModel):

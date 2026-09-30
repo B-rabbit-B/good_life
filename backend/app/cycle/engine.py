@@ -1,4 +1,8 @@
-"""经期统计、预测与阶段判断。纯计算，不访问数据库，便于测试，也供后续的 SDK 直接复用。"""
+"""经期统计、预测与阶段判断。纯计算，不访问数据库，便于测试，也供后续的 SDK 直接复用。
+
+调用方（包括后续的 SDK）必须传入已校验过的月经记录：开始日不重复、结束日不早于开始日、
+两次经期不重叠。服务层由 records._validate_period 保证这一点，本模块不再重复检查。
+"""
 
 import math
 from collections import Counter
@@ -184,13 +188,16 @@ class PhaseInfo:
     days_until_next_period: int | None = None
     is_predicted: bool = False  # 所在周期的下一次月经尚未记录，阶段按预测推算
     reason: str | None = None  # phase 为 unknown 时说明原因
+    flags: list[str] = field(default_factory=list)  # 最新周期沿用预测的降级标记；已结束的周期为空
+    disclaimer: str = PREDICTION_DISCLAIMER
 
 
 def _period_length(period: Period, typical: int) -> int:
     return (period.end - period.start).days + 1 if period.end is not None else typical
 
 
-def get_phase(periods: list[Period], day: date) -> PhaseInfo:
+def get_phase(periods: list[Period], day: date, today: date) -> PhaseInfo:
+    """day 是要查询的日期，today 用来判断最新一次月经是否仍在进行、预测是否已经逾期。"""
     ordered = _sorted(periods)
     if not ordered:
         return PhaseInfo(day=day, phase="unknown", reason="no_data")
@@ -205,22 +212,32 @@ def get_phase(periods: list[Period], day: date) -> PhaseInfo:
         round_half_up(stats.avg_period_length) if stats.avg_period_length else DEFAULT_PERIOD_LENGTH
     )
 
+    flags: list[str] = []
     if later:
         cycle_start = anchor.start
         cycle_length = (later[0].start - anchor.start).days
         menstrual_days = _period_length(anchor, typical_period)
         is_predicted = False
     else:
+        anchor_days = _period_length(anchor, typical_period)
+        if anchor.end is None:  # 最新一次月经还没结束：至少持续到今天
+            anchor_days = max(typical_period, (today - anchor.start).days + 1)
         recent = stats.recent_cycle_lengths
         if len(recent) < MIN_CYCLES_FOR_PREDICTION:
             cycle_day = (day - anchor.start).days + 1
-            if cycle_day <= _period_length(anchor, typical_period):
-                return PhaseInfo(day=day, phase="menstrual", cycle_day=cycle_day, is_predicted=anchor.end is None)
+            if cycle_day <= anchor_days:
+                return PhaseInfo(day=day, phase="menstrual", cycle_day=cycle_day, is_predicted=True)
             return PhaseInfo(day=day, phase="unknown", cycle_day=cycle_day, reason="insufficient_data")
         cycle_length = round_half_up(weighted_mean_std(recent)[0])
         cycles_ahead = (day - anchor.start).days // cycle_length
+        flags = predict(ordered, today).flags
+        if cycles_ahead >= 1 and ("long_gap" in flags or "overdue" in flags):
+            reason = "long_gap" if "long_gap" in flags else "overdue"
+            return PhaseInfo(day=day, phase="unknown", reason=reason, flags=flags)
+        if cycles_ahead >= 2:
+            return PhaseInfo(day=day, phase="unknown", reason="too_far_ahead", flags=flags)
         cycle_start = anchor.start + timedelta(days=cycles_ahead * cycle_length)
-        menstrual_days = _period_length(anchor, typical_period) if cycles_ahead == 0 else typical_period
+        menstrual_days = anchor_days if cycles_ahead == 0 else typical_period
         is_predicted = True
 
     cycle_day = (day - cycle_start).days + 1
@@ -239,4 +256,5 @@ def get_phase(periods: list[Period], day: date) -> PhaseInfo:
         cycle_day=cycle_day,
         days_until_next_period=(cycle_start + timedelta(days=cycle_length) - day).days,
         is_predicted=is_predicted,
+        flags=flags,
     )

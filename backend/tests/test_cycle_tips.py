@@ -36,3 +36,4 @@ def test_every_rule_explains_its_basis():
 
 def test_disclaimer_mentions_not_medical_advice():
     assert "不构成医疗建议" in TIPS_DISCLAIMER
+    assert "不能用于避孕" in TIPS_DISCLAIMER

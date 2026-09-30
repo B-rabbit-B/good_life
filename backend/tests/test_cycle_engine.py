@@ -115,12 +115,18 @@ def test_insufficient_data_gives_no_dates():
         assert prediction.fertile_window is None
         assert prediction.notes
         assert "数据不足" in prediction.notes[0]
+        assert prediction.disclaimer == PREDICTION_DISCLAIMER
 
 
 def test_overdue_and_long_gap_flags():
     assert predict(REGULAR, today=date(2026, 9, 21)).flags == []
     assert predict(REGULAR, today=date(2026, 9, 22)).flags == ["overdue"]
     assert predict(REGULAR, today=date(2026, 12, 1)).flags == ["overdue", "long_gap"]
+
+
+def test_long_gap_starts_after_ninety_days():
+    assert "long_gap" not in predict(REGULAR, today=date(2026, 11, 20)).flags  # 距 8 月 22 日 90 天
+    assert "long_gap" in predict(REGULAR, today=date(2026, 11, 21)).flags  # 91 天
 
 
 def test_summarize_symptoms():
@@ -145,9 +151,11 @@ def test_summarize_symptoms_empty():
 
 from app.cycle.engine import PhaseInfo, get_phase  # noqa: E402
 
+PHASE_TODAY = "2026-09-01"
 
-def _phase(periods, day: str) -> PhaseInfo:
-    return get_phase(periods, date.fromisoformat(day))
+
+def _phase(periods, day: str, today: str = PHASE_TODAY) -> PhaseInfo:
+    return get_phase(periods, date.fromisoformat(day), date.fromisoformat(today))
 
 
 def test_phase_in_latest_cycle_of_regular_user():
@@ -157,6 +165,7 @@ def test_phase_in_latest_cycle_of_regular_user():
         "2026-08-27": ("follicular", 6, 23),
         "2026-09-03": ("follicular", 13, 16),
         "2026-09-04": ("ovulation", 14, 15),
+        "2026-09-05": ("ovulation", 15, 14),
         "2026-09-06": ("ovulation", 16, 13),
         "2026-09-07": ("luteal", 17, 12),
         "2026-09-18": ("luteal", 28, 1),
@@ -168,6 +177,56 @@ def test_phase_in_latest_cycle_of_regular_user():
         assert (info.phase, info.cycle_day, info.days_until_next_period) == (phase, cycle_day, days_until), day
         assert info.is_predicted is True, day
         assert info.reason is None
+        assert info.flags == []
+        assert info.disclaimer == PREDICTION_DISCLAIMER
+
+
+def test_phase_agrees_with_prediction_in_latest_cycle():
+    today = date(2026, 9, 1)
+    prediction = predict(REGULAR, today)
+    day = date(2026, 8, 22)
+    ovulation_days = []
+    while day < prediction.next_period_start:
+        info = get_phase(REGULAR, day, today)
+        assert info.days_until_next_period == (prediction.next_period_start - day).days, day
+        if info.phase == "ovulation":
+            ovulation_days.append(day)
+        day = date.fromordinal(day.toordinal() + 1)
+    center = prediction.ovulation_day
+    assert ovulation_days == [date.fromordinal(center.toordinal() + offset) for offset in (-1, 0, 1)]
+    assert get_phase(REGULAR, center, today).cycle_day == 15
+
+
+def test_phase_is_unknown_when_prediction_is_overdue_or_long_gap():
+    overdue = _phase(REGULAR, "2026-09-22", today="2026-09-22")
+    assert (overdue.phase, overdue.reason, overdue.cycle_day) == ("unknown", "overdue", None)
+    assert overdue.flags == ["overdue"]
+    long_gap = _phase(REGULAR, "2026-12-01", today="2026-12-01")
+    assert (long_gap.phase, long_gap.reason) == ("unknown", "long_gap")
+    assert long_gap.flags == ["overdue", "long_gap"]
+    far_future = _phase(REGULAR, "2027-06-01", today="2026-09-22")
+    assert (far_future.phase, far_future.reason) == ("unknown", "overdue")
+
+
+def test_phase_one_cycle_ahead_is_still_predicted_when_not_overdue():
+    assert _phase(REGULAR, "2026-09-19").phase == "menstrual"
+    assert _phase(REGULAR, "2026-09-24").phase == "follicular"
+
+
+def test_phase_more_than_one_cycle_ahead_is_unknown():
+    info = _phase(REGULAR, "2026-10-20")
+    assert (info.phase, info.reason, info.cycle_day, info.days_until_next_period) == (
+        "unknown",
+        "too_far_ahead",
+        None,
+        None,
+    )
+
+
+def test_phase_before_next_start_is_kept_when_overdue():
+    info = _phase(REGULAR, "2026-09-10", today="2026-09-25")
+    assert (info.phase, info.cycle_day, info.reason) == ("luteal", 20, None)
+    assert info.flags == ["overdue"]
 
 
 def test_phase_in_a_finished_cycle_uses_real_length():
@@ -175,22 +234,35 @@ def test_phase_in_a_finished_cycle_uses_real_length():
     assert (info.phase, info.cycle_day, info.is_predicted) == ("ovulation", 15, False)
     info = _phase(REGULAR, "2026-07-24")
     assert (info.phase, info.cycle_day, info.days_until_next_period, info.is_predicted) == ("luteal", 29, 1, False)
+    assert _phase(REGULAR, "2026-07-24", today="2026-12-01").flags == []
 
 
 def test_phase_without_enough_data():
     assert _phase([], "2026-09-01").reason == "no_data"
     assert _phase(REGULAR, "2026-04-30").reason == "before_first_record"
     during = _phase(SPARSE, "2026-08-30")
-    assert (during.phase, during.cycle_day) == ("menstrual", 2)
+    assert (during.phase, during.cycle_day, during.is_predicted) == ("menstrual", 2, True)
+    assert during.flags == []
     after = _phase(SPARSE, "2026-09-10")
     assert (after.phase, after.cycle_day, after.reason) == ("unknown", 13, "insufficient_data")
     assert after.days_until_next_period is None
+    assert after.disclaimer == PREDICTION_DISCLAIMER
 
 
 def test_open_latest_period_uses_average_length():
     periods = [*REGULAR[:-1], Period(date(2026, 8, 22))]
-    assert _phase(periods, "2026-08-26").phase == "menstrual"
-    assert _phase(periods, "2026-08-27").phase == "follicular"
+    assert _phase(periods, "2026-08-26", today="2026-08-26").phase == "menstrual"
+    assert _phase(periods, "2026-08-27", today="2026-08-26").phase == "follicular"
+
+
+def test_open_latest_period_still_bleeding_stays_menstrual():
+    periods = [*REGULAR[:-1], Period(date(2026, 8, 22))]
+    info = _phase(periods, "2026-08-28", today="2026-08-28")
+    assert (info.phase, info.cycle_day) == ("menstrual", 7)
+    assert _phase(periods, "2026-08-29", today="2026-08-28").phase == "follicular"
+    sparse_open = [SPARSE[0], Period(date(2026, 8, 29))]
+    info = _phase(sparse_open, "2026-09-04", today="2026-09-04")
+    assert (info.phase, info.cycle_day, info.is_predicted) == ("menstrual", 7, True)
 
 
 def test_short_cycle_keeps_ovulation_after_period():
