@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.common.ownership import get_owned_or_404, owned_by
-from app.cycle.models import CyclePeriod, CycleSettings
+from app.cycle.models import CycleDayLog, CyclePeriod, CycleSettings
 from app.errors import AppError
 
 MAX_PERIOD_DAYS = 15
@@ -32,6 +32,8 @@ def _validate_period(
         raise AppError(422, "invalid_period_range", "结束日期不能早于开始日期")
     if end is not None and (end - start).days > MAX_PERIOD_DAYS - 1:
         raise AppError(422, "period_too_long", f"单次经期不能超过 {MAX_PERIOD_DAYS} 天，请检查日期")
+    if end is None and (today - start).days > MAX_PERIOD_DAYS - 1:
+        raise AppError(422, "period_too_long", "这次经期已超过 15 天还没有填写结束日期，请补全结束日期")
     new_last = end or today  # 没有结束日视为一直持续到今天
     for other in list_periods(db, user_id):
         if other.id == exclude_id:
@@ -92,3 +94,36 @@ def set_cycle_status(db: Session, user_id: uuid.UUID, status: str) -> CycleSetti
     db.commit()
     db.refresh(settings)
     return settings
+
+
+def upsert_day_log(
+    db: Session, user_id: uuid.UUID, log_date: date, details: dict[str, Any], today: date
+) -> CycleDayLog:
+    if log_date > today:
+        raise AppError(422, "log_in_future", "不能记录未来日期")
+    log = db.scalar(owned_by(CycleDayLog, user_id).where(CycleDayLog.log_date == log_date))
+    if log is None:
+        log = CycleDayLog(user_id=user_id, log_date=log_date, details=details)
+        db.add(log)
+    else:
+        log.details = details  # 整条替换；加密列必须重新赋值才会被保存
+    db.commit()
+    db.refresh(log)
+    return log
+
+
+def list_day_logs(db: Session, user_id: uuid.UUID, start: date, end: date) -> list[CycleDayLog]:
+    query = (
+        owned_by(CycleDayLog, user_id)
+        .where(CycleDayLog.log_date >= start, CycleDayLog.log_date <= end)
+        .order_by(CycleDayLog.log_date)
+    )
+    return list(db.scalars(query))
+
+
+def delete_day_log(db: Session, user_id: uuid.UUID, log_date: date) -> None:
+    log = db.scalar(owned_by(CycleDayLog, user_id).where(CycleDayLog.log_date == log_date))
+    if log is None:
+        raise AppError(404, "not_found", "记录不存在")
+    db.delete(log)
+    db.commit()

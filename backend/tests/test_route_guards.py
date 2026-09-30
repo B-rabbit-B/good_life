@@ -2,6 +2,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, iter_route_contexts
 
+from app.cycle.deps import require_cycle_user
 from app.disclaimer.deps import require_disclaimer_user
 from app.main import create_app
 
@@ -57,3 +58,10 @@ def test_guard_check_detects_unguarded_route():
 
     app.include_router(router)
     assert _unguarded_api_paths(app) == ["['GET'] /api/_test/unguarded"]
+
+
+def test_every_cycle_route_requires_cycle_user():
+    cycle_routes = [ctx for ctx in _api_routes(create_app()) if ctx.path.startswith("/api/cycle/")]
+    assert len(cycle_routes) >= 10
+    unguarded = [ctx.path for ctx in cycle_routes if require_cycle_user not in _dependency_calls(ctx.dependant)]
+    assert unguarded == []

@@ -150,3 +150,12 @@ def test_cycle_settings(cycle_client):
     assert updated.json()["status"] == "pregnant"
     assert cycle_client.get("/api/cycle/settings", headers=headers).json()["status"] == "pregnant"
     assert cycle_client.put("/api/cycle/settings", json={"status": "robot"}, headers=headers).status_code == 422
+
+
+def test_open_period_older_than_max_length_is_rejected(cycle_client):
+    headers = ready_user(cycle_client, "alice", FEMALE)
+    too_long = _post(cycle_client, headers, "2026-08-17")
+    assert too_long.status_code == 422
+    assert too_long.json()["error"]["code"] == "period_too_long"
+    assert "结束日期" in too_long.json()["error"]["message"]
+    assert _post(cycle_client, headers, "2026-08-18").status_code == 201
