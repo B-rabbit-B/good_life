@@ -321,6 +321,23 @@ def test_negation_only_drops_its_own_trigger():
     assert _summary(result) == [("diet_avoid", ["辛辣"], date(2026, 10, 6), None, "high")]
 
 
+def test_hours_are_a_duration_ending_on_the_order_date():
+    result = _extract("术后禁食禁水6小时。")
+    assert len(result.items) == 1
+    item = result.items[0]
+    assert item.category == "diet_avoid"
+    assert not any("小时" in subject for subject in item.subjects)
+    assert item.end_date == ORDER_DATE
+    assert item.missing_fields == []
+
+
+def test_eating_hint_counts_for_medication_diet():
+    result = _extract("华法林期间避免大量食用菠菜。")
+    assert [(i.category, i.confidence) for i in result.items] == [("medication_diet", "low")]
+    assert any("菠菜" in subject for subject in result.items[0].subjects)
+    assert result.ignored == []
+
+
 def test_triggers_starting_with_bu_are_not_negations():
     assert _summary(_extract("不宜辛辣。")) == [("diet_avoid", ["辛辣"], None, None, "medium")]
     assert _summary(_extract("不要吃辣。")) == [("diet_avoid", ["辣"], None, None, "medium")]

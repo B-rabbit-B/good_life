@@ -39,7 +39,7 @@ REQUIRE_STYLES = (
 )
 EXERCISE_WORDS = ("剧烈运动", "运动", "锻炼", "健身", "提重物", "负重", "跑步", "游泳", "弯腰", "久坐", "久站", "卧床")
 MEDICATION_WORDS = ("服药", "用药", "吃药", "停药", "药物", "服用", "口服", "输液", "注射", "抗生素", "头孢", "华法林")
-MEDICATION_DIET_HINTS = ("酒", "饮食", "吃", "喝", "茶", "咖啡", "葡萄柚", "西柚", "牛奶", "食物")
+MEDICATION_DIET_HINTS = ("酒", "饮食", "吃", "喝", "茶", "咖啡", "葡萄柚", "西柚", "牛奶", "食物", "食用")
 REVIEW_WORDS = ("复查", "复诊", "随访")
 CONDITIONAL_WORDS = ("如", "若", "如果", "必要时", "一旦")
 LONG_TERM_WORDS = ("长期", "终身", "永久", "坚持")
@@ -61,7 +61,7 @@ NOTE_REVIEW_WITHOUT_ITEMS = "识别到复查时间 {dates}，但没有识别到�
 
 _NUM = r"(\d+|[一二两三四五六七八九十]+)"
 DURATION_RE = re.compile(
-    _NUM + r"\s*(个月|个星期|星期|周|天|日|月|年)"
+    _NUM + r"\s*(小时|个月|个星期|星期|周|天|日|月|年)"
     r"(?!\s*" + _NUM + r"?\s*[次餐顿片粒])"  # "一日三餐""每天2次"里的"一日""每天"不是持续时间
 )
 EXPLICIT_DATE_RE = re.compile(
@@ -140,6 +140,8 @@ def add_months(day: date, months: int) -> date:
 
 
 def add_duration(start: date, amount: int, unit: str) -> date:
+    if unit == "小时":
+        return start  # 按小时计的时间只精确到日期，算作开具当天
     if unit in ("天", "日"):
         return start + timedelta(days=amount)
     if unit in ("周", "星期", "个星期"):
@@ -368,7 +370,8 @@ class RuleBasedExtractor:
         duration = _requirement_duration(sentence)
         end_date = None
         if duration and not long_term:
-            end_date = add_duration(order_date, *duration) - timedelta(days=1)
+            # "一周内"到第 7 天为止；按小时计的持续时间在开具当天结束
+            end_date = max(order_date, add_duration(order_date, *duration) - timedelta(days=1))
         hedge = any(word in sentence for word in HEDGE_WORDS)
         items = [
             self._build(category, subjects, extra, sentence, order_date, end_date, long_term, hedge)
