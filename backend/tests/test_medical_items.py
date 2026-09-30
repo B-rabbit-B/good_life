@@ -256,3 +256,107 @@ def test_items_are_private(db, alice, bella):
     assert items.list_reviews(db, bella, TODAY) == []
     assert items.refresh_statuses(db, bella, date(2026, 10, 5)) == 0
     assert items.get_item(db, alice, avoid.id).status == "active"
+
+
+def _snapshot(db, user_id, item_id):
+    item = items.get_item(db, user_id, item_id)
+    db.refresh(item)
+    fields = (item.status, item.content, item.subjects, item.start_date, item.end_date, item.review_date)
+    return fields, item.confirmed_at, item.closed_at, item.resolution_proposed_at, _events(db, user_id, item_id)
+
+
+def test_changes_cannot_touch_non_editable_fields(db, alice):
+    avoid, _ = _order(db, alice)
+    before = _snapshot(db, alice, avoid.id)
+    for name in ("status", "confirmed_at", "closed_at", "resolution_proposed_at", "user_id"):
+        with pytest.raises(ValueError):
+            items.update_item(db, alice, avoid.id, {name: "resolved"})
+        with pytest.raises(ValueError):
+            items.confirm_item(db, alice, avoid.id, {name: "resolved"}, TODAY)
+    assert _snapshot(db, alice, avoid.id) == before
+    items.confirm_item(db, alice, avoid.id, {}, TODAY)
+    before = _snapshot(db, alice, avoid.id)
+    with pytest.raises(ValueError):
+        items.update_item(db, alice, avoid.id, {"status": "resolved"})
+    assert _snapshot(db, alice, avoid.id) == before
+
+
+def test_constraint_subjects_are_a_copy(db, alice):
+    avoid, _ = _order(db, alice)
+    items.confirm_item(db, alice, avoid.id, {}, TODAY)
+    constraint = items.get_current_constraints(db, alice, TODAY)[0]
+    constraint.subjects.append("篡改")
+    assert "篡改" not in items.get_item(db, alice, avoid.id).subjects
+
+
+def test_constraints_have_a_deterministic_tail_order(db, alice):
+    first = orders.list_order_items(db, alice, orders.create_order(db, alice, SAMPLE_ORDERS["short_term"], TODAY, TODAY).id)[0]
+    second = orders.list_order_items(db, alice, orders.create_order(db, alice, SAMPLE_ORDERS["short_term"], TODAY, TODAY).id)[0]
+    for item in (first, second):
+        items.update_item(db, alice, item.id, {"category": "other", "subjects": ["x"]})
+        items.confirm_item(db, alice, item.id, {}, TODAY)
+    assert (first.position, first.start_date) == (second.position, second.start_date)
+    ids = [c.item_id for c in items.get_current_constraints(db, alice, TODAY)]
+    assert ids == [first.id, second.id]
+
+
+@pytest.mark.parametrize("category", ["diet_avoid", "diet_require", "medication_diet", "exercise_limit"])
+def test_confirm_requires_subjects_for_specific_categories(db, alice, category):
+    order = orders.create_order(db, alice, SAMPLE_ORDERS["short_term"], TODAY, TODAY)
+    item = orders.list_order_items(db, alice, order.id)[0]
+    items.update_item(db, alice, item.id, {"category": category, "subjects": []})
+    before = _snapshot(db, alice, item.id)
+    assert _code(lambda: items.confirm_item(db, alice, item.id, {}, TODAY)) == "subjects_required"
+    assert _code(lambda: items.confirm_item(db, alice, item.id, {"content": "改了"}, TODAY)) == "subjects_required"
+    assert _snapshot(db, alice, item.id) == before
+    assert items.confirm_item(db, alice, item.id, {"subjects": ["辛辣"]}, TODAY).status == "active"
+
+
+def test_confirm_allows_empty_subjects_for_other(db, alice):
+    order = orders.create_order(db, alice, SAMPLE_ORDERS["short_term"], TODAY, TODAY)
+    item = orders.list_order_items(db, alice, order.id)[0]
+    items.update_item(db, alice, item.id, {"category": "other", "subjects": []})
+    assert items.confirm_item(db, alice, item.id, {}, TODAY).status == "active"
+
+
+def test_due_reason_wording_by_day(db, alice):
+    avoid, _ = _order(db, alice)  # 预计结束 10-06
+    reason = items._due_reason
+    assert "即将到预计结束日期" in reason(avoid, date(2026, 10, 5))
+    assert "今天是预计结束日期" in reason(avoid, date(2026, 10, 6))
+    assert "已过预计结束日期" in reason(avoid, date(2026, 10, 7))
+
+
+def test_void_and_continue_record_cleared_proposal(db, alice):
+    avoid, require = _order(db, alice)
+    for item in (avoid, require):
+        items.confirm_item(db, alice, item.id, {}, TODAY)
+    items.refresh_statuses(db, alice, date(2026, 10, 5))
+    items.propose_resolution(db, alice, avoid.id, "好了", "agent")
+    items.continue_item(db, alice, avoid.id, date(2026, 10, 20), None, date(2026, 10, 5))
+    assert items.list_events(db, alice, avoid.id)[-1].detail["proposal_cleared"] is True
+    items.propose_resolution(db, alice, require.id, "好了", "user")
+    items.void_item(db, alice, require.id, "错误")
+    assert items.list_events(db, alice, require.id)[-1].detail == {"reason": "错误", "proposal_cleared": True}
+
+
+def test_proposal_on_pending_review_keeps_status(db, alice):
+    avoid, _ = _order(db, alice)
+    items.confirm_item(db, alice, avoid.id, {}, TODAY)
+    items.refresh_statuses(db, alice, date(2026, 10, 5))
+    proposed = items.propose_resolution(db, alice, avoid.id, "复查正常", "agent")
+    assert proposed.status == "pending_review"
+    assert [(c.needs_review, c.resolution_proposed) for c in items.get_current_constraints(db, alice, date(2026, 10, 5))] == [
+        (True, True)
+    ]
+
+
+def test_rejected_continue_leaves_item_unchanged(db, alice):
+    avoid, _ = _order(db, alice)
+    items.confirm_item(db, alice, avoid.id, {}, TODAY)
+    items.refresh_statuses(db, alice, date(2026, 10, 5))
+    before = _snapshot(db, alice, avoid.id)
+    assert _code(lambda: items.continue_item(db, alice, avoid.id, date(2026, 10, 6), None, date(2026, 10, 5))) == "still_due"
+    assert _snapshot(db, alice, avoid.id) == before
+    item = items.get_item(db, alice, avoid.id)
+    assert (item.status, item.end_date, item.review_date) == ("pending_review", date(2026, 10, 6), None)

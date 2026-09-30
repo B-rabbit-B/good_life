@@ -81,6 +81,7 @@ def list_events(db: Session, user_id: uuid.UUID, item_id: uuid.UUID) -> list[Med
 
 
 REVIEW_LEAD_DAYS = 1
+SUBJECT_REQUIRED_CATEGORIES = ("diet_avoid", "diet_require", "medication_diet", "exercise_limit")
 CONSTRAINT_REMINDER = "以上是你确认过的医嘱约束，请遵医嘱；待复核的条目在你确认解除之前仍按原要求执行，如有疑问请咨询医生。"
 
 
@@ -108,10 +109,15 @@ def _transition(
     record_event(db, item, action, from_status=from_status, source=source, detail=detail)
 
 
-def _apply_changes(item: MedicalItem, changes: dict[str, Any]) -> None:
+def _apply_changes(item: MedicalItem, changes: dict[str, Any], require_subjects: bool = False) -> None:
     """先校验合并后的日期，校验通过才写入，避免出错时留下改了一半的数据。"""
+    unknown = set(changes) - set(EDITABLE_FIELDS)
+    if unknown:
+        raise ValueError(f"fields not editable through changes: {sorted(unknown)}")
     merged = {name: changes.get(name, getattr(item, name)) for name in EDITABLE_FIELDS}
     validate_item_dates(merged["start_date"], merged["end_date"], merged["review_date"])
+    if require_subjects and merged["category"] in SUBJECT_REQUIRED_CATEGORIES and not merged["subjects"]:
+        raise AppError(422, "subjects_required", "请至少填写一个涉及的食物或行为，再确认这条医嘱")
     for name, value in changes.items():
         setattr(item, name, value)
     item.missing_fields = [name for name in item.missing_fields if not getattr(item, name)]
@@ -123,6 +129,8 @@ def _due_reason(item: Any, today: date) -> str | None:
     if item.end_date is not None and item.end_date - timedelta(days=REVIEW_LEAD_DAYS) <= today:
         if item.end_date < today:
             return "已过预计结束日期，请确认是否还需要继续遵守"
+        if item.end_date == today:
+            return "今天是预计结束日期，请确认是否还需要继续遵守"
         return "即将到预计结束日期，请确认是否还需要继续遵守"
     return None
 
@@ -168,8 +176,7 @@ def confirm_item(
     item = get_item(db, user_id, item_id)
     if item.status != PENDING_CONFIRMATION:
         raise AppError(409, "invalid_transition", "只有待确认的条目可以确认")
-    if changes:
-        _apply_changes(item, changes)
+    _apply_changes(item, changes, require_subjects=True)
     item.missing_fields = []  # 用户确认即表示接受当前内容，未填结束日期视为长期
     item.confirmed_at = now()
     _transition(db, item, "confirmed", ACTIVE, "user", {"fields": sorted(changes)} if changes else None)
@@ -183,8 +190,11 @@ def void_item(db: Session, user_id: uuid.UUID, item_id: uuid.UUID, reason: str |
     item = get_item(db, user_id, item_id)
     if item.status not in EDITABLE_STATUSES:
         raise AppError(409, "item_closed", "已解除或已作废的条目不能再作废")
+    detail: dict[str, Any] = {"reason": reason} if reason else {}
+    if item.resolution_proposed_at is not None:
+        detail["proposal_cleared"] = True
     _clear_proposal(item)
-    _transition(db, item, "voided", VOIDED, "user", {"reason": reason} if reason else None)
+    _transition(db, item, "voided", VOIDED, "user", detail or None)
     db.commit()
     db.refresh(item)
     return item
@@ -205,11 +215,13 @@ def continue_item(
     if _due_reason(SimpleNamespace(end_date=end_date, review_date=review_date), today):
         raise AppError(422, "still_due", "新的预计结束日期或复查日期仍然已到期，请设置更晚的日期，或者确认解除")
     item.end_date, item.review_date = end_date, review_date
-    _clear_proposal(item)
-    detail = {
+    detail: dict[str, Any] = {
         "end_date": end_date.isoformat() if end_date else None,
         "review_date": review_date.isoformat() if review_date else None,
     }
+    if item.resolution_proposed_at is not None:
+        detail["proposal_cleared"] = True
+    _clear_proposal(item)
     _transition(db, item, "continued", ACTIVE, "user", detail)
     db.commit()
     db.refresh(item)
@@ -268,13 +280,15 @@ def get_current_constraints(
     )
     if category is not None:
         query = query.where(MedicalItem.category == category)
-    query = query.order_by(MedicalItem.category, MedicalItem.start_date, MedicalItem.position)
+    query = query.order_by(
+        MedicalItem.category, MedicalItem.start_date, MedicalItem.position, MedicalItem.created_at, MedicalItem.id
+    )
     return [
         Constraint(
             item_id=item.id,
             category=item.category,
             content=item.content,
-            subjects=item.subjects,
+            subjects=list(item.subjects),
             start_date=item.start_date,
             end_date=item.end_date,
             review_date=item.review_date,
@@ -293,4 +307,8 @@ def list_reviews(db: Session, user_id: uuid.UUID, today: date) -> list[MedicalIt
         MedicalItem.status.in_(HARD_CONSTRAINT_STATUSES),
         (MedicalItem.status == PENDING_REVIEW) | MedicalItem.resolution_proposed_at.is_not(None),
     )
-    return list(db.scalars(query.order_by(MedicalItem.start_date, MedicalItem.position)))
+    return list(
+        db.scalars(
+            query.order_by(MedicalItem.start_date, MedicalItem.position, MedicalItem.created_at, MedicalItem.id)
+        )
+    )
