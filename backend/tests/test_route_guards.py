@@ -65,3 +65,12 @@ def test_every_cycle_route_requires_cycle_user():
     assert len(cycle_routes) >= 10
     unguarded = [ctx.path for ctx in cycle_routes if require_cycle_user not in _dependency_calls(ctx.dependant)]
     assert unguarded == []
+
+
+def test_every_medical_route_requires_medical_user():
+    from app.medical.deps import require_medical_user
+
+    routes = [ctx for ctx in _api_routes(create_app()) if ctx.path.startswith("/api/medical/")]
+    assert len(routes) >= 18
+    missing = [ctx.path for ctx in routes if require_medical_user not in _dependency_calls(ctx.dependant)]
+    assert missing == []

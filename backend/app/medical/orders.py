@@ -11,7 +11,7 @@ from app.common.ownership import get_owned_or_404, owned_by
 from app.errors import AppError
 from app.medical.extraction import get_extractor
 from app.medical.items import PENDING_CONFIRMATION, record_event, validate_item_dates
-from app.medical.models import MedicalItem, MedicalOrder
+from app.medical.models import MedicalEvidence, MedicalItem, MedicalOrder
 
 
 def create_order(db: Session, user_id: uuid.UUID, text: str, order_date: date, today: date) -> MedicalOrder:
@@ -100,3 +100,54 @@ def add_manual_item(db: Session, user_id: uuid.UUID, order_id: uuid.UUID, fields
     db.commit()
     db.refresh(item)
     return item
+
+
+MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
+EVIDENCE_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "application/pdf": ".pdf"}
+
+
+def sniff_content_type(content: bytes) -> str | None:
+    """按文件头判断类型，不相信客户端声明的类型。"""
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "image/webp"
+    if content.startswith(b"%PDF-"):
+        return "application/pdf"
+    return None
+
+
+def add_evidence(
+    db: Session, user_id: uuid.UUID, order_id: uuid.UUID, filename: str, content: bytes
+) -> MedicalEvidence:
+    order = get_order(db, user_id, order_id)
+    if not content:
+        raise AppError(422, "evidence_empty", "上传的文件是空的")
+    if len(content) > MAX_EVIDENCE_BYTES:
+        raise AppError(413, "evidence_too_large", "文件不能超过 10 MB")
+    content_type = sniff_content_type(content)
+    if content_type is None:
+        raise AppError(415, "evidence_type_not_allowed", "只支持 JPG、PNG、WEBP 图片或 PDF 文件")
+    evidence = MedicalEvidence(
+        user_id=user_id,
+        order_id=order.id,
+        filename=(filename or "未命名文件")[:200],
+        content_type=content_type,
+        size_bytes=len(content),
+        content=content,
+    )
+    db.add(evidence)
+    db.commit()
+    db.refresh(evidence)
+    return evidence
+
+
+def list_evidence(db: Session, user_id: uuid.UUID, order_id: uuid.UUID) -> list[MedicalEvidence]:
+    query = owned_by(MedicalEvidence, user_id).where(MedicalEvidence.order_id == order_id)
+    return list(db.scalars(query.order_by(MedicalEvidence.created_at)))
+
+
+def get_evidence(db: Session, user_id: uuid.UUID, evidence_id: uuid.UUID) -> MedicalEvidence:
+    return get_owned_or_404(db, MedicalEvidence, user_id, evidence_id)
