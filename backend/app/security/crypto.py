@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Any
 
 from cryptography.fernet import Fernet
-from sqlalchemy import Text
+from sqlalchemy import LargeBinary, Text
 from sqlalchemy.types import TypeDecorator
 
 from app.config import get_settings
@@ -34,3 +34,16 @@ class EncryptedJSON(TypeDecorator):
 
     def process_result_value(self, value: str | None, dialect: Any) -> Any:
         return None if value is None else decrypt_value(value)
+
+
+class EncryptedBytes(TypeDecorator):
+    """原始字节（如医嘱图片）加密后以二进制存储。"""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def process_bind_param(self, value: bytes | None, dialect: Any) -> bytes | None:
+        return None if value is None else _fernet().encrypt(value)
+
+    def process_result_value(self, value: bytes | None, dialect: Any) -> bytes | None:
+        return None if value is None else _fernet().decrypt(value)
