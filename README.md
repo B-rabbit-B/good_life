@@ -123,4 +123,6 @@ uv run alembic upgrade head
 
 **8000 端口被占用。** 把启动命令里的 `--port 8000` 换成其他端口，文档地址随之改变。
 
-**启动时报缺少配置项。** 确认命令是在 `backend` 目录下执行，并且 `backend/.env` 存在、三项必填配置（`DATABASE_URL`、`JWT_SECRET`、`FIELD_ENCRYPTION_KEY`）都已填写。
+**启动时报缺少配置项。** 确认 `backend/.env` 存在、三项必填配置（`DATABASE_URL`、`JWT_SECRET`、`FIELD_ENCRYPTION_KEY`）都已填写。
+
+**启动时报密钥不合法（占位值、`JWT_SECRET` 至少需要 32 个字符、不是有效的 Fernet 密钥）。** 服务启动时会校验两个密钥，仍是 `.env.example` 里以 `replace-with` 开头的占位值、`JWT_SECRET` 不足 32 个字符、`FIELD_ENCRYPTION_KEY` 不是有效的 Fernet 密钥都会直接拒绝启动。按第 4 节重新生成两个密钥填入 `backend/.env` 即可。

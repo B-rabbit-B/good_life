@@ -40,5 +40,5 @@ def decode_access_token(token: str) -> TokenClaims:
             options={"require": ["sub", "ver", "exp"]},
         )
         return TokenClaims(user_id=uuid.UUID(payload["sub"]), token_version=int(payload["ver"]))
-    except (jwt.PyJWTError, ValueError, KeyError) as exc:
+    except (jwt.PyJWTError, ValueError, KeyError, TypeError) as exc:
         raise InvalidTokenError(str(exc)) from exc

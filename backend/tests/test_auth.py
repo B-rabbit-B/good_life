@@ -25,7 +25,11 @@ def test_duplicate_username_is_rejected_case_insensitively(client):
 def test_register_validates_input(client):
     response = client.post("/api/auth/register", json={"username": "a!", "password": "short"})
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "validation_error"
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert isinstance(error["details"], list) and error["details"]
+    for detail in error["details"]:
+        assert "field" in detail and "message" in detail
 
 
 def test_login_with_wrong_password_or_unknown_user_is_rejected(client):
@@ -59,6 +63,7 @@ def test_token_for_unknown_user_is_rejected(client):
     token = create_access_token(uuid.uuid4(), 0)
     response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_token"
 
 
 def test_expired_token_is_rejected(client):
