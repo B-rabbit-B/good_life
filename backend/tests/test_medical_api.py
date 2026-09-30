@@ -211,6 +211,7 @@ def test_evidence_upload_download_and_privacy(medical):
     assert downloaded.content == PNG
     assert downloaded.headers["content-type"] == "image/png"
     assert downloaded.headers["cache-control"] == "no-store"
+    assert downloaded.headers["x-content-type-options"] == "nosniff"
     assert f"evidence-{evidence['id']}.png" in downloaded.headers["content-disposition"]
     bella = ready_user(client, "bella")
     assert client.get(f"/api/medical/evidence/{evidence['id']}", headers=bella).status_code == 404
@@ -270,3 +271,69 @@ def test_medical_requires_login_and_disclaimer_but_any_gender(medical):
     assert client.get("/api/medical/orders", headers=unaccepted).json()["error"]["code"] == "disclaimer_not_accepted"
     male = ready_user(client, "bob", {"gender": "male"})
     assert client.post("/api/medical/orders", json={"text": "少吃辛辣。"}, headers=male).status_code == 201
+
+
+BODY_LIMIT = MAX_EVIDENCE_BYTES + 64 * 1024
+MULTIPART = {"content-type": "multipart/form-data; boundary=x"}
+TOO_LARGE = {"error": {"code": "evidence_too_large", "message": "文件不能超过 10 MB"}}
+
+
+def test_oversized_evidence_body_rejected_before_auth(medical):
+    client, _ = medical
+    url = "/api/medical/orders/00000000-0000-0000-0000-000000000000/evidence"
+    response = client.post(url, content=b"x" * (BODY_LIMIT + 1), headers=MULTIPART)
+    assert (response.status_code, response.json()) == (413, TOO_LARGE)
+
+
+def test_chunked_oversized_evidence_body_rejected_before_auth(medical):
+    client, _ = medical
+    url = "/api/medical/orders/00000000-0000-0000-0000-000000000000/evidence"
+
+    def chunks():
+        for _ in range(BODY_LIMIT // 65536 + 2):
+            yield b"x" * 65536
+
+    response = client.post(url, content=chunks(), headers=MULTIPART)
+    assert (response.status_code, response.json()) == (413, TOO_LARGE)
+
+
+def test_body_limit_only_applies_to_evidence_uploads(medical):
+    client, _ = medical
+    headers = ready_user(client, "alice")
+    response = client.post("/api/medical/orders", json={"text": "少吃辛辣。" * 2000}, headers=headers)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_medical_module_can_be_switched_off(medical, monkeypatch):
+    client, _ = medical
+    headers = ready_user(client, "alice")
+    monkeypatch.setattr("app.medical.deps.compute_capabilities", lambda profile: {"medical": False})
+    response = client.get("/api/medical/orders", headers=headers)
+    assert (response.status_code, response.json()["error"]["code"]) == (403, "medical_not_available")
+
+
+def test_edit_cannot_leave_active_item_without_subjects(medical):
+    client, _ = medical
+    headers = ready_user(client, "alice")
+    avoid = _order(client, headers)["items"][0]
+    client.post(f"/api/medical/items/{avoid['id']}/confirm", headers=headers)
+    before = client.get(f"/api/medical/items/{avoid['id']}", headers=headers).json()
+    response = client.patch(f"/api/medical/items/{avoid['id']}", json={"subjects": []}, headers=headers)
+    assert (response.status_code, response.json()["error"]["code"]) == (422, "subjects_required")
+    assert client.get(f"/api/medical/items/{avoid['id']}", headers=headers).json() == before
+    ok = client.patch(f"/api/medical/items/{avoid['id']}", json={"subjects": ["辛辣"]}, headers=headers)
+    assert ok.json()["subjects"] == ["辛辣"]
+
+
+def test_continue_with_empty_body_means_long_term(medical):
+    client, state = medical
+    headers = ready_user(client, "alice")
+    avoid = _order(client, headers)["items"][0]
+    client.post(f"/api/medical/items/{avoid['id']}/confirm", headers=headers)
+    state["today"] = date(2026, 10, 5)
+    assert client.get("/api/medical/reviews", headers=headers).json()[0]["status"] == "pending_review"
+    continued = client.post(f"/api/medical/items/{avoid['id']}/continue", json={}, headers=headers)
+    assert continued.status_code == 200
+    body = continued.json()
+    assert (body["status"], body["end_date"], body["review_date"]) == ("active", None, None)

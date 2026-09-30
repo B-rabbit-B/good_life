@@ -163,7 +163,8 @@ def update_item(db: Session, user_id: uuid.UUID, item_id: uuid.UUID, changes: di
     if item.status not in EDITABLE_STATUSES:
         raise AppError(409, "item_closed", "已解除或已作废的条目不能再修改")
     if changes:
-        _apply_changes(item, changes)
+        # 生效中与待复核的条目是硬约束，编辑后同样必须有涉及对象；待确认的条目可以自由修改
+        _apply_changes(item, changes, require_subjects=item.status in HARD_CONSTRAINT_STATUSES)
         record_event(db, item, "edited", from_status=item.status, source="user", detail={"fields": sorted(changes)})
         db.commit()
         db.refresh(item)

@@ -360,3 +360,23 @@ def test_rejected_continue_leaves_item_unchanged(db, alice):
     assert _snapshot(db, alice, avoid.id) == before
     item = items.get_item(db, alice, avoid.id)
     assert (item.status, item.end_date, item.review_date) == ("pending_review", date(2026, 10, 6), None)
+
+
+@pytest.mark.parametrize("stage", ["active", "pending_review"])
+def test_edit_of_live_item_cannot_remove_required_subjects(db, alice, stage):
+    avoid, _ = _order(db, alice)
+    items.confirm_item(db, alice, avoid.id, {}, TODAY)
+    if stage == "pending_review":
+        items.refresh_statuses(db, alice, date(2026, 10, 5))
+    before = _snapshot(db, alice, avoid.id)
+    assert items.get_item(db, alice, avoid.id).status == stage
+    assert _code(lambda: items.update_item(db, alice, avoid.id, {"subjects": []})) == "subjects_required"
+    assert _snapshot(db, alice, avoid.id) == before
+    items.update_item(db, alice, avoid.id, {"category": "other", "subjects": []})
+    assert items.get_item(db, alice, avoid.id).subjects == []
+
+
+def test_unconfirmed_item_can_be_edited_to_empty_subjects(db, alice):
+    avoid, _ = _order(db, alice)
+    assert items.update_item(db, alice, avoid.id, {"subjects": []}).subjects == []
+

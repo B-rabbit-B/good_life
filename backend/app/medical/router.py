@@ -87,6 +87,7 @@ def download_evidence(evidence_id: uuid.UUID, user: MedicalUser, db: DbSession) 
         headers={
             "Content-Disposition": f'attachment; filename="evidence-{evidence.id}{extension}"',
             "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
         },
     )
 
