@@ -1,6 +1,6 @@
 # good-life
 
-个人档案驱动的健康生活智能体。当前完成的是步骤 01：项目底座与账号档案（后端服务、PostgreSQL、注册登录、个人档案、免责声明）。
+个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）和步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示，待验收）。
 
 定位声明：只提供生活方式建议，不做医疗诊断，不替代医生。
 
@@ -68,7 +68,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 uv run alembic upgrade head
 ```
 
-该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes` 四张表。
+该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）共七张表。
 
 ## 6. 运行测试
 
@@ -145,10 +145,10 @@ uv run python -m app.cycle.demo
 | 用户名 | 类型 | 特点 |
 |---|---|---|
 | `demo_regular` | 规律型 | 4 个周期，长度 28、28、29、28 天；预测区间窄，没有降级标记 |
-| `demo_irregular` | 波动型 | 5 个周期，长度 24、33、27、36、31 天；预测区间明显更宽，带“周期差异大”等标记 |
+| `demo_irregular` | 波动型 | 5 个周期，长度 24、33、27、36、31 天；预测区间明显更宽，带 `irregular`（近几次周期长短差异较大）等标记 |
 | `demo_sparse` | 数据不足型 | 只有 2 次月经；预测显示“数据不足”，不给出日期 |
 
-脚本可以重复运行：已存在的账号会被跳过，输出“演示账号已存在，未重复创建。”。月经记录以运行当天为基准倒推，最近一次月经从今天往前 10 天开始，所以隔几天再看，“今天”离最近一次月经越来越远，出现“已超过预计月经开始时间”的标记属于正常现象。
+脚本可以重复运行：已存在的账号会被跳过，输出“演示账号已存在，未重复创建。”。月经记录以运行当天为基准倒推，最近一次月经从今天往前 10 天开始，所以隔几天再看，“今天”离最近一次月经越来越远，出现 `overdue`（已经超过预计的月经开始时间）标记属于正常现象。
 
 启动服务后，在接口文档页面（http://localhost:8000/docs）按下面顺序体验，登录与授权的操作同第 8 节：
 
