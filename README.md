@@ -1,6 +1,6 @@
 # good-life
 
-个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）和步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）。两个步骤均已验收通过。
+个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件）。三个步骤均已验收通过。
 
 定位声明：只提供生活方式建议，不做医疗诊断，不替代医生。
 
@@ -59,7 +59,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 重要：
 
 - `backend/.env` 含密钥，绝对不能提交到仓库（已在 `.gitignore` 中忽略）。仓库里只保留 `.env.example`。
-- `FIELD_ENCRYPTION_KEY` 用来加密档案中的身高、体重、健康状况、备注和修改记录，以及经期模块的每日记录内容和经期状态。这个密钥一旦丢失或更换，已经加密的数据就无法再解密，请自行妥善备份。
+- `FIELD_ENCRYPTION_KEY` 用来加密档案中的身高、体重、健康状况、备注和修改记录，以及经期模块的每日记录内容和经期状态，医嘱模块的医嘱原文、条目内容、审计详情、证据文件名与文件内容。这个密钥一旦丢失或更换，已经加密的数据就无法再解密，请自行妥善备份。
 - `JWT_SECRET` 更换后，所有已签发的登录令牌立即失效，用户需要重新登录。
 
 ## 5. 建表
@@ -68,7 +68,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 uv run alembic upgrade head
 ```
 
-该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）共七张表。
+该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）共十一张表。
 
 ## 6. 运行测试
 
@@ -161,3 +161,33 @@ uv run python -m app.cycle.demo
 7. 想让自己注册的账号也能用：`PATCH /api/profile` 把 `gender` 设为 `female`，再访问经期接口。
 
 完整的表结构、算法、接口、样例与验收记录见 `docs/02-交付物/`。
+
+## 11. 医嘱模块演示
+
+医嘱功能对任何性别开放，只要已登录并确认免责声明即可使用，访问 `/api/medical` 开头的接口。医嘱提取结果仅供参考，全部需要你确认才生效；系统不判断药物剂量与药物相互作用，请遵医嘱或咨询医生、药师。
+
+先确认开发库已建到最新版本（包含医嘱的四张表），再创建演示账号，都在 `backend` 目录下执行：
+
+```powershell
+uv run alembic upgrade head
+uv run python -m app.medical.demo
+```
+
+脚本会创建演示账号 `demo_medical`，密码是 `demo-pass-123`，它已经确认免责声明，名下录入了三份样例医嘱（短期忌口、长期慢病饮食、带复查日的术后饮食限制），共 9 条条目，全部处于待确认状态。脚本可以重复运行：账号已存在时输出“演示账号已存在，未重复创建。”，不会重复写入。
+
+启动服务后，在接口文档页面（http://localhost:8000/docs）按下面顺序体验，登录与授权的操作同第 8 节：
+
+1. 登录：`POST /api/auth/login`，用 `demo_medical` 和 `demo-pass-123` 登录，把令牌填进 Authorize。
+2. 查看医嘱与待确认条目：`GET /api/medical/orders` 看三份医嘱的原文、被忽略的句子与原因；`GET /api/medical/items`，`status` 填 `pending_confirmation`，应有 9 条。此时 `GET /api/medical/constraints` 是空的，未确认的条目不算约束。
+3. 修改并确认一条：挑一条饮食禁忌，`POST /api/medical/items/{item_id}/confirm`，正文里可以一并修改，例如 `{"subjects": ["辛辣", "油腻", "酒", "咖啡"]}`；返回状态变为 `active`。
+4. 查看当前约束：`GET /api/medical/constraints`，能看到刚确认的这一条，末尾有“请遵医嘱”的提醒；用 `category` 可以按类别筛选。
+5. 上传一张医嘱图片并下载核对：`POST /api/medical/orders/{order_id}/evidence` 选择一张 JPG、PNG、WEBP 图片或 PDF（不超过 10 MB）；再 `GET /api/medical/evidence/{evidence_id}` 下载，核对内容一致。
+6. 提出解除建议：`POST /api/medical/items/{item_id}/propose-resolution`，填 `{"reason": "复诊一切正常"}`；再查一次当前约束，这一条仍然在，只是带有待处理的解除建议标记。
+7. 确认解除：`POST /api/medical/items/{item_id}/resolve`，状态变为 `resolved`；当前约束里不再有它，但 `GET /api/medical/items` 用 `status` 填 `resolved` 仍能查到。
+8. 查看审计记录：`GET /api/medical/items/{item_id}/events`，按顺序看到创建、确认、提出解除建议、确认解除四条记录，各有时间、来源和详情。
+
+演示数据与日期有关：三份样例以运行脚本那天为开具日期。以 9 月 30 日运行为例，短期样例里“清淡、流质、半流质”一条的预计结束日期是 10 月 2 日，一直不确认的话从 10 月 3 日（运行后第 3 天）起会被自动作废；“忌食辛辣……禁酒”一条的预计结束日期是 10 月 6 日，确认后从 10 月 5 日（运行当天算第 1 天的第 6 天）起进入待复核。所以请在体验前不久再运行演示脚本；如果演示账号是几天前创建的，看到的条目数量和状态会与上面描述不同，请在数据库里删除用户名为 `demo_medical` 的账号（名下的医嘱、条目和记录会随之删除）后重新运行脚本。
+
+到期自动转待复核依赖“今天”的日期，接口文档页面无法调整，请用自动化测试核对（见验收记录）。想让自己注册的账号使用医嘱功能，登录并确认免责声明后直接访问即可。
+
+完整的表结构、状态流转、提取规则、接口、样例评测与验收记录见 `docs/03-交付物/`。
