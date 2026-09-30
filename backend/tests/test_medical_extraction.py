@@ -143,3 +143,55 @@ def test_get_extractor_returns_rule_based_extractor():
 
 def test_samples_have_titles():
     assert set(SAMPLE_ORDERS) == set(SAMPLE_TITLES) == {"short_term", "chronic", "post_surgery"}
+
+
+# ---- 修复轮 1：Ruling 4 的回归测试 ----
+
+
+def test_restriction_in_review_sentence_is_not_dropped():
+    result = _extract("术后两周内避免提重物，一周后复查。")
+    assert _summary(result) == [("exercise_limit", ["提重物"], date(2026, 10, 13), date(2026, 10, 7), "high")]
+    assert result.ignored == []
+
+
+def test_conditional_review_with_time_is_not_a_fixed_review_date():
+    result = _extract("如腹泻加重，三天后复诊。忌辛辣。")
+    assert _summary(result) == [("diet_avoid", ["辛辣"], None, None, "medium")]
+    assert ("如腹泻加重，三天后复诊", REASON_CONDITIONAL) in _ignored(result)
+
+
+def test_conditional_word_must_start_the_clause():
+    result = _extract("按时如期复查。")
+    assert _ignored(result) == [("按时如期复查", REASON_REVIEW_WITHOUT_DATE)]
+
+
+def test_medication_line_without_subjects_is_ignored():
+    result = _extract("服用维生素D，每天吃一粒，连服7天。")
+    assert result.items == []
+    assert _ignored(result) == [("服用维生素D，每天吃一粒，连服7天", REASON_MEDICATION)]
+
+
+def test_dosage_is_not_an_avoid_subject():
+    result = _extract("每次1片，每日限3次。")
+    assert result.items == []
+    assert _ignored(result) == [("每次1片，每日限3次", REASON_NO_REQUIREMENT)]
+
+
+def test_chocolate_is_not_mistaken_for_a_dosage_unit():
+    assert _summary(_extract("避免巧克力。")) == [("diet_avoid", ["巧克力"], None, None, "medium")]
+
+
+def test_duration_only_read_from_requirement_clause():
+    result = _extract("患糖尿病10年，忌甜食。")
+    assert _summary(result) == [("diet_avoid", ["甜食"], None, None, "medium")]
+    assert result.items[0].missing_fields == ["end_date"]
+
+
+def test_meals_per_day_is_not_a_duration():
+    result = _extract("一日三餐清淡饮食。")
+    assert _summary(result) == [("diet_require", ["清淡"], None, None, "medium")]
+
+
+def test_avoid_word_inside_label_is_not_stripped():
+    result = _extract("忌口：辛辣、油腻。")
+    assert _summary(result) == [("diet_avoid", ["辛辣", "油腻"], None, None, "medium")]
