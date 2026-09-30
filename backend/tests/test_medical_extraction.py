@@ -4,6 +4,7 @@ from app.medical.extraction import (
     NOTE_HEDGE,
     NOTE_MEDICATION,
     NOTE_NO_DURATION,
+    NOTE_REVIEW_SAME_CLAUSE,
     REASON_CONDITIONAL,
     REASON_MEDICATION,
     REASON_NO_REQUIREMENT,
@@ -221,3 +222,51 @@ def test_trailing_conditional_clause_does_not_swallow_earlier_clauses():
     result = _extract("忌辛辣，一周后复查，如复查异常请就医。")
     assert _summary(result) == [("diet_avoid", ["辛辣"], None, date(2026, 10, 7), "medium")]
     assert _ignored(result) == [("如复查异常请就医", REASON_CONDITIONAL)]
+
+
+# ---- 最终评审修复：C1 限制和复查写在同一分句 ----
+
+
+def test_restriction_and_review_time_in_same_clause():
+    result = _extract("两周内避免提重物并于两周后复查。")
+    assert _summary(result) == [("exercise_limit", ["提重物"], date(2026, 10, 13), None, "low")]
+    item = result.items[0]
+    assert NOTE_REVIEW_SAME_CLAUSE in item.notes
+    assert item.content == item.source_excerpt == "两周内避免提重物并于两周后复查"
+    assert result.ignored == []
+
+
+def test_review_date_in_same_clause_is_still_collected():
+    result = _extract("两周内避免提重物并于两周后复查。忌辛辣。")
+    assert _summary(result) == [
+        ("exercise_limit", ["提重物"], date(2026, 10, 13), None, "low"),
+        ("diet_avoid", ["辛辣"], None, date(2026, 10, 14), "medium"),
+    ]
+
+
+def test_restriction_before_review_without_date():
+    result = _extract("复查前一周避免饮酒。")
+    assert _summary(result) == [("diet_avoid", ["饮酒"], None, None, "low")]
+    assert NOTE_REVIEW_SAME_CLAUSE in result.items[0].notes
+    assert result.ignored == []
+    assert result.notes == []
+
+
+def test_restriction_until_review_is_kept():
+    cases = {
+        "忌辛辣直至复诊": ("diet_avoid", ["辛辣"]),
+        "禁酒至下次复查": ("diet_avoid", ["酒"]),
+        "复查前避免剧烈运动": ("exercise_limit", ["剧烈运动"]),
+    }
+    for text, (category, subjects) in cases.items():
+        result = _extract(text + "。")
+        assert _summary(result) == [(category, subjects, None, None, "low")], text
+        assert NOTE_REVIEW_SAME_CLAUSE in result.items[0].notes, text
+        assert result.ignored == [], text
+
+
+def test_review_only_order_gets_order_level_note():
+    result = _extract("三个月后复查血糖。")
+    assert result.items == []
+    assert result.ignored == []
+    assert result.notes == ["识别到复查时间 2026-12-30，但没有识别到需要遵守的饮食或运动要求，请在条目里手动补充。"]

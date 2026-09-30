@@ -50,6 +50,8 @@ NOTE_NO_DURATION = "没有识别到持续时间，请补充预计结束日期，
 NOTE_HEDGE = "原文措辞不确定（如适量、酌情），请核对具体要求"
 NOTE_MEDICATION = "涉及用药，时间范围可能以用药或停药为起点，请务必对照原文核对；药物本身的用法用量请遵医嘱或咨询药师"
 NOTE_LONG_SUBJECT = "涉及对象较长，可能没有正确拆分，请核对"
+NOTE_REVIEW_SAME_CLAUSE = "限制和复查时间写在同一分句里，请核对时间范围"
+NOTE_REVIEW_WITHOUT_ITEMS = "识别到复查时间 {dates}，但没有识别到需要遵守的饮食或运动要求，请在条目里手动补充。"
 
 _NUM = r"(\d+|[一二两三四五六七八九十]+)"
 DURATION_RE = re.compile(
@@ -60,7 +62,15 @@ EXPLICIT_DATE_RE = re.compile(
     r"(\d{4})\s*[年\-/.]\s*(\d{1,2})\s*[月\-/.]\s*(\d{1,2})\s*[日号]?"
     r"|(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]"
 )
-SENTENCE_SPLIT_RE = re.compile(r"[。；;！!？?\n]+|(?<![\d.])\d{1,2}[.、．](?!\d)|[（(]\d{1,2}[)）]")
+# 和限制写在同一分句里的复查说法，如"并于两周后复查""直至复诊""至下次复查""复查前一周"；
+# 只有复查词前面的时间是复查时间，"复查前一周"里的一周不是
+REVIEW_PHRASE_RE = re.compile(
+    r"(?:并于|并在|并|直至|直到|至|到)?"
+    r"(?P<time>" + EXPLICIT_DATE_RE.pattern + "|" + DURATION_RE.pattern + r")?\s*(?:以后|之后|后)?"
+    r"(?:下次|下一次|门诊|到院|来院|回院)?(?:" + "|".join(REVIEW_WORDS) + r")"
+    r"(?:(?:之前|以前|前)(?:" + DURATION_RE.pattern + r")?)?"
+)
+SENTENCE_SPLIT_RE =re.compile(r"[。；;！!？?\n]+|(?<![\d.])\d{1,2}[.、．](?!\d)|[（(]\d{1,2}[)）]")
 LABEL_RE = re.compile(r"^(?:出院诊断|出院医嘱|饮食建议|注意事项|诊断|医嘱|建议|处理|嘱咐|饮食)[：:]")
 PART_SPLIT_RE = re.compile(r"以及|[、和及与或/]")
 CLAUSE_END_RE = re.compile(r"[，,]")
@@ -198,10 +208,15 @@ def _is_conditional(clause: str) -> bool:
     return clause.startswith(_CONDITION_STARTS) and not clause.startswith("如期")
 
 
+def _has_requirement(clause: str) -> bool:
+    """分句含忌口触发词、饮食方式词或运动词。"""
+    return bool(_TRIGGER_RE.search(clause) or _STYLE_RE.search(clause)) or any(w in clause for w in EXERCISE_WORDS)
+
+
 def _requirement_duration(sentence: str) -> tuple[int, str] | None:
     """只在含忌口触发词、饮食方式词或运动词的分句里找持续时间，取句中第一个。"""
     for clause in _clauses(sentence):
-        if _TRIGGER_RE.search(clause) or _STYLE_RE.search(clause) or any(w in clause for w in EXERCISE_WORDS):
+        if _has_requirement(clause):
             duration = _first_duration(EXPLICIT_DATE_RE.sub(" ", clause))
             if duration:
                 return duration
@@ -233,6 +248,8 @@ class RuleBasedExtractor:
                     self._add_sentence(clause, order_date, items, ignored)
                 elif _is_conditional(clause):
                     ignored.append(IgnoredSentence(clause, REASON_CONDITIONAL))
+                elif _has_requirement(clause):
+                    self._add_review_clause(clause, order_date, items, ignored, reviews)
                 else:
                     found = self._review_dates(clause, order_date)
                     if found:
@@ -243,7 +260,9 @@ class RuleBasedExtractor:
         if reviews:
             review_date = min(reviews)
             distinct = sorted({day.isoformat() for day in reviews})
-            if len(distinct) > 1:
+            if not items:
+                notes.append(NOTE_REVIEW_WITHOUT_ITEMS.format(dates="、".join(distinct)))
+            elif len(distinct) > 1:
                 notes.append(f"识别到多个复查时间（{'、'.join(distinct)}），已取最早的一个，请核对。")
             items = [
                 replace(item, review_date=review_date)
@@ -260,6 +279,32 @@ class RuleBasedExtractor:
         items.extend(new_items)
         if skipped is not None:
             ignored.append(skipped)
+
+    def _add_review_clause(
+        self,
+        clause: str,
+        order_date: date,
+        items: list[ExtractedItem],
+        ignored: list[IgnoredSentence],
+        reviews: list[date],
+    ) -> None:
+        """限制和复查写在同一分句：复查说法只用来取复查时间，其余部分照常提取，条目一律低把握并提示核对。"""
+        for match in REVIEW_PHRASE_RE.finditer(clause):
+            if match.group("time"):
+                reviews.extend(self._review_dates(match.group("time"), order_date))
+        new_items, skipped = self._sentence_items(REVIEW_PHRASE_RE.sub("", clause), order_date)
+        items.extend(
+            replace(
+                item,
+                content=clause,
+                source_excerpt=clause,
+                confidence="low",
+                notes=[*item.notes, NOTE_REVIEW_SAME_CLAUSE],
+            )
+            for item in new_items
+        )
+        if skipped is not None:
+            ignored.append(IgnoredSentence(clause, skipped.reason))
 
     @staticmethod
     def _review_dates(sentence: str, order_date: date) -> list[date]:
