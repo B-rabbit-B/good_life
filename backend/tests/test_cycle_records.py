@@ -2,8 +2,10 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.common.clock import get_today
+from app.db import get_engine
 from app.main import create_app
 from tests.helpers import ready_user, register_and_login
 
@@ -150,6 +152,14 @@ def test_cycle_settings(cycle_client):
     assert updated.json()["status"] == "pregnant"
     assert cycle_client.get("/api/cycle/settings", headers=headers).json()["status"] == "pregnant"
     assert cycle_client.put("/api/cycle/settings", json={"status": "robot"}, headers=headers).status_code == 422
+
+
+def test_cycle_status_is_encrypted_at_rest(cycle_client):
+    headers = ready_user(cycle_client, "alice", FEMALE)
+    assert cycle_client.put("/api/cycle/settings", json={"status": "pregnant"}, headers=headers).status_code == 200
+    with get_engine().connect() as conn:
+        raw = conn.execute(text("SELECT status FROM cycle_settings")).scalar_one()
+    assert "pregnant" not in raw
 
 
 def test_open_period_older_than_max_length_is_rejected(cycle_client):

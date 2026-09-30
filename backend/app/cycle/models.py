@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint, func, text
+from sqlalchemy import Date, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.ownership import UserOwnedMixin
@@ -37,10 +37,12 @@ class CycleDayLog(UserOwnedMixin, Base):
 
 
 class CycleSettings(Base):
+    """经期设置。孕期状态属于敏感信息，status 加密存储；没有数据库默认值，新建时总是写入 tracking。"""
+
     __tablename__ = "cycle_settings"
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    status: Mapped[str] = mapped_column(String(16), default="tracking", server_default=text("'tracking'"))
+    status: Mapped[str] = mapped_column(EncryptedJSON)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
