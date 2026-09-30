@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: goodlife
       POSTGRES_DB: goodlife
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - goodlife-pgdata:/var/lib/postgresql/data
       - ./deploy/db-init:/docker-entrypoint-initdb.d:ro

@@ -28,7 +28,7 @@ uv --version
 docker compose up -d --wait db
 ```
 
-数据库映射到本机 5433 端口，账号、密码、库名都是 `goodlife`。首次创建数据卷时，`deploy/db-init` 下的脚本会自动再建一个测试库 `goodlife_test`。
+数据库映射到本机 5433 端口（只监听 127.0.0.1，局域网内其他机器连不上），账号、密码、库名都是 `goodlife`。首次创建数据卷时，`deploy/db-init` 下的脚本会自动再建一个测试库 `goodlife_test`。
 
 ## 3. 安装依赖
 
@@ -102,13 +102,13 @@ uv run uvicorn app.main:app --reload --port 8000
 
 **5433 端口被占用，数据库起不来。** 同时修改两处，缺一不可：
 
-1. 仓库根目录 `docker-compose.yml` 中 `ports` 一行，把 `"5433:5432"` 冒号左边改成空闲端口，例如 `"5434:5432"`。
+1. 仓库根目录 `docker-compose.yml` 中 `ports` 一行，把 `"127.0.0.1:5433:5432"` 中间的 5433 改成空闲端口，例如 `"127.0.0.1:5434:5432"`。
 2. `backend/.env` 中 `DATABASE_URL` 的端口改成同一个数字。
 
 测试默认也连 5433；改了端口后，先在当前 PowerShell 窗口设置环境变量再跑测试：
 
 ```powershell
-$env:TEST_DATABASE_URL = "postgresql+psycopg://goodlife:goodlife@localhost:5434/goodlife_test"
+$env:TEST_DATABASE_URL = "postgresql+psycopg://goodlife:goodlife@127.0.0.1:5434/goodlife_test"
 uv run pytest -v
 ```
 
@@ -120,6 +120,8 @@ docker compose up -d --wait db
 cd backend
 uv run alembic upgrade head
 ```
+
+**连接数据库很慢或超时。** 数据库只监听 127.0.0.1；`DATABASE_URL` 里如果写的是 `localhost`，Windows 会先尝试 IPv6 地址而卡住很久。把 `backend/.env` 中的 `localhost` 改成 `127.0.0.1` 即可（`.env.example` 已是这样）。
 
 **8000 端口被占用。** 把启动命令里的 `--port 8000` 换成其他端口，文档地址随之改变。
 

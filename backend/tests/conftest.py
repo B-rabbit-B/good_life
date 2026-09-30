@@ -2,7 +2,7 @@ import os
 
 # 必须在导入 app 之前设置：测试永远连测试库，并使用固定的测试密钥。
 os.environ["DATABASE_URL"] = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+psycopg://goodlife:goodlife@localhost:5433/goodlife_test"
+    "TEST_DATABASE_URL", "postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433/goodlife_test"
 )
 os.environ["JWT_SECRET"] = "test-jwt-secret-0123456789-abcdefghijklmnopqrstuvwxyz"
 os.environ["FIELD_ENCRYPTION_KEY"] = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
