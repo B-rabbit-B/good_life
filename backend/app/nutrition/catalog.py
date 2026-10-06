@@ -300,7 +300,7 @@ class Catalog:
         return False
 
 
-def _load_tag_entries() -> list[_TagEntry]:
+def load_tag_entries() -> list[_TagEntry]:
     entries = [_TagEntry.model_validate(raw) for raw in json.loads((DATA_DIR / "tags.json").read_text("utf-8"))]
     ids = [entry.id for entry in entries]
     if len(ids) != len(set(ids)):
@@ -418,7 +418,7 @@ def _load_dishes(base_foods: dict[str, Food]) -> list[Food]:
 
     base_foods 是已经打过标签的食材与手动补充食物；菜品继承其中 kind 属于 INHERITED_TAG_KINDS 的标签。
     """
-    kinds = {entry.id: entry.kind for entry in _load_tag_entries()}
+    kinds = {entry.id: entry.kind for entry in load_tag_entries()}
     foods = []
     for raw in json.loads((DATA_DIR / "dishes.json").read_text("utf-8")):
         entry = _DishEntry.model_validate(raw)
@@ -492,7 +492,7 @@ def _check_foods(foods: list[Food], entries: list[_TagEntry]) -> None:
 
 @lru_cache
 def load_catalog() -> Catalog:
-    entries = _load_tag_entries()
+    entries = load_tag_entries()
     base = [replace(food, tags=assign_tags(food, entries)) for food in (*_load_cfcd(), *_load_supplements())]
     dishes = [replace(dish, tags=assign_tags(dish, entries)) for dish in _load_dishes({f.id: f for f in base})]
     foods = [*base, *dishes]

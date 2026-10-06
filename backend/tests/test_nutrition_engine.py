@@ -220,3 +220,134 @@ def test_soft_rules_reference_known_phases_goals_and_tips():
     tip_ids = {tip.id for tip in load_tip_rules()}
     assert all(rule.tip_id in tip_ids for phase_rules in rules.cycle.values() for rule in phase_rules)
     assert next(r for r in rules.cycle["menstrual"] if r.tip_id == "menstrual-warm").tradition
+
+
+# ---- Fix round 1: real-catalog regressions and loader checks ----
+
+
+def _real(name):
+    from app.nutrition.catalog import load_catalog
+
+    return load_catalog().search(name)[0].food
+
+
+def _real_conclusion(category, subjects, name):
+    from app.nutrition.catalog import load_catalog
+
+    context = EvaluationContext(constraints=(_avoid("m", "医嘱原文", subjects, category=category),))
+    return evaluate_food(_real(name), 100, context, load_catalog()).conclusion
+
+
+@pytest.mark.parametrize(("category", "subjects", "name", "expected"), [
+    ("medication_diet", ["低盐"], "咸鸭蛋", NOT_RECOMMENDED),
+    ("diet_avoid", ["流质"], "米饭", CAUTION),
+    ("diet_avoid", ["盐"], "咸鸭蛋", NOT_RECOMMENDED),
+    ("diet_avoid", ["烟酒"], "啤酒", NOT_RECOMMENDED),
+    ("diet_avoid", ["烟酒"], "白酒", NOT_RECOMMENDED),
+    ("diet_avoid", ["烟酒"], "米饭", SUITABLE),
+    ("diet_avoid", ["辛辣刺激性食物"], "麻婆豆腐", NOT_RECOMMENDED),
+    ("diet_avoid", ["高盐", "高脂食物"], "咸鸭蛋", NOT_RECOMMENDED),
+    ("diet_avoid", ["高盐", "高脂食物"], "红烧肉", NOT_RECOMMENDED),
+    ("diet_avoid", ["高糖"], "可乐", NOT_RECOMMENDED),
+    ("diet_avoid", ["醋"], "米饭", CAUTION),
+    ("diet_avoid", ["糖"], "糖醋排骨", NOT_RECOMMENDED),
+])
+def test_real_catalog_orders(category, subjects, name, expected):
+    assert _real_conclusion(category, subjects, name) == expected
+
+
+def test_avoid_order_with_requirement_or_unverifiable_wording():
+    low_salt = _avoid("m1", "服药期间低盐饮食", ["低盐"], category="medication_diet")
+    assert _sources(_evaluate(BEEF_JERKY, constraints=(low_salt,))) == [("medical", "block")]
+    protein = _avoid("m2", "忌口期间优质蛋白", ["优质蛋白"])
+    assert _sources(_evaluate(BREAST, constraints=(protein,))) == [("medical", "prefer")]
+    liquid = _avoid("m3", "流质", ["流质"])
+    result = _evaluate(SPINACH, constraints=(liquid,))
+    assert _sources(result) == [("medical", "unverifiable")]
+    meals = _avoid("m4", "少量多餐", ["少量多餐"], category="medication_diet")
+    assert _evaluate(SPINACH, constraints=(meals,)).reasons == ()
+
+
+def test_unknown_single_character_subject_is_unverifiable():
+    from app.nutrition.rules import load_vocabulary
+
+    assert load_vocabulary().lookup("醋") is None
+    result = _evaluate(RICE, constraints=(_avoid("m1", "忌醋", ["醋"]),))
+    assert _sources(result) == [("medical", "unverifiable")]
+
+
+def test_single_character_term_ignores_parenthetical_qualifiers():
+    from app.nutrition.catalog import load_catalog
+
+    catalog = load_catalog()
+    milk = catalog.get("cfcd:101173")
+    assert "乳糖" in milk.name
+    context = EvaluationContext(constraints=(_avoid("m1", "忌糖", ["糖"]),))
+    assert not any(r.effect == "block" for r in evaluate_food(milk, 100, context, catalog).reasons)
+    chilled = catalog.get("cfcd:121246")
+    context = EvaluationContext(constraints=(_avoid("m2", "忌冰", ["冰"]),))
+    assert not any(r.effect == "block" for r in evaluate_food(chilled, 100, context, catalog).reasons)
+
+
+def test_unverifiable_message_reads_naturally_and_carries_pending_note():
+    result = _evaluate(RICE, constraints=(_avoid("m1", "忌食发物", ["发物"], needs_review=True),))
+    [reason] = result.reasons
+    assert reason.message.startswith("无法自动判断这个食物是否属于医嘱「忌食发物」中的「发物」")
+    assert "核对" in reason.message and "待复核" in reason.message
+
+
+def test_tradeoff_excludes_medical_from_benefits():
+    avoid_organ = _avoid("m1", "忌动物内脏", ["动物内脏"])
+    protein = _avoid("m2", "优质蛋白饮食", ["优质蛋白"], category="diet_require")
+    only_medical = _evaluate(LIVER, constraints=(avoid_organ, protein))
+    assert only_medical.tradeoff == "虽然这个食物有符合其他医嘱要求的方面，但它违反了医嘱，结论为不建议。"
+    mixed = _evaluate(LIVER, constraints=(avoid_organ, protein), goal="gain_muscle")
+    assert mixed.tradeoff == "虽然有健身目标方面的好处，但医嘱优先，结论为不建议。"
+
+
+def test_vocabulary_strips_trailing_xing():
+    from app.nutrition.rules import load_vocabulary
+
+    vocabulary = load_vocabulary()
+    assert vocabulary.lookup("寒凉性食物").tags == ("cold_nature",)
+    assert vocabulary.lookup("辛辣刺激性食物").tags == ("spicy",)
+
+
+def test_json_parser_rejects_duplicate_keys():
+    from app.nutrition.rules import parse_json
+
+    with pytest.raises(ValueError, match="辣"):
+        parse_json('{"terms": {"辣": {"tags": ["spicy"]}, "辣": {"non_food": true}}}')
+
+
+def _soft(cycle=None, goals=None):
+    return {"cycle": cycle or {}, "goals": goals or {}}
+
+
+@pytest.mark.parametrize(("raw", "fragment"), [
+    (_soft(cycle={"menstrual": [{"tags": ["nope"], "effect": "caution", "tradition": False,
+                                 "tip_id": "menstrual-warm", "message": "m"}]}), "nope"),
+    (_soft(cycle={"menstrual": [{"tags": ["spicy"], "effect": "caution", "tradition": False,
+                                 "tip_id": "no-such-tip", "message": "m"}]}), "no-such-tip"),
+    (_soft(cycle={"winter": [{"tags": ["spicy"], "effect": "caution", "tradition": False,
+                              "tip_id": "menstrual-warm", "message": "m"}]}), "winter"),
+    (_soft(goals={"bulk": [{"tags": ["spicy"], "effect": "caution", "message": "m"}]}), "bulk"),
+])
+def test_soft_rules_parser_rejects_unknown_references(raw, fragment):
+    from app.nutrition.rules import parse_soft_rules
+
+    with pytest.raises(ValueError, match=fragment):
+        parse_soft_rules(raw)
+
+
+def test_vocabulary_parser_rejects_unknown_tag():
+    from app.nutrition.rules import parse_vocabulary
+
+    with pytest.raises(ValueError, match="nope"):
+        parse_vocabulary({"terms": {"怪": {"tags": ["nope"]}}})
+
+
+def test_tag_entry_loader_is_public():
+    from app.nutrition.catalog import load_tag_entries
+
+    assert "spicy" in {entry.id for entry in load_tag_entries()}

@@ -13,6 +13,7 @@ from app.nutrition.catalog import (
     Catalog,
     Food,
     Nutrients,
+    base_name,
     match_names,
     normalize_query,
     round_one,
@@ -97,8 +98,14 @@ def _tag_names(tags: Iterable[str], catalog: Catalog) -> str:
 
 
 def _name_hit(food: Food, term: str) -> str | None:
-    """说法在食物名称或别名中，或名称、别名（长度不少于 2）在说法中；返回对得上的名称。"""
-    for name in match_names(food):
+    """说法在食物名称或别名中，或名称、别名（长度不少于 2）在说法中；返回对得上的名称。
+
+    单字说法只和别名、去掉括号限定后的基本名称比，以免"糖"命中"…（零乳糖牛奶）"、"冰"命中"（冰鲜）"。
+    """
+    names = match_names(food)
+    if len(term) < MIN_CONTAINED_LENGTH:
+        names = tuple(dict.fromkeys((*food.aliases, base_name(food.name))))
+    for name in names:
         if term in name or (len(name) >= MIN_CONTAINED_LENGTH and name in term):
             return name
     return None
@@ -116,7 +123,18 @@ def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Ca
     return "，".join(hits) or None
 
 
+def _unverifiable_message(constraint: HardConstraint, term: str, verb: str) -> str:
+    return f"无法自动判断这个食物是否{verb}医嘱「{constraint.content}」中的「{term}」，请自行核对或咨询医生。"
+
+
 def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -> list[Reason]:
+    """饮食禁忌、用药相关饮食注意与饮食要求按说法逐个判断；运动限制与其他类不参与。
+
+    词汇表里的要求类说法（如"服药期间低盐饮食"里的"低盐"）不论出现在哪类医嘱里都按要求判断。
+    不在词汇表里的说法，只有长度不少于 2 且营养库有名称对得上时才算可判断。
+    """
+    if constraint.category not in (*AVOID_CATEGORIES, REQUIRE_CATEGORY):
+        return []
     vocabulary = load_vocabulary()
     reasons = []
     for subject in constraint.subjects:
@@ -125,22 +143,9 @@ def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -
             continue
         entry = vocabulary.lookup(term)
         order = f"医嘱「{constraint.content}」中的「{term}」"
-        if constraint.category in AVOID_CATEGORIES:
-            if entry and entry.non_food:
-                continue
-            hit = _avoid_hit(food, term, entry, catalog)
-            if hit:
-                reasons.append(("block", "avoid_match", f"{order}：{hit}，不建议食用。"))
-            elif entry is None and not catalog.name_matches(term):
-                reasons.append(("unverifiable", "avoid_unverifiable",
-                                f"{order}无法从营养数据判断这个食物是否属于，请向医生核对；核对之前按谨慎处理。"))
-        elif constraint.category == REQUIRE_CATEGORY:
-            if entry and (entry.not_applicable or entry.non_food):
-                continue
-            if entry is None or not (entry.violates or entry.prefers):
-                reasons.append(("unverifiable", "require_unverifiable",
-                                f"{order}无法从营养数据判断这个食物是否符合，请向医生核对；核对之前按谨慎处理。"))
-                continue
+        if entry and (entry.non_food or entry.not_applicable):
+            continue
+        if entry and (entry.violates or entry.prefers):
             violated = food.tags & set(entry.violates)
             if violated:
                 reasons.append(("block", "require_violated",
@@ -149,6 +154,15 @@ def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -
             if preferred:
                 reasons.append(("prefer", "require_met",
                                 f"{order}：这个食物带有「{_tag_names(preferred, catalog)}」标签，符合要求。"))
+        elif (entry and entry.unverifiable) or constraint.category == REQUIRE_CATEGORY:
+            reasons.append(("unverifiable", "require_unverifiable", _unverifiable_message(constraint, term, "符合")))
+        else:
+            hit = _avoid_hit(food, term, entry, catalog)
+            verifiable = entry is not None or (len(term) >= MIN_CONTAINED_LENGTH and catalog.name_matches(term))
+            if hit:
+                reasons.append(("block", "avoid_match", f"{order}：{hit}，不建议食用。"))
+            elif not verifiable:
+                reasons.append(("unverifiable", "avoid_unverifiable", _unverifiable_message(constraint, term, "属于")))
     note = PENDING_REVIEW_NOTE if constraint.needs_review else ""
     return [Reason("medical", effect, code, message + note, constraint.item_id) for effect, code, message in reasons]
 
@@ -238,7 +252,10 @@ def _source_names(reasons: tuple[Reason, ...], effect: str, soft_only: bool = Fa
 def _tradeoff(reasons: tuple[Reason, ...]) -> str:
     effects = {r.effect for r in reasons}
     if "block" in effects and "prefer" in effects:
-        return f"虽然有{_source_names(reasons, 'prefer')}方面的好处，但医嘱优先，结论为不建议。"
+        benefits = _source_names(reasons, "prefer", soft_only=True)
+        if not benefits:
+            return "虽然这个食物有符合其他医嘱要求的方面，但它违反了医嘱，结论为不建议。"
+        return f"虽然有{benefits}方面的好处，但医嘱优先，结论为不建议。"
     cautions = _source_names(reasons, "caution", soft_only=True)
     if cautions and "prefer" in effects:
         return (f"这个食物同时有有利和需要注意的提示：有利的来自{_source_names(reasons, 'prefer')}，"

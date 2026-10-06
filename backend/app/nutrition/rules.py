@@ -7,16 +7,16 @@
 import json
 from functools import lru_cache
 from types import MappingProxyType
-from typing import Literal, get_args
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.cycle.engine import PHASES
 from app.cycle.tips import load_tip_rules
-from app.nutrition.catalog import DATA_DIR, _load_tag_entries, normalize_query
+from app.nutrition.catalog import DATA_DIR, load_tag_entries, normalize_query
 from app.profile.schemas import Goal
 
-TERM_SUFFIXES = ("食物", "食品", "类", "饮食")
+TERM_SUFFIXES = ("食物", "食品", "类", "饮食", "性")
 Tags = tuple[str, ...]
 
 
@@ -49,7 +49,7 @@ class Vocabulary:
         self.terms = MappingProxyType(dict(sorted(terms.items())))
 
     def lookup(self, term: str) -> VocabularyEntry | None:
-        """先按原样查，查不到再逐次去掉结尾的"食物""食品""类""饮食"后查。"""
+        """先按原样查，查不到再逐次去掉结尾的"食物""食品""类""饮食""性"后查（辛辣刺激性食物 → 辛辣刺激性 → 辛辣刺激）。"""
         candidate = normalize_query(term)
         while candidate:
             if candidate in self.terms:
@@ -94,16 +94,28 @@ class _VocabularyFile(BaseModel):
     terms: dict[str, VocabularyEntry]
 
 
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    keys = [key for key, _ in pairs]
+    duplicated = sorted({key for key in keys if keys.count(key) > 1})
+    if duplicated:
+        raise ValueError(f"规则数据中有重复的键：{duplicated}")
+    return dict(pairs)
+
+
+def parse_json(text: str) -> Any:
+    """解析 JSON，同一对象内出现重复的键时报错（json 默认会静默保留最后一个）。"""
+    return json.loads(text, object_pairs_hook=_no_duplicate_keys)
+
+
 def _check_tags(owner: str, tags: Tags, defined: set[str]) -> None:
     undefined = sorted(set(tags) - defined)
     if undefined:
         raise ValueError(f"{owner} 引用了未定义的标签：{undefined}")
 
 
-@lru_cache
-def load_vocabulary() -> Vocabulary:
-    defined = {entry.id for entry in _load_tag_entries()}
-    data = _VocabularyFile.model_validate(json.loads((DATA_DIR / "vocabulary.json").read_text("utf-8")))
+def parse_vocabulary(raw: Any) -> Vocabulary:
+    defined = {entry.id for entry in load_tag_entries()}
+    data = _VocabularyFile.model_validate(raw)
     for term, entry in sorted(data.terms.items()):
         if term != normalize_query(term) or not term:
             raise ValueError(f"词汇表说法“{term}”不能为空或含空白")
@@ -111,10 +123,9 @@ def load_vocabulary() -> Vocabulary:
     return Vocabulary(data.terms)
 
 
-@lru_cache
-def load_soft_rules() -> SoftRules:
-    defined = {entry.id for entry in _load_tag_entries()}
-    rules = SoftRules.model_validate(json.loads((DATA_DIR / "soft_rules.json").read_text("utf-8")))
+def parse_soft_rules(raw: Any) -> SoftRules:
+    defined = {entry.id for entry in load_tag_entries()}
+    rules = SoftRules.model_validate(raw)
     tip_ids = {tip.id for tip in load_tip_rules()}
     for phase, phase_rules in sorted(rules.cycle.items()):
         if phase not in PHASES:
@@ -129,3 +140,13 @@ def load_soft_rules() -> SoftRules:
         for rule in goal_rules:
             _check_tags(f"目标软规则 {goal}", rule.tags, defined)
     return rules
+
+
+@lru_cache
+def load_vocabulary() -> Vocabulary:
+    return parse_vocabulary(parse_json((DATA_DIR / "vocabulary.json").read_text("utf-8")))
+
+
+@lru_cache
+def load_soft_rules() -> SoftRules:
+    return parse_soft_rules(parse_json((DATA_DIR / "soft_rules.json").read_text("utf-8")))
