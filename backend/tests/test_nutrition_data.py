@@ -327,3 +327,9 @@ def test_followup_data_gaps():
     assert "dairy" in catalog.get("cfcd:011410").tags  # 花卷（加牛奶）
     assert "meat" in catalog.get("cfcd:011503").tags  # 面筋（肉馅）
     assert "sweets" in catalog.get("cfcd:011407").tags  # 烧饼（加糖）
+
+
+def test_soybean_and_bean_sprouts_are_legume():
+    catalog = load_catalog()
+    for food_id in ("cfcd:042109", "cfcd:042202", "cfcd:042205", "cfcd:042206"):
+        assert "legume" in catalog.get(food_id).tags, food_id
