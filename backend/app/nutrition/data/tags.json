@@ -1,0 +1,16 @@
+[
+  {"id": "high_protein", "name": "高蛋白", "kind": "nutrition", "review_status": "reviewed",
+   "basis": "每 100 克蛋白质不少于 12 克（参照 GB 28050 高蛋白声称的数值）", "rule": {"nutrient": "protein_g", "min": 12}},
+  {"id": "high_fat", "name": "高脂肪", "kind": "nutrition", "review_status": "reviewed",
+   "basis": "每 100 克脂肪不少于 20 克", "rule": {"nutrient": "fat_g", "min": 20}},
+  {"id": "low_fat", "name": "低脂肪", "kind": "nutrition", "review_status": "reviewed",
+   "basis": "每 100 克脂肪不超过 3 克（参照 GB 28050 低脂肪声称的数值）", "rule": {"nutrient": "fat_g", "max": 3}},
+  {"id": "high_sodium", "name": "高钠", "kind": "nutrition", "review_status": "reviewed",
+   "basis": "每 100 克钠不少于 800 毫克", "rule": {"nutrient": "sodium_mg", "min": 800}},
+  {"id": "high_fiber", "name": "高膳食纤维", "kind": "nutrition", "review_status": "reviewed",
+   "basis": "每 100 克膳食纤维不少于 6 克（参照 GB 28050 高膳食纤维声称的数值）", "rule": {"nutrient": "fiber_g", "min": 6}},
+  {"id": "iron_rich", "name": "富含铁", "kind": "nutrition", "review_status": "reviewed",
+   "basis": "每 100 克铁不少于 3 毫克", "rule": {"nutrient": "iron_mg", "min": 3}},
+  {"id": "calcium_rich", "name": "富含钙", "kind": "nutrition", "review_status": "reviewed",
+   "basis": "每 100 克钙不少于 150 毫克", "rule": {"nutrient": "calcium_mg", "min": 150}}
+]
