@@ -153,3 +153,33 @@ def test_search_flags_candidates_that_are_not_exact(client, query):
     assert (body["found"], body["exact"]) == (True, False)
     assert body["results"][0]["match"] == "query_contains"
     assert body["message"] == "没有完全一致的食物，下面是名称相近的候选，请确认是否是你要找的"
+
+
+def test_summary_lists_nutrients_missing_from_logged_food(client):
+    catalog = load_catalog()
+    food = next(f for f in catalog.foods.values() if f.kind == "ingredient" and f.nutrients.sodium_mg is None
+                and f.nutrients.energy_kcal is not None)
+    headers = ready_user(client, "alice", PROFILE)
+    _log(client, headers, food.id, grams=100)
+    _log(client, headers, RICE, grams=100)
+    summary = client.get("/api/nutrition/summary", params={"date": "2026-10-06"}, headers=headers).json()
+    assert "sodium_mg" in summary["incomplete_fields"]
+    assert summary["total"]["sodium_mg"] == round_one(catalog.get(RICE).nutrients.sodium_mg)
+
+
+def test_summary_remaining_is_none_for_insufficient_profile(client):
+    headers = ready_user(client, "bella")
+    _log(client, headers, RICE, grams=100)
+    summary = client.get("/api/nutrition/summary", params={"date": "2026-10-06"}, headers=headers).json()
+    assert summary["needs"]["status"] == "insufficient_profile"
+    assert summary["remaining"] is None
+    assert summary["total"]["energy_kcal"] == 116
+
+
+def test_day_index_exists():
+    from sqlalchemy import inspect
+
+    from app.db import get_engine
+
+    indexes = {index["name"]: index["column_names"] for index in inspect(get_engine()).get_indexes("meal_entries")}
+    assert indexes["ix_meal_entries_user_day"] == ["user_id", "eaten_on"]

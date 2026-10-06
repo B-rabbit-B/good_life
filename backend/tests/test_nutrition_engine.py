@@ -676,3 +676,21 @@ def test_response_models_use_literal_values():
         EvaluationOut(conclusion="ok", **base)
     with pytest.raises(ValidationError):
         MealEvaluationOut(items=[], conclusion="fine", total=nutrients, disclaimer="x")
+
+
+def test_ranking_every_food_for_a_five_subject_order_is_fast():
+    import time
+
+    from app.nutrition.catalog import load_catalog
+
+    load_catalog.cache_clear()
+    catalog = load_catalog()  # 新的营养库实例，名称扫描的缓存从空开始
+    context = EvaluationContext(constraints=(
+        _avoid("m1", "忌牛羊肉、发物、醋、高嘌呤食物如动物内脏、葡萄柚汁",
+               ["牛羊肉", "发物", "醋", "高嘌呤食物如动物内脏", "葡萄柚汁"]),
+    ), needs=NEEDS)
+    started = time.perf_counter()
+    results = [evaluate_food(food, 100, context, catalog) for food in catalog.foods.values()]
+    elapsed = time.perf_counter() - started
+    assert elapsed < 2, elapsed
+    assert len(results) == len(catalog.foods)

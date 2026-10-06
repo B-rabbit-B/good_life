@@ -150,3 +150,25 @@ def test_amount_defaults_portion_and_conflicts(medical_today):
                        headers=headers).json()["error"]["code"] == "invalid_portion"
     too_many = {"items": [{"food_id": food_id}] * 21}
     assert client.post("/api/nutrition/evaluate-meal", json=too_many, headers=headers).status_code == 422
+
+
+def test_evaluate_reports_intake_after_logged_meals(medical_today):
+    client, _ = medical_today
+    headers = ready_user(client, "ivy", {"gender": "female", "birth_year": 1998, "height_cm": 162.5, "weight_kg": 52,
+                                         "activity_level": "light", "goal": "lose_fat"})
+    rice = _id(client, headers, "米饭")
+    body = {"eaten_on": TODAY.isoformat(), "meal_type": "lunch", "food_id": rice, "grams": 1500}
+    assert client.post("/api/nutrition/meals", json=body, headers=headers).status_code == 201
+    result = _evaluate(client, headers, "米饭", grams=100)
+    assert result["conclusion"] == "caution"
+    [intake] = [r for r in result["reasons"] if r["source"] == "intake"]
+    assert (intake["effect"], intake["code"], intake["ref"]) == ("caution", "energy_over_limit", "energy_kcal")
+    assert "1740" in intake["message"]  # 已摄入 1500 克米饭约 1740 千卡
+
+
+def test_evaluate_has_no_cycle_reasons_when_phase_is_unknown(medical_today):
+    client, _ = medical_today
+    headers = ready_user(client, "june", {"gender": "female"})  # 没有任何经期记录，阶段未知
+    result = _evaluate(client, headers, "西瓜")
+    assert not any(r["source"] == "cycle" for r in result["reasons"])
+    assert result["conclusion"] == "suitable"

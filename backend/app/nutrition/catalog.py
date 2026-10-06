@@ -260,6 +260,8 @@ class Catalog:
         for alias, food_id in self.common_aliases.items():
             if food_id in self._match_names and alias not in self._match_names[food_id]:
                 self._match_names[food_id] += (alias,)
+        self._containing: dict[str, bool] = {}  # 按说法缓存全库名称扫描的结果（营养库只读，结果不会变）
+        self._within: dict[str, bool] = {}
 
     def get(self, food_id: str) -> Food | None:
         return self.foods.get(food_id)
@@ -310,13 +312,18 @@ class Catalog:
 
     def has_name_containing(self, term: str) -> bool:
         """是否有食物的某个说法包含这个说法。"""
-        return any(term in name for names in self._match_names.values() for name in names)
+        if term not in self._containing:
+            self._containing[term] = any(term in name for names in self._match_names.values() for name in names)
+        return self._containing[term]
 
     def has_name_within(self, term: str) -> bool:
         """是否有食物的某个说法（长度不少于 2）被这个说法包含。"""
-        return any(
-            len(name) >= MIN_CONTAINED_LENGTH and name in term for names in self._match_names.values() for name in names
-        )
+        if term not in self._within:
+            self._within[term] = any(
+                len(name) >= MIN_CONTAINED_LENGTH and name in term
+                for names in self._match_names.values() for name in names
+            )
+        return self._within[term]
 
 
 def load_tag_entries() -> list[_TagEntry]:

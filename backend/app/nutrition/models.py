@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, String, func
+from sqlalchemy import Date, DateTime, Float, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.ownership import UserOwnedMixin
@@ -13,6 +13,7 @@ class MealEntry(UserOwnedMixin, Base):
     """一次饮食记录。营养为记录时按克数计算的快照；备注加密。"""
 
     __tablename__ = "meal_entries"
+    __table_args__ = (Index("ix_meal_entries_user_day", "user_id", "eaten_on"),)  # 按用户与日期查当天的记录
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     eaten_on: Mapped[date] = mapped_column(Date)
