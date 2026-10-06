@@ -123,3 +123,23 @@ def test_nutrition_requires_login_and_disclaimer(client):
     assert client.get("/api/nutrition/tags").status_code == 401
     headers = register_and_login(client, "carl")
     assert client.get("/api/nutrition/tags", headers=headers).json()["error"]["code"] == "disclaimer_not_accepted"
+
+
+def test_note_only_edit_keeps_snapshot_and_does_not_touch_catalog(client, monkeypatch):
+    from app.nutrition import meals
+
+    headers = ready_user(client, "alice")
+    entry = _log(client, headers, RICE, grams=100, note="旧备注")
+
+    def unavailable(*args, **kwargs):
+        raise AssertionError("note-only edit must not read the catalog")
+
+    monkeypatch.setattr(meals, "load_catalog", unavailable)
+    monkeypatch.setattr(meals, "get_food", unavailable)
+    for change in ({"note": "新备注"}, {"meal_type": "dinner"}, {"eaten_on": "2026-10-05"}):
+        updated = client.patch(f"/api/nutrition/meals/{entry['id']}", json=change, headers=headers)
+        assert updated.status_code == 200, updated.text
+        body = updated.json()
+        assert body["nutrients"] == entry["nutrients"] and body["grams"] == 100
+        assert body["food_name"] == entry["food_name"]
+    assert body["note"] == "新备注" and body["meal_type"] == "dinner" and body["eaten_on"] == "2026-10-05"

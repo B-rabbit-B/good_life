@@ -92,16 +92,20 @@ def update_meal(
     eaten_on = changes.get("eaten_on", entry.eaten_on)
     if eaten_on > today:
         raise AppError(422, "meal_in_future", "不能记录未来日期的饮食")
-    food = get_food(changes.get("food_id", entry.food_id))
-    if "grams" in changes or "portion" in changes:
-        grams = resolve_grams(food, changes.get("grams"), changes.get("portion"))
-    else:
-        grams = entry.grams
+    snapshot = None
+    if {"food_id", "grams", "portion"} & changes.keys():  # 只有食物或份量变了才重算营养快照
+        food = get_food(changes.get("food_id", entry.food_id))
+        if "grams" in changes or "portion" in changes:
+            grams = resolve_grams(food, changes.get("grams"), changes.get("portion"))
+        else:
+            grams = entry.grams
+        snapshot = (food, grams)
     entry.eaten_on = eaten_on
     entry.meal_type = changes.get("meal_type", entry.meal_type)
     if "note" in changes:
         entry.note = changes["note"]
-    _apply_snapshot(entry, food, grams)
+    if snapshot:
+        _apply_snapshot(entry, *snapshot)
     db.commit()
     db.refresh(entry)
     return entry
