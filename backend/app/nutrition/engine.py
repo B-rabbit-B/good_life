@@ -14,7 +14,6 @@ from app.nutrition.catalog import (
     Food,
     Nutrients,
     base_name,
-    match_names,
     normalize_query,
     round_one,
 )
@@ -97,30 +96,50 @@ def _tag_names(tags: Iterable[str], catalog: Catalog) -> str:
     return "、".join(catalog.tag_name(tag) for tag in sorted(tags))
 
 
-def _name_hit(food: Food, term: str) -> str | None:
-    """说法在食物名称或别名中，或名称、别名（长度不少于 2）在说法中；返回对得上的名称。
-
-    单字说法只和别名、去掉括号限定后的基本名称比，以免"糖"命中"…（零乳糖牛奶）"、"冰"命中"（冰鲜）"。
-    """
-    names = match_names(food)
+def _food_names(food: Food, term: str, catalog: Catalog) -> tuple[str, ...]:
+    """这个食物用于名称匹配的说法（含常用名）；单字说法不和带括号限定的完整名称比，
+    以免"糖"命中"…（零乳糖牛奶）"、"冰"命中"（冰鲜）"。"""
+    names = catalog.match_names_of(food)
     if len(term) < MIN_CONTAINED_LENGTH:
-        names = tuple(dict.fromkeys((*food.aliases, base_name(food.name))))
-    for name in names:
-        if term in name or (len(name) >= MIN_CONTAINED_LENGTH and name in term):
-            return name
-    return None
+        names = tuple(name for name in names if name != food.name or name == base_name(food.name))
+    return names
 
 
-def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Catalog) -> str | None:
-    """避免类说法是否命中这个食物；命中时返回命中方式的说明。"""
-    hits = []
-    tags = food.tags & set(entry.tags) if entry else set()
-    if tags:
-        hits.append(f"这个食物带有「{_tag_names(tags, catalog)}」标签")
-    name = _name_hit(food, term)
-    if name:
-        hits.append(f"食物名称「{name}」与「{term}」对得上")
-    return "，".join(hits) or None
+def _term_in_name(names: tuple[str, ...], term: str) -> str | None:
+    return next((name for name in names if term in name), None)
+
+
+def _name_in_term(names: tuple[str, ...], term: str) -> str | None:
+    return next((name for name in names if len(name) >= MIN_CONTAINED_LENGTH and name in term), None)
+
+
+def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Catalog) -> tuple[str | None, bool]:
+    """避免类说法是否命中这个食物：返回（命中方式的说明或 None，对这个食物是否可判断）。
+
+    词汇表里的说法：按标签命中，或名称与说法互相包含。词汇表里没有的说法：
+    a) 营养库有名称包含这个说法 → 只按"说法在名称中"命中，不命中即不影响（葡萄柚不命中葡萄）；
+    b) 否则有名称（长度不少于 2）在说法中 → 这些食物命中，其他食物无法判断（牛羊肉命中羊肉，牛肉无法判断）；
+    c) 否则（含单字说法）只按"说法在名称中"命中，其他食物无法判断。
+    """
+    names = _food_names(food, term, catalog)
+    if entry is not None:
+        hits = []
+        tags = food.tags & set(entry.tags)
+        if tags:
+            hits.append(f"这个食物带有「{_tag_names(tags, catalog)}」标签")
+        name = _term_in_name(names, term) or _name_in_term(names, term)
+        if name:
+            hits.append(f"食物名称「{name}」与「{term}」对得上")
+        return "，".join(hits) or None, True
+    long_term = len(term) >= MIN_CONTAINED_LENGTH
+    if long_term and catalog.has_name_containing(term):
+        name = _term_in_name(names, term)
+        return (f"食物名称「{name}」包含「{term}」" if name else None), True
+    if long_term and catalog.has_name_within(term):
+        name = _name_in_term(names, term)
+        return (f"食物名称「{name}」包含在「{term}」中", True) if name else (None, False)
+    name = _term_in_name(names, term)
+    return (f"食物名称「{name}」包含「{term}」", True) if name else (None, False)
 
 
 def _unverifiable_message(constraint: HardConstraint, term: str, verb: str) -> str:
@@ -130,8 +149,8 @@ def _unverifiable_message(constraint: HardConstraint, term: str, verb: str) -> s
 def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -> list[Reason]:
     """饮食禁忌、用药相关饮食注意与饮食要求按说法逐个判断；运动限制与其他类不参与。
 
-    词汇表里的要求类说法（如"服药期间低盐饮食"里的"低盐"）不论出现在哪类医嘱里都按要求判断。
-    不在词汇表里的说法，只有长度不少于 2 且营养库有名称对得上时才算可判断。
+    词汇表里的要求类说法（如"服药期间低盐饮食"里的"低盐"）不论出现在哪类医嘱里都按要求判断；
+    避免类说法的命中与可判断规则见 _avoid_hit。
     """
     if constraint.category not in (*AVOID_CATEGORIES, REQUIRE_CATEGORY):
         return []
@@ -157,8 +176,7 @@ def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -
         elif (entry and entry.unverifiable) or constraint.category == REQUIRE_CATEGORY:
             reasons.append(("unverifiable", "require_unverifiable", _unverifiable_message(constraint, term, "符合")))
         else:
-            hit = _avoid_hit(food, term, entry, catalog)
-            verifiable = entry is not None or (len(term) >= MIN_CONTAINED_LENGTH and catalog.name_matches(term))
+            hit, verifiable = _avoid_hit(food, term, entry, catalog)
             if hit:
                 reasons.append(("block", "avoid_match", f"{order}：{hit}，不建议食用。"))
             elif not verifiable:
@@ -217,7 +235,7 @@ def _preference_reasons(food: Food, context: EvaluationContext, catalog: Catalog
         entry = vocabulary.lookup(term) if term else None
         if not term or (entry and entry.non_food):
             continue
-        hit = _avoid_hit(food, term, entry, catalog)
+        hit, _ = _avoid_hit(food, term, entry, catalog)
         if hit:
             reasons.append(Reason("preference", "caution", "avoidance_match",
                                   f"你在档案里填写了不吃「{term}」：{hit}。", term))

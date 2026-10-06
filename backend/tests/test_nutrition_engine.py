@@ -351,3 +351,52 @@ def test_tag_entry_loader_is_public():
     from app.nutrition.catalog import load_tag_entries
 
     assert "spicy" in {entry.id for entry in load_tag_entries()}
+
+
+# ---- Fix round 2: subjects not in the vocabulary ----
+
+
+def _real_medical(subjects, name):
+    from app.nutrition.catalog import load_catalog
+
+    context = EvaluationContext(constraints=(_avoid("m", "医嘱原文", subjects),))
+    result = evaluate_food(_real(name), 100, context, load_catalog())
+    return result.conclusion, [r.effect for r in result.reasons if r.source == "medical"]
+
+
+@pytest.mark.parametrize(("subjects", "name", "expected"), [
+    (["牛羊肉"], "羊肉", (NOT_RECOMMENDED, ["block"])),
+    (["牛羊肉"], "牛肉", (CAUTION, ["unverifiable"])),
+    (["猪牛羊肉"], "牛肉", (CAUTION, ["unverifiable"])),
+    (["猪牛羊肉"], "猪肉", (CAUTION, ["unverifiable"])),
+    (["葡萄柚"], "葡萄", (SUITABLE, [])),
+    (["葡萄柚"], "葡萄柚", (NOT_RECOMMENDED, ["block"])),
+    (["咖啡因"], "可乐", (NOT_RECOMMENDED, ["block"])),
+    (["红肉"], "牛肉", (NOT_RECOMMENDED, ["block"])),
+    (["菠菜"], "米饭", (SUITABLE, [])),
+    (["菠菜"], "菠菜", (NOT_RECOMMENDED, ["block"])),
+    (["白粥"], "白粥", (NOT_RECOMMENDED, ["block"])),
+])
+def test_real_catalog_unknown_subjects(subjects, name, expected):
+    assert _real_medical(subjects, name) == expected
+
+
+def test_vocabulary_has_caffeine_and_red_meat():
+    from app.nutrition.rules import load_vocabulary
+
+    vocabulary = load_vocabulary()
+    assert vocabulary.lookup("咖啡因").tags == ("caffeine",)
+    assert vocabulary.lookup("红肉").tags == ("meat",)
+
+
+def test_personal_avoidance_of_compound_subject_ignores_unverifiable():
+    from app.nutrition.catalog import load_catalog
+
+    catalog = load_catalog()
+    context = EvaluationContext(food_avoidances=("牛羊肉",), needs=NEEDS)
+    lamb = evaluate_food(_real("羊肉"), 100, context, catalog)
+    assert [(r.source, r.effect) for r in lamb.reasons] == [("preference", "caution")]
+    beef = evaluate_food(_real("牛肉"), 100, context, catalog)
+    assert beef.reasons == () and beef.conclusion == SUITABLE
+    grape = evaluate_food(_real("葡萄"), 100, EvaluationContext(food_avoidances=("葡萄柚",), needs=NEEDS), catalog)
+    assert grape.reasons == ()

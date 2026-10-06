@@ -247,6 +247,10 @@ class Catalog:
         self.tags = MappingProxyType({tag.id: tag for tag in sorted(tag_definitions, key=lambda t: t.id)})
         self.common_aliases = MappingProxyType(dict(sorted(common_aliases.items())))
         self._names = {food.id: match_names(food) for food in self.foods.values()}
+        self._match_names = dict(self._names)
+        for alias, food_id in self.common_aliases.items():
+            if food_id in self._match_names and alias not in self._match_names[food_id]:
+                self._match_names[food_id] += (alias,)
 
     def get(self, food_id: str) -> Food | None:
         return self.foods.get(food_id)
@@ -287,6 +291,20 @@ class Catalog:
                 offer(food_id, 4)
         ordered = sorted(best.items(), key=lambda item: (item[1], self._preference(self.foods[item[0]])))
         return [SearchHit(self.foods[food_id], MATCH_TYPES[rank]) for food_id, rank in ordered[:limit]]
+
+    def match_names_of(self, food: Food) -> tuple[str, ...]:
+        """约束判断用的全部说法：match_names 加上指向这个食物的常用名（不在库里的食物只用 match_names）。"""
+        return self._match_names.get(food.id, match_names(food))
+
+    def has_name_containing(self, term: str) -> bool:
+        """是否有食物的某个说法包含这个说法。"""
+        return any(term in name for names in self._match_names.values() for name in names)
+
+    def has_name_within(self, term: str) -> bool:
+        """是否有食物的某个说法（长度不少于 2）被这个说法包含。"""
+        return any(
+            len(name) >= MIN_CONTAINED_LENGTH and name in term for names in self._match_names.values() for name in names
+        )
 
     def name_matches(self, term: str) -> bool:
         """营养库里是否有食物的名称、别名或基本名称与这个说法对得上（互相包含）。"""
