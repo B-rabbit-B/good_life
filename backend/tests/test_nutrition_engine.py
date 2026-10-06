@@ -779,3 +779,28 @@ def test_personal_avoidance_prefix_is_stripped():
     context = EvaluationContext(food_avoidances=("吃鸡肉",), needs=NEEDS)
     result = evaluate_food(_real_food("鸡腿"), 100, context, load_catalog())
     assert [(r.source, r.effect) for r in result.reasons] == [("preference", "caution")]
+
+
+# ---- 第三批跟进：少盐、少油、方腿、腌腊制品、食用菌 ----
+
+
+def test_shaoyan_diet_order_from_extractor_text():
+    text = "清淡少盐饮食。"
+    assert _order_result(text, "火腿肠").conclusion == NOT_RECOMMENDED
+    assert _order_result(text, "咸鸭蛋").conclusion == NOT_RECOMMENDED
+    assert _order_result(text, "清炒西兰花").conclusion == SUITABLE
+    assert _order_result("少油饮食。", "炸鸡").conclusion == NOT_RECOMMENDED
+    assert _order_result("少油饮食。", "米饭").conclusion == SUITABLE
+
+
+def test_luncheon_ham_is_cured_and_blocked_by_low_salt():
+    assert "cured" in _real_food("方腿").tags
+    assert _order_result("低盐饮食。", "方腿").conclusion == NOT_RECOMMENDED
+
+
+@pytest.mark.parametrize(("subject", "blocked", "name"), [
+    ("腌腊制品", "咸肉", "米饭"), ("食用菌", "香菇", "米饭"),
+])
+def test_cured_and_edible_fungi_subjects_are_vocabulary_terms(subject, blocked, name):
+    assert _real_conclusion("diet_avoid", [subject], blocked) == NOT_RECOMMENDED
+    assert _real_conclusion("diet_avoid", [subject], name) == SUITABLE
