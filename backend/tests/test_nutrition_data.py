@@ -43,7 +43,7 @@ def test_common_food_list_has_one_hundred_distinct_names():
 def test_common_food_is_found_exactly(name):
     hits = load_catalog().search(name)
     assert hits, f"{name} 未找到"
-    assert hits[0].match in ("exact_name", "exact_alias"), (name, hits[0].food.name, hits[0].match)
+    assert hits[0].match in ("exact_name", "common_name", "exact_alias"), (name, hits[0].food.name, hits[0].match)
 
 
 def test_dishes_are_well_formed_and_computed_from_recipe():

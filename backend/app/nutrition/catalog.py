@@ -47,7 +47,11 @@ CFCD_COLUMNS = {
     "energy_kcal": "energyKCal", "protein_g": "protein", "fat_g": "fat", "carbohydrate_g": "CHO",
     "fiber_g": "dietaryFiber", "sodium_mg": "Na", "iron_mg": "Fe", "calcium_mg": "Ca",
 }
-MATCH_TYPES = ("exact_name", "exact_alias", "prefix", "contains", "query_contains")
+MATCH_TYPES = ("exact_name", "common_name", "exact_alias", "prefix", "contains", "query_contains")
+MATCH_RANKS = {
+    "exact_name": 0, "common_name": 0, "exact_alias": 1, "prefix": 2, "contains": 3, "query_contains": 4,
+}  # 名次越小越靠前；常用名与完整名称同一名次
+EXACT_MATCH_TYPES = ("exact_name", "common_name", "exact_alias")
 KIND_ORDER = {"dish": 0, "supplement": 1, "ingredient": 2}
 SEARCH_LIMIT = 20
 MIN_CONTAINED_LENGTH = 2
@@ -271,31 +275,34 @@ class Catalog:
         q = normalize_query(query)
         if not q:
             return []
-        best: dict[str, int] = {}
+        best: dict[str, str] = {}
 
-        def offer(food_id: str, rank: int) -> None:
-            if food_id not in best or rank < best[food_id]:
-                best[food_id] = rank
+        def key(match: str) -> tuple[int, int]:
+            return MATCH_RANKS[match], MATCH_TYPES.index(match)
+
+        def offer(food_id: str, match: str) -> None:
+            if food_id not in best or key(match) < key(best[food_id]):
+                best[food_id] = match
 
         for alias, food_id in self.common_aliases.items():
             if alias == q:
-                offer(food_id, 0)
+                offer(food_id, "common_name")
             elif len(alias) >= MIN_CONTAINED_LENGTH and alias in q:
-                offer(food_id, 4)
+                offer(food_id, "query_contains")
         for food_id, names in self._names.items():
             name, aliases = names[0], names[1:]
             if name == q:
-                offer(food_id, 0)
+                offer(food_id, "exact_name")
             elif q in aliases:
-                offer(food_id, 1)
+                offer(food_id, "exact_alias")
             elif any(n.startswith(q) for n in names):
-                offer(food_id, 2)
+                offer(food_id, "prefix")
             elif any(q in n for n in names):
-                offer(food_id, 3)
+                offer(food_id, "contains")
             elif any(len(n) >= MIN_CONTAINED_LENGTH and n in q for n in names):
-                offer(food_id, 4)
-        ordered = sorted(best.items(), key=lambda item: (item[1], self._preference(self.foods[item[0]])))
-        return [SearchHit(self.foods[food_id], MATCH_TYPES[rank]) for food_id, rank in ordered[:limit]]
+                offer(food_id, "query_contains")
+        ordered = sorted(best.items(), key=lambda item: (MATCH_RANKS[item[1]], self._preference(self.foods[item[0]])))
+        return [SearchHit(self.foods[food_id], match) for food_id, match in ordered[:limit]]
 
     def match_names_of(self, food: Food) -> tuple[str, ...]:
         """约束判断用的全部说法：match_names 加上指向这个食物的常用名（不在库里的食物只用 match_names）。"""
@@ -310,17 +317,6 @@ class Catalog:
         return any(
             len(name) >= MIN_CONTAINED_LENGTH and name in term for names in self._match_names.values() for name in names
         )
-
-    def name_matches(self, term: str) -> bool:
-        """营养库里是否有食物的名称、别名或基本名称与这个说法对得上（互相包含）。"""
-        t = normalize_query(term)
-        if not t:
-            return False
-        for names in (*self._names.values(), tuple(self.common_aliases)):
-            for name in names:
-                if t in name or (len(name) >= MIN_CONTAINED_LENGTH and name in t):
-                    return True
-        return False
 
 
 def load_tag_entries() -> list[_TagEntry]:

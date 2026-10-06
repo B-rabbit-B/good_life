@@ -11,7 +11,7 @@ from app.db import get_db
 from app.nutrition import meals
 from app.nutrition.context import build_context
 from app.nutrition.engine import Evaluation, evaluate_food, evaluate_meal
-from app.nutrition.catalog import Food, TagDefinition, load_catalog, round_one
+from app.nutrition.catalog import EXACT_MATCH_TYPES, Food, TagDefinition, load_catalog, round_one
 from app.nutrition.deps import require_nutrition_user
 from app.nutrition.models import MealEntry
 from app.nutrition.needs import needs_for_profile
@@ -44,6 +44,7 @@ NutritionUser = Annotated[User, Depends(require_nutrition_user)]
 DbSession = Annotated[Session, Depends(get_db)]
 Today = Annotated[date, Depends(get_today)]
 DayQuery = Annotated[date | None, Query(alias="date")]
+PARTIAL_MATCH_MESSAGE = "没有完全一致的食物，下面是名称相近的候选，请确认是否是你要找的"
 
 
 def _tag_out(tag: TagDefinition) -> TagOut:
@@ -101,8 +102,14 @@ def search_foods(user: NutritionUser, q: Annotated[str, Query(min_length=1, max_
         )
         for hit in hits
     ]
-    message = "" if results else f"未找到与“{q}”匹配的食物，请换个说法或检查错别字"
-    return SearchOut(query=q, found=bool(results), results=results, message=message)
+    exact = bool(results) and results[0].match in EXACT_MATCH_TYPES
+    if not results:
+        message = f"未找到与“{q}”匹配的食物，请换个说法或检查错别字"
+    elif not exact:
+        message = PARTIAL_MATCH_MESSAGE
+    else:
+        message = ""
+    return SearchOut(query=q, found=bool(results), exact=exact, results=results, message=message)
 
 
 @router.get("/foods/{food_id}", response_model=FoodDetailOut)

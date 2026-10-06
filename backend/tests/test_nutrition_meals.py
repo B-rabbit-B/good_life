@@ -37,9 +37,10 @@ def test_search_and_food_detail(client):
     body = client.get("/api/nutrition/foods/search", params={"q": "米饭"}, headers=headers).json()
     assert body["found"] is True
     assert body["results"][0]["id"] == RICE
-    assert body["results"][0]["match"] == "exact_name"
+    assert body["results"][0]["match"] == "common_name"
+    assert (body["exact"], body["message"]) == (True, "")
     missing = client.get("/api/nutrition/foods/search", params={"q": "完全不存在的食物名称"}, headers=headers).json()
-    assert (missing["found"], missing["results"]) == (False, [])
+    assert (missing["found"], missing["exact"], missing["results"]) == (False, False, [])
     assert "未找到" in missing["message"]
     detail = client.get(f"/api/nutrition/foods/{RICE}", headers=headers).json()
     assert detail["nutrients_per_100g"]["energy_kcal"] == 116
@@ -143,3 +144,12 @@ def test_note_only_edit_keeps_snapshot_and_does_not_touch_catalog(client, monkey
         assert body["nutrients"] == entry["nutrients"] and body["grams"] == 100
         assert body["food_name"] == entry["food_name"]
     assert body["note"] == "新备注" and body["meal_type"] == "dinner" and body["eaten_on"] == "2026-10-05"
+
+
+@pytest.mark.parametrize("query", ["酸菜鱼", "螺蛳粉", "皮蛋瘦肉粥", "小龙虾"])
+def test_search_flags_candidates_that_are_not_exact(client, query):
+    headers = ready_user(client, "alice")
+    body = client.get("/api/nutrition/foods/search", params={"q": query}, headers=headers).json()
+    assert (body["found"], body["exact"]) == (True, False)
+    assert body["results"][0]["match"] == "query_contains"
+    assert body["message"] == "没有完全一致的食物，下面是名称相近的候选，请确认是否是你要找的"

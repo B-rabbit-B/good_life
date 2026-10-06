@@ -642,3 +642,37 @@ def test_requirement_cautions_are_validated_against_tags():
         parse_vocabulary({"terms": {"怪": {"violates": ["high_sugar"], "cautions": ["nope"]}}})
     with pytest.raises(ValueError):
         VocabularyEntry(tags=("spicy",), cautions=("fast_carb",))
+
+
+
+# ---- Final fix wave: reason codes and response types ----
+
+
+def test_unverifiable_codes_follow_the_order_category():
+    liquid_avoid = _evaluate(SPINACH, constraints=(_avoid("m1", "忌流质", ["流质"]),))
+    [reason] = [r for r in liquid_avoid.reasons if r.source == "medical"]
+    assert (reason.effect, reason.code) == ("unverifiable", "avoid_unverifiable")
+    assert "是否属于医嘱「忌流质」中的「流质」" in reason.message
+    liquid_require = _evaluate(SPINACH, constraints=(_avoid("m2", "流质饮食", ["流质"], category="diet_require"),))
+    [reason] = [r for r in liquid_require.reasons if r.source == "medical"]
+    assert (reason.effect, reason.code) == ("unverifiable", "require_unverifiable")
+    assert "是否符合医嘱「流质饮食」中的「流质」" in reason.message
+
+
+def test_response_models_use_literal_values():
+    from pydantic import ValidationError
+
+    from app.nutrition.schemas import EvaluationOut, MealEvaluationOut, ReasonOut
+
+    ReasonOut(source="medical", effect="block", code="avoid_match", message="m", ref="r")
+    for field, value in [("source", "doctor"), ("effect", "warn")]:
+        with pytest.raises(ValidationError):
+            ReasonOut(**{"source": "medical", "effect": "block", "code": "c", "message": "m", "ref": "r", field: value})
+    nutrients = {"energy_kcal": 1}
+    base = {"food_id": "f", "food_name": "n", "grams": 1, "nutrients": nutrients, "reasons": [], "tradeoff": "",
+            "data_source": "d", "disclaimer": "x"}
+    EvaluationOut(conclusion="caution", **base)
+    with pytest.raises(ValidationError):
+        EvaluationOut(conclusion="ok", **base)
+    with pytest.raises(ValidationError):
+        MealEvaluationOut(items=[], conclusion="fine", total=nutrients, disclaimer="x")

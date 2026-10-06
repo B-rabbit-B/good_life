@@ -7,6 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.nutrition.catalog import NUTRIENT_FIELDS, Nutrients, round_one
 
 MealType = Literal["breakfast", "lunch", "dinner", "snack"]
+MatchType = Literal["exact_name", "common_name", "exact_alias", "prefix", "contains", "query_contains"]
+Conclusion = Literal["suitable", "caution", "not_recommended"]
+ReasonSource = Literal["medical", "cycle", "goal", "intake", "preference"]
+ReasonEffect = Literal["block", "unverifiable", "caution", "prefer", "info"]
 SUMMARY_DISCLAIMER = "以上汇总与需求都是估算，仅供参考，不构成医疗建议；有医嘱时以医嘱为准。"
 
 
@@ -51,12 +55,13 @@ class FoodSummaryOut(BaseModel):
     aliases: list[str]
     category: str
     kind: str
-    match: str
+    match: MatchType
 
 
 class SearchOut(BaseModel):
     query: str
     found: bool
+    exact: bool
     results: list[FoodSummaryOut]
     message: str
 
@@ -177,8 +182,8 @@ class EvaluateMealIn(BaseModel):
 
 
 class ReasonOut(BaseModel):
-    source: str
-    effect: str
+    source: ReasonSource
+    effect: ReasonEffect
     code: str
     message: str
     ref: str
@@ -189,7 +194,7 @@ class EvaluationOut(BaseModel):
     food_name: str
     grams: float
     nutrients: NutrientsOut
-    conclusion: str
+    conclusion: Conclusion
     reasons: list[ReasonOut]
     tradeoff: str
     data_source: str
@@ -198,6 +203,6 @@ class EvaluationOut(BaseModel):
 
 class MealEvaluationOut(BaseModel):
     items: list[EvaluationOut]
-    conclusion: str
+    conclusion: Conclusion
     total: NutrientsOut
     disclaimer: str

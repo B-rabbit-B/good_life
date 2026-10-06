@@ -70,14 +70,14 @@ def test_bracket_aliases_are_searchable():
     catalog = load_catalog()
     hits = catalog.search("土豆")
     assert hits[0].food.id == "cfcd:021101"
-    assert hits[0].match in ("exact_name", "exact_alias")
+    assert hits[0].match in ("exact_name", "common_name", "exact_alias")
     assert catalog.search("西红柿")[0].food.name == "番茄"
 
 
 def test_common_aliases_rank_first():
     catalog = load_catalog()
     first = catalog.search("米饭")[0]
-    assert (first.food.id, first.match) == ("cfcd:012401x", "exact_name")
+    assert (first.food.id, first.match) == ("cfcd:012401x", "common_name")
     assert catalog.search("一碗米饭")[0].food.id == "cfcd:012401x"
     assert catalog.search("一碗米饭")[0].match == "query_contains"
 
@@ -99,12 +99,8 @@ def test_nutrition_tags_are_computed_from_values():
     assert catalog.tags["high_protein"].kind == "nutrition"
 
 
-def test_name_matches():
-    catalog = load_catalog()
-    assert catalog.name_matches("菠菜")
-    assert catalog.name_matches("新鲜菠菜")
-    assert catalog.name_matches("新鲜土豆")
-    assert not catalog.name_matches("发物")
+def test_name_matches_helper_is_gone():
+    assert not hasattr(load_catalog(), "name_matches")
 
 
 def test_base_name_drops_parenthetical_qualifiers():
@@ -130,3 +126,23 @@ def test_base_name_is_searchable_as_alias_but_real_names_win():
     hits = catalog.search("香蕉")
     assert (hits[0].food.id, hits[0].match) == ("cfcd:065033", "exact_name")
     assert {h.food.id for h in hits if h.match == "exact_alias"} >= {"cfcd:065031", "cfcd:065032"}
+
+
+# ---- 最终修复：常用名单独的匹配类型，部分匹配一眼可辨 ----
+
+def test_common_name_has_its_own_match_type_ranked_like_exact_name():
+    from app.nutrition.catalog import EXACT_MATCH_TYPES, MATCH_RANKS, MATCH_TYPES
+
+    assert MATCH_TYPES == ("exact_name", "common_name", "exact_alias", "prefix", "contains", "query_contains")
+    assert MATCH_RANKS["common_name"] == MATCH_RANKS["exact_name"] == 0
+    assert EXACT_MATCH_TYPES == ("exact_name", "common_name", "exact_alias")
+    catalog = load_catalog()
+    assert catalog.search("花生")[0].match == "common_name"
+    assert catalog.search("番茄炒蛋")[0].match == "exact_name"
+
+
+def test_partial_matches_are_labelled_as_partial():
+    catalog = load_catalog()
+    for query, name in [("酸菜鱼", "酸白菜"), ("螺蛳粉", "螺蛳"), ("皮蛋瘦肉粥", "松花蛋（鸭蛋）"), ("小龙虾", "龙虾")]:
+        first = catalog.search(query)[0]
+        assert (first.food.name, first.match) == (name, "query_contains"), query

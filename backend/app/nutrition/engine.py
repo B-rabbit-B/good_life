@@ -238,8 +238,10 @@ def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -
             if preferred:
                 reasons.append(("prefer", "require_met",
                                 f"{order}：这个食物带有「{_tag_names(preferred, catalog)}」标签，符合要求。"))
-        elif (entry and entry.unverifiable) or constraint.category == REQUIRE_CATEGORY:
+        elif constraint.category == REQUIRE_CATEGORY:
             reasons.append(("unverifiable", "require_unverifiable", _unverifiable_message(constraint, term, "符合")))
+        elif entry and entry.unverifiable:
+            reasons.append(("unverifiable", "avoid_unverifiable", _unverifiable_message(constraint, term, "属于")))
         else:
             hit = _avoid_hit(food, term, entry, catalog)
             if hit.ingredients:
