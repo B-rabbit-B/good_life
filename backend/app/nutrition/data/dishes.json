@@ -1,0 +1,333 @@
+[
+  {"id": "tomato_egg", "name": "番茄炒蛋", "aliases": ["西红柿炒鸡蛋", "西红柿炒蛋", "番茄炒鸡蛋"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:043119", "grams": 150}, {"food": "cfcd:111101x", "grams": 100}, {"food": "cfcd:192004", "grams": 10},
+     {"food": "supplement:sugar", "grams": 3}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 265, "tags": [],
+   "note": "家常做法一人份估计：番茄 150 克、鸡蛋 2 个，用量为可食部生重，烹调失水不计"},
+  {"id": "kung_pao_chicken", "name": "宫保鸡丁", "aliases": ["宫爆鸡丁"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:091112", "grams": 150}, {"food": "cfcd:072022", "grams": 25}, {"food": "cfcd:044206", "grams": 30},
+     {"food": "cfcd:043108", "grams": 5}, {"food": "supplement:sichuan_pepper", "grams": 1}, {"food": "cfcd:192004", "grams": 15},
+     {"food": "supplement:soy_sauce", "grams": 10}, {"food": "supplement:vinegar", "grams": 8}, {"food": "supplement:sugar", "grams": 8},
+     {"food": "cfcd:022103", "grams": 5}, {"food": "supplement:salt", "grams": 1.5}
+   ],
+   "serving_grams": 260, "tags": ["spicy", "fried"],
+   "note": "家常做法一人份估计：鸡胸肉、油炸花生米、葱段、干辣椒与花椒，荔枝味汁，烹调失水不计"},
+  {"id": "yuxiang_pork", "name": "鱼香肉丝", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:081110", "grams": 120}, {"food": "cfcd:041204", "grams": 40}, {"food": "cfcd:051014", "grams": 40},
+     {"food": "supplement:doubanjiang", "grams": 15}, {"food": "cfcd:192004", "grams": 15}, {"food": "supplement:sugar", "grams": 10},
+     {"food": "supplement:vinegar", "grams": 10}, {"food": "supplement:soy_sauce", "grams": 8}, {"food": "cfcd:022103", "grams": 5},
+     {"food": "cfcd:044101", "grams": 5}, {"food": "cfcd:047301", "grams": 5}, {"food": "cfcd:044206", "grams": 10}
+   ],
+   "serving_grams": 280, "tags": ["spicy"],
+   "note": "家常做法一人份估计：瘦猪肉丝配胡萝卜与水发木耳，郫县豆瓣酱调味，烹调失水不计"},
+  {"id": "braised_pork_belly", "name": "红烧肉", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:081108", "grams": 250}, {"food": "supplement:sugar", "grams": 15}, {"food": "supplement:soy_sauce", "grams": 15},
+     {"food": "cfcd:047301", "grams": 5}, {"food": "cfcd:044206", "grams": 10}, {"food": "cfcd:192004", "grams": 5},
+     {"food": "supplement:salt", "grams": 1}
+   ],
+   "serving_grams": 300, "tags": [],
+   "note": "家常做法一人份估计：五花肉 250 克炒糖色后红烧，烹调失水与出油不计"},
+  {"id": "mapo_tofu", "name": "麻婆豆腐", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:031301x", "grams": 250}, {"food": "cfcd:082101x", "grams": 40}, {"food": "supplement:doubanjiang", "grams": 15},
+     {"food": "cfcd:192004", "grams": 15}, {"food": "supplement:sichuan_pepper", "grams": 1}, {"food": "cfcd:043108", "grams": 2},
+     {"food": "cfcd:022103", "grams": 5}, {"food": "supplement:soy_sauce", "grams": 5}, {"food": "cfcd:044101", "grams": 5},
+     {"food": "cfcd:044106", "grams": 10}, {"food": "supplement:salt", "grams": 1}
+   ],
+   "serving_grams": 350, "tags": ["spicy"],
+   "note": "家常做法一人份估计：豆腐 250 克配少量牛肉末，豆瓣酱、辣椒面与花椒调味，烹调失水不计"},
+  {"id": "green_pepper_pork", "name": "青椒肉丝", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:043124", "grams": 150}, {"food": "cfcd:081110", "grams": 100}, {"food": "cfcd:192004", "grams": 12},
+     {"food": "supplement:soy_sauce", "grams": 8}, {"food": "cfcd:022103", "grams": 5}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 275, "tags": [],
+   "note": "家常做法一人份估计：青椒按不辣的甜椒（柿子椒）计，配瘦猪肉丝，烹调失水不计"},
+  {"id": "sweet_sour_ribs", "name": "糖醋排骨", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:081131", "grams": 250}, {"food": "supplement:sugar", "grams": 25}, {"food": "supplement:vinegar", "grams": 20},
+     {"food": "supplement:soy_sauce", "grams": 10}, {"food": "cfcd:192004", "grams": 10}, {"food": "cfcd:022103", "grams": 5},
+     {"food": "cfcd:047301", "grams": 5}, {"food": "supplement:salt", "grams": 1}
+   ],
+   "serving_grams": 325, "tags": ["high_sugar"],
+   "note": "家常做法一人份估计：猪小排可食部 250 克，炒糖醋汁收汁，不按油炸计，烹调失水不计"},
+  {"id": "twice_cooked_pork", "name": "回锅肉", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:081108", "grams": 150}, {"food": "cfcd:044106", "grams": 50}, {"food": "supplement:doubanjiang", "grams": 15},
+     {"food": "supplement:sweet_bean_sauce", "grams": 8}, {"food": "cfcd:192004", "grams": 8}, {"food": "supplement:soy_sauce", "grams": 5},
+     {"food": "supplement:sugar", "grams": 3}
+   ],
+   "serving_grams": 240, "tags": ["spicy"],
+   "note": "家常做法一人份估计：五花肉先煮后切片回锅，配青蒜，豆瓣酱与甜面酱调味，烹调失水与出油不计"},
+  {"id": "di_san_xian", "name": "地三鲜", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:021101", "grams": 150}, {"food": "cfcd:043101x", "grams": 150}, {"food": "cfcd:043124", "grams": 60},
+     {"food": "cfcd:192004", "grams": 30}, {"food": "supplement:soy_sauce", "grams": 10}, {"food": "supplement:sugar", "grams": 5},
+     {"food": "cfcd:022103", "grams": 5}, {"food": "cfcd:044101", "grams": 5}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 360, "tags": ["fried"],
+   "note": "家常做法一人份估计：土豆、茄子过油后与青椒同烧，食用油按吸油约 30 克计，烹调失水不计"},
+  {"id": "stir_fried_broccoli", "name": "清炒西兰花", "aliases": ["炒西兰花"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:045217", "grams": 250}, {"food": "cfcd:192004", "grams": 10}, {"food": "cfcd:044101", "grams": 5},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 265, "tags": [],
+   "note": "家常做法一人份估计，烹调失水不计"},
+  {"id": "garlic_spinach", "name": "蒜蓉菠菜", "aliases": ["炒菠菜"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:045301", "grams": 250}, {"food": "cfcd:044101", "grams": 15}, {"food": "cfcd:192004", "grams": 10},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 275, "tags": [],
+   "note": "家常做法一人份估计，烹调失水不计"},
+  {"id": "vinegar_cabbage", "name": "醋溜白菜", "aliases": ["醋熘白菜"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:045101x", "grams": 250}, {"food": "supplement:vinegar", "grams": 15}, {"food": "cfcd:192004", "grams": 10},
+     {"food": "supplement:sugar", "grams": 5}, {"food": "supplement:soy_sauce", "grams": 5}, {"food": "cfcd:043108", "grams": 2},
+     {"food": "cfcd:022103", "grams": 3}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 290, "tags": [],
+   "note": "家常做法一人份估计：大白菜帮为主，放两三个干辣椒炝锅（辣味很轻，不计为辛辣），烹调失水不计"},
+  {"id": "braised_fish", "name": "红烧鱼", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:121102", "grams": 200}, {"food": "cfcd:192004", "grams": 15}, {"food": "supplement:soy_sauce", "grams": 15},
+     {"food": "supplement:sugar", "grams": 8}, {"food": "cfcd:047301", "grams": 5}, {"food": "cfcd:044206", "grams": 10},
+     {"food": "cfcd:044101", "grams": 5}, {"food": "supplement:vinegar", "grams": 5}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 265, "tags": [],
+   "note": "家常做法一人份估计：草鱼可食部 200 克，先煎后烧，烹调失水不计"},
+  {"id": "steamed_fish", "name": "清蒸鱼", "aliases": ["清蒸鲈鱼"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:121226", "grams": 200}, {"food": "supplement:soy_sauce", "grams": 10}, {"food": "cfcd:044206", "grams": 10},
+     {"food": "cfcd:047301", "grams": 5}, {"food": "cfcd:192004", "grams": 5}
+   ],
+   "serving_grams": 230, "tags": [],
+   "note": "家常做法一人份估计：鲈鱼可食部 200 克，蒸鱼豉油按酱油计，淋少量热油，烹调失水不计"},
+  {"id": "boiled_fish", "name": "水煮鱼", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:121102", "grams": 200}, {"food": "cfcd:042202", "grams": 100}, {"food": "cfcd:192004", "grams": 30},
+     {"food": "supplement:doubanjiang", "grams": 20}, {"food": "cfcd:043108", "grams": 10}, {"food": "supplement:sichuan_pepper", "grams": 3},
+     {"food": "cfcd:022103", "grams": 5}, {"food": "cfcd:047301", "grams": 5}, {"food": "cfcd:044101", "grams": 5},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 380, "tags": ["spicy"],
+   "note": "家常做法一人份估计：草鱼片配黄豆芽，汤底不计入，食用油按随鱼片吃下约 30 克计，烹调失水不计"},
+  {"id": "hot_sour_potato", "name": "酸辣土豆丝", "aliases": ["土豆丝"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:021101", "grams": 200}, {"food": "cfcd:192004", "grams": 10}, {"food": "supplement:vinegar", "grams": 10},
+     {"food": "cfcd:043108", "grams": 3}, {"food": "supplement:sichuan_pepper", "grams": 0.5}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 225, "tags": ["spicy"],
+   "note": "家常做法一人份估计，烹调失水不计"},
+  {"id": "cola_wings", "name": "可乐鸡翅", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:091114", "grams": 250}, {"food": "supplement:cola", "grams": 100}, {"food": "supplement:soy_sauce", "grams": 10},
+     {"food": "cfcd:192004", "grams": 5}, {"food": "cfcd:047301", "grams": 5}
+   ],
+   "serving_grams": 300, "tags": ["high_sugar"],
+   "note": "家常做法一人份估计：鸡翅可食部 250 克，可乐按收汁后留在菜里约 100 克计，烹调失水不计"},
+  {"id": "fried_chicken", "name": "炸鸡", "aliases": ["炸鸡腿"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:091113", "grams": 200}, {"food": "cfcd:022112", "grams": 25}, {"food": "cfcd:111101x", "grams": 20},
+     {"food": "cfcd:192004", "grams": 20}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 250, "tags": ["fried"],
+   "note": "家常做法一人份估计：鸡腿肉裹蛋液与炸粉油炸，吸油按约 20 克计，烹调失水不计"},
+  {"id": "cucumber_salad", "name": "凉拌黄瓜", "aliases": ["拍黄瓜"], "category": "菜品-凉菜",
+   "ingredients": [
+     {"food": "cfcd:043208", "grams": 200}, {"food": "cfcd:044101", "grams": 10}, {"food": "supplement:vinegar", "grams": 10},
+     {"food": "cfcd:192017", "grams": 5}, {"food": "supplement:soy_sauce", "grams": 5}, {"food": "supplement:sugar", "grams": 2},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 235, "tags": ["raw_cold", "cold_nature"],
+   "note": "家常做法一人份估计：生黄瓜拍碎凉拌"},
+  {"id": "seaweed_egg_soup", "name": "紫菜蛋花汤", "aliases": ["紫菜汤"], "category": "菜品-汤羹",
+   "ingredients": [
+     {"food": "cfcd:052008", "grams": 5}, {"food": "cfcd:111101x", "grams": 50}, {"food": "supplement:water", "grams": 300},
+     {"food": "cfcd:192017", "grams": 3}, {"food": "cfcd:044205", "grams": 3}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 360, "tags": [],
+   "note": "家常做法一人份一碗估计：干紫菜 5 克、鸡蛋 1 个，不放虾皮（放虾皮时还含海鲜）"},
+  {"id": "tomato_egg_soup", "name": "西红柿鸡蛋汤", "aliases": ["番茄蛋汤", "番茄鸡蛋汤", "西红柿蛋汤"], "category": "菜品-汤羹",
+   "ingredients": [
+     {"food": "cfcd:043119", "grams": 100}, {"food": "cfcd:111101x", "grams": 50}, {"food": "supplement:water", "grams": 250},
+     {"food": "cfcd:192004", "grams": 5}, {"food": "cfcd:022103", "grams": 3}, {"food": "cfcd:044205", "grams": 3},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 410, "tags": [],
+   "note": "家常做法一人份一碗估计"},
+  {"id": "hot_pot", "name": "火锅", "aliases": ["麻辣火锅"], "category": "菜品-火锅与麻辣烫",
+   "ingredients": [
+     {"food": "cfcd:083117", "grams": 100}, {"food": "cfcd:082101x", "grams": 80}, {"food": "cfcd:031301x", "grams": 80},
+     {"food": "cfcd:045101x", "grams": 100}, {"food": "cfcd:051008", "grams": 50}, {"food": "cfcd:043221", "grams": 80},
+     {"food": "cfcd:191002", "grams": 15}, {"food": "supplement:doubanjiang", "grams": 10}, {"food": "cfcd:043108", "grams": 5},
+     {"food": "supplement:sichuan_pepper", "grams": 2}, {"food": "supplement:salt", "grams": 3}, {"food": "cfcd:192017", "grams": 10},
+     {"food": "cfcd:044101", "grams": 5}
+   ],
+   "serving_grams": 540, "tags": ["spicy", "high_purine"],
+   "note": "一人份估计：按牛油麻辣锅底，涮羊肉片、牛肉、豆腐、白菜、金针菇、冬瓜，锅底只计随菜吃下的牛油约 15 克与调料，蘸香油蒜泥；久煮的锅底汤嘌呤高"},
+  {"id": "malatang", "name": "麻辣烫", "aliases": [], "category": "菜品-火锅与麻辣烫",
+   "ingredients": [
+     {"food": "cfcd:045101x", "grams": 80}, {"food": "cfcd:045301", "grams": 50}, {"food": "cfcd:021101", "grams": 80},
+     {"food": "cfcd:031510x", "grams": 40}, {"food": "cfcd:121305", "grams": 40}, {"food": "cfcd:081409", "grams": 30},
+     {"food": "cfcd:051008", "grams": 50}, {"food": "cfcd:011317", "grams": 100}, {"food": "cfcd:191002", "grams": 8},
+     {"food": "supplement:doubanjiang", "grams": 8}, {"food": "cfcd:043108", "grams": 3}, {"food": "supplement:sichuan_pepper", "grams": 1},
+     {"food": "supplement:salt", "grams": 3}
+   ],
+   "serving_grams": 490, "tags": ["spicy"],
+   "note": "一人份估计：白菜、菠菜、土豆片、豆腐干、鱼丸、火腿肠、金针菇与面条，汤底只计随菜吃下的部分"},
+  {"id": "zhajiang_noodles", "name": "炸酱面", "aliases": ["老北京炸酱面"], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:011317", "grams": 300}, {"food": "cfcd:081101x", "grams": 50}, {"food": "supplement:sweet_bean_sauce", "grams": 25},
+     {"food": "cfcd:043208", "grams": 50}, {"food": "cfcd:192004", "grams": 10}
+   ],
+   "serving_grams": 435, "tags": ["fast_carb"],
+   "note": "家常做法一碗估计：煮熟的面条 300 克，肥瘦肉丁与甜面酱炸酱（“炸”指炒酱，不是油炸），配黄瓜丝"},
+  {"id": "beef_noodles", "name": "牛肉面", "aliases": ["牛肉拉面"], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:011317", "grams": 300}, {"food": "cfcd:082119", "grams": 60}, {"food": "cfcd:041101", "grams": 30},
+     {"food": "supplement:water", "grams": 300}, {"food": "supplement:salt", "grams": 3}, {"food": "cfcd:045317", "grams": 3},
+     {"food": "cfcd:044106", "grams": 5}
+   ],
+   "serving_grams": 700, "tags": ["fast_carb"],
+   "note": "一碗估计：煮熟的面条 300 克、牛腱肉 60 克与清汤，不加辣椒油（加辣椒油时为辛辣）"},
+  {"id": "baozi", "name": "包子", "aliases": ["肉包子", "猪肉包子", "肉包"], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:011201x", "grams": 45}, {"food": "supplement:water", "grams": 22}, {"food": "cfcd:081111x", "grams": 25},
+     {"food": "cfcd:044206", "grams": 8}, {"food": "supplement:soy_sauce", "grams": 3}, {"food": "cfcd:192004", "grams": 2},
+     {"food": "supplement:salt", "grams": 0.5}
+   ],
+   "serving_grams": 200, "tags": ["fast_carb"],
+   "note": "家常猪肉大葱包子估计：每个约 100 克（面粉 45 克加水和面，肉馅约 25 克），一份按 2 个计"},
+  {"id": "jiaozi", "name": "饺子", "aliases": ["水饺", "猪肉白菜饺子"], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:011201x", "grams": 100}, {"food": "supplement:water", "grams": 50}, {"food": "cfcd:081111x", "grams": 70},
+     {"food": "cfcd:045101x", "grams": 80}, {"food": "cfcd:192004", "grams": 8}, {"food": "supplement:soy_sauce", "grams": 6},
+     {"food": "cfcd:044206", "grams": 5}, {"food": "cfcd:047301", "grams": 2}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 300, "tags": ["fast_carb"],
+   "note": "家常猪肉白菜水饺估计：一份约 15 个、每个约 20 克，不计蘸料"},
+  {"id": "wonton", "name": "馄饨", "aliases": ["云吞", "抄手"], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:011201x", "grams": 50}, {"food": "supplement:water", "grams": 225}, {"food": "cfcd:081111x", "grams": 50},
+     {"food": "cfcd:044205", "grams": 5}, {"food": "cfcd:052008", "grams": 2}, {"food": "cfcd:192017", "grams": 3},
+     {"food": "supplement:soy_sauce", "grams": 5}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 340, "tags": ["fast_carb"],
+   "note": "家常猪肉馄饨一碗估计：馄饨皮约 50 克面粉，连汤计（和面与汤水合计用水约 225 克），汤里放紫菜与香油"},
+  {"id": "egg_fried_rice", "name": "蛋炒饭", "aliases": ["炒饭", "鸡蛋炒饭"], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:012401x", "grams": 250}, {"food": "cfcd:111101x", "grams": 50}, {"food": "cfcd:192004", "grams": 12},
+     {"food": "cfcd:044205", "grams": 10}, {"food": "supplement:soy_sauce", "grams": 5}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 330, "tags": ["fast_carb"],
+   "note": "家常做法一盘估计：米饭 250 克、鸡蛋 1 个"},
+  {"id": "fried_noodles", "name": "炒面", "aliases": ["肉丝炒面"], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:011317", "grams": 250}, {"food": "cfcd:081110", "grams": 40}, {"food": "cfcd:045201", "grams": 60},
+     {"food": "cfcd:192004", "grams": 15}, {"food": "supplement:soy_sauce", "grams": 10}, {"food": "supplement:salt", "grams": 1}
+   ],
+   "serving_grams": 375, "tags": ["fast_carb"],
+   "note": "家常做法一盘估计：煮熟的面条 250 克，配瘦肉丝与圆白菜"},
+  {"id": "scallion_roll", "name": "葱油花卷", "aliases": [], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:011201x", "grams": 55}, {"food": "supplement:water", "grams": 30}, {"food": "cfcd:192004", "grams": 4},
+     {"food": "cfcd:044205", "grams": 5}, {"food": "supplement:salt", "grams": 1}
+   ],
+   "serving_grams": 160, "tags": ["fast_carb"],
+   "note": "家常葱油花卷估计：每个约 80 克，一份按 2 个计；成分表另有实测的普通花卷"},
+  {"id": "tea_egg", "name": "茶叶蛋", "aliases": [], "category": "菜品-主食",
+   "ingredients": [
+     {"food": "cfcd:111101x", "grams": 50}, {"food": "supplement:soy_sauce", "grams": 2}, {"food": "supplement:salt", "grams": 0.5}
+   ],
+   "serving_grams": 50, "tags": [],
+   "note": "一个茶叶蛋估计：鸡蛋可食部约 50 克，按吸入少量酱油与盐计，茶的成分忽略不计"},
+  {"id": "brown_rice", "name": "糙米饭", "aliases": [], "category": "菜品-主食",
+   "ingredients": [{"food": "cfcd:012216", "grams": 50}, {"food": "supplement:water", "grams": 100}],
+   "serving_grams": 150, "tags": ["slow_carb"],
+   "note": "一碗估计：糙米 50 克加水蒸熟约 150 克（按米与熟饭约 1 比 3 计）"},
+  {"id": "rice_cake", "name": "年糕", "aliases": ["白年糕", "水磨年糕"], "category": "菜品-主食",
+   "ingredients": [{"food": "cfcd:012101", "grams": 45}, {"food": "supplement:water", "grams": 55}],
+   "serving_grams": 100, "tags": ["fast_carb"],
+   "note": "白年糕估计：按粳米 45 克与水 55 克制成 100 克计（与常见白年糕含水量相近）"},
+  {"id": "beef_potato_stew", "name": "土豆炖牛肉", "aliases": ["土豆烧牛肉"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:082101x", "grams": 150}, {"food": "cfcd:021101", "grams": 150}, {"food": "cfcd:041204", "grams": 50},
+     {"food": "cfcd:192004", "grams": 10}, {"food": "supplement:soy_sauce", "grams": 10}, {"food": "cfcd:044206", "grams": 5},
+     {"food": "cfcd:047301", "grams": 5}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 380, "tags": [],
+   "note": "家常做法一人份估计，炖汤不计，烹调失水不计"},
+  {"id": "scallion_lamb", "name": "葱爆羊肉", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:083117", "grams": 150}, {"food": "cfcd:044206", "grams": 80}, {"food": "cfcd:192004", "grams": 12},
+     {"food": "supplement:soy_sauce", "grams": 8}, {"food": "cfcd:044101", "grams": 5}, {"food": "supplement:salt", "grams": 1.5}
+   ],
+   "serving_grams": 255, "tags": ["warm_nature"],
+   "note": "家常做法一人份估计，烹调失水不计"},
+  {"id": "steamed_egg", "name": "鸡蛋羹", "aliases": ["蒸鸡蛋", "蒸蛋"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:111101x", "grams": 100}, {"food": "supplement:water", "grams": 120}, {"food": "supplement:soy_sauce", "grams": 3},
+     {"food": "cfcd:192017", "grams": 2}, {"food": "supplement:salt", "grams": 1}
+   ],
+   "serving_grams": 225, "tags": [],
+   "note": "家常做法一人份估计：鸡蛋 2 个加温水蒸制"},
+  {"id": "boiled_shrimp", "name": "白灼虾", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:122121", "grams": 200}, {"food": "supplement:soy_sauce", "grams": 10}, {"food": "cfcd:047301", "grams": 5},
+     {"food": "cfcd:044206", "grams": 5}
+   ],
+   "serving_grams": 220, "tags": [],
+   "note": "家常做法一人份估计：南美白对虾可食部 200 克，蘸酱油"},
+  {"id": "winter_melon_rib_soup", "name": "冬瓜排骨汤", "aliases": [], "category": "菜品-汤羹",
+   "ingredients": [
+     {"food": "cfcd:081131", "grams": 100}, {"food": "cfcd:043221", "grams": 200}, {"food": "supplement:water", "grams": 200},
+     {"food": "cfcd:047301", "grams": 3}, {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 505, "tags": [],
+   "note": "家常做法一人份一碗估计，连汤计"},
+  {"id": "chive_egg", "name": "韭菜炒鸡蛋", "aliases": ["韭菜炒蛋"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:044404", "grams": 150}, {"food": "cfcd:111101x", "grams": 100}, {"food": "cfcd:192004", "grams": 12},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 265, "tags": [],
+   "note": "家常做法一人份估计，烹调失水不计"},
+  {"id": "braised_eggplant", "name": "红烧茄子", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:043101x", "grams": 300}, {"food": "cfcd:192004", "grams": 25}, {"food": "supplement:soy_sauce", "grams": 10},
+     {"food": "supplement:sugar", "grams": 5}, {"food": "cfcd:044101", "grams": 10}, {"food": "cfcd:022103", "grams": 3},
+     {"food": "supplement:salt", "grams": 1}
+   ],
+   "serving_grams": 355, "tags": [],
+   "note": "家常做法一人份估计：茄子吸油较多，食用油按 25 克计，烹调失水不计"},
+  {"id": "hand_torn_cabbage", "name": "手撕包菜", "aliases": [], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:045201", "grams": 300}, {"food": "cfcd:192004", "grams": 12}, {"food": "cfcd:043108", "grams": 3},
+     {"food": "supplement:vinegar", "grams": 5}, {"food": "supplement:soy_sauce", "grams": 5}, {"food": "cfcd:044101", "grams": 5},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 330, "tags": ["spicy"],
+   "note": "家常做法一人份估计：圆白菜干辣椒炝炒，烹调失水不计"},
+  {"id": "dry_fried_beans", "name": "干煸四季豆", "aliases": ["干煸豆角"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:042110", "grams": 250}, {"food": "cfcd:081111x", "grams": 30}, {"food": "cfcd:192004", "grams": 20},
+     {"food": "cfcd:043108", "grams": 3}, {"food": "supplement:sichuan_pepper", "grams": 1}, {"food": "cfcd:044101", "grams": 5},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 310, "tags": ["spicy"],
+   "note": "家常做法一人份估计：少油干煸（不按油炸计），配少量肉末，烹调失水不计"},
+  {"id": "century_egg_tofu", "name": "皮蛋豆腐", "aliases": [], "category": "菜品-凉菜",
+   "ingredients": [
+     {"food": "cfcd:031304", "grams": 200}, {"food": "cfcd:112201", "grams": 50}, {"food": "supplement:soy_sauce", "grams": 8},
+     {"food": "cfcd:192017", "grams": 3}, {"food": "supplement:vinegar", "grams": 3}, {"food": "cfcd:044205", "grams": 3}
+   ],
+   "serving_grams": 265, "tags": ["raw_cold"],
+   "note": "家常凉拌做法一人份估计：内酯豆腐配皮蛋 1 个"}
+]

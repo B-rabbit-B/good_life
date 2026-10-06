@@ -374,3 +374,10 @@ def test_not_limited_to_is_not_a_negation():
         result = _extract(text + "。")
         assert _summary(result) == [("diet_avoid", ["辛辣", "辣椒", "花椒"], None, None, "medium")], text
         assert result.ignored == [], text
+
+
+def test_shaoyan_and_shaoyou_are_require_style_wording():
+    result = _extract("清淡少盐饮食。")
+    assert [(i.category, sorted(i.subjects)) for i in result.items] == [("diet_require", ["少盐", "清淡"])]
+    assert [(i.category, i.subjects) for i in _extract("少盐饮食。").items] == [("diet_require", ["少盐"])]
+    assert [(i.category, i.subjects) for i in _extract("少油饮食。").items] == [("diet_require", ["少油"])]
