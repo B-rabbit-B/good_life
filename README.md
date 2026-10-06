@@ -1,6 +1,6 @@
 # good-life
 
-个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件）。三个步骤均已验收通过。
+个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件），这三个步骤均已验收通过；以及步骤 04（营养与饮食约束引擎：营养库与检索、饮食记录与每日汇总、需求估算、融合医嘱、经期、目标与当日摄入的饮食判断），步骤 04 已实现，待验收。
 
 定位声明：只提供生活方式建议，不做医疗诊断，不替代医生。
 
@@ -59,7 +59,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 重要：
 
 - `backend/.env` 含密钥，绝对不能提交到仓库（已在 `.gitignore` 中忽略）。仓库里只保留 `.env.example`。
-- `FIELD_ENCRYPTION_KEY` 用来加密档案中的身高、体重、健康状况、备注和修改记录，以及经期模块的每日记录内容和经期状态，医嘱模块的医嘱原文、条目内容、审计详情、证据文件名与文件内容。这个密钥一旦丢失或更换，已经加密的数据就无法再解密，请自行妥善备份。
+- `FIELD_ENCRYPTION_KEY` 用来加密档案中的身高、体重、健康状况、备注和修改记录，以及经期模块的每日记录内容和经期状态，医嘱模块的医嘱原文、条目内容、审计详情、证据文件名与文件内容，饮食模块的饮食记录备注。这个密钥一旦丢失或更换，已经加密的数据就无法再解密，请自行妥善备份。
 - `JWT_SECRET` 更换后，所有已签发的登录令牌立即失效，用户需要重新登录。
 
 ## 5. 建表
@@ -68,7 +68,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 uv run alembic upgrade head
 ```
 
-该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）共十一张表。
+该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）共十二张表。营养库不入数据库，随程序从数据文件加载。
 
 ## 6. 运行测试
 
@@ -191,3 +191,38 @@ uv run python -m app.medical.demo
 到期自动转待复核依赖“今天”的日期，接口文档页面无法调整，请用自动化测试核对（见验收记录）。想让自己注册的账号使用医嘱功能，登录并确认免责声明后直接访问即可。
 
 完整的表结构、状态流转、提取规则、接口、样例评测与验收记录见 `docs/03-交付物/`。
+
+## 12. 饮食与约束引擎演示
+
+饮食功能对任何性别开放，只要已登录并确认免责声明即可使用，访问 `/api/nutrition` 开头的接口。判断结果与估算的每日需求仅供参考，不构成医疗建议，有医嘱时以医嘱为准；营养库里的成分表整理数据仅供个人学习，商用前必须核实授权。
+
+先确认开发库已建到最新版本（包含饮食记录表），再创建演示账号，都在 `backend` 目录下执行：
+
+```powershell
+uv run alembic upgrade head
+uv run python -m app.nutrition.demo
+```
+
+脚本会创建四个演示账号，密码都是 `demo-pass-123`，都已确认免责声明并填好完整档案：
+
+| 用户名 | 类型 | 特点 |
+|---|---|---|
+| `demo_avoid` | 有忌口医嘱 | 已确认一条医嘱“一周内忌食辛辣、油腻食物，禁酒” |
+| `demo_period` | 经期 | 4 次月经，最近一次从昨天开始、尚未结束，今天是月经期 |
+| `demo_muscle` | 增肌 | 目标增肌，没有医嘱 |
+| `demo_healthy` | 健康无约束 | 目标维持，没有医嘱，没有经期规则 |
+
+脚本可以重复运行：已存在的账号会被跳过，输出“演示账号已存在，未重复创建。”。月经与医嘱都以运行当天为基准，所以请在体验前不久运行；账号建好很久以后，医嘱可能已经到期转待复核（仍按原要求执行），想恢复原样，在数据库里删除对应用户名的账号（名下的数据会随之删除）后重新运行脚本。
+
+启动服务后，在接口文档页面（http://localhost:8000/docs）按下面顺序体验，登录与授权的操作同第 8 节：
+
+1. 登录：`POST /api/auth/login`，先用 `demo_healthy` 和 `demo-pass-123` 登录，把令牌填进 Authorize。
+2. 体验检索：`GET /api/nutrition/foods/search`，q 填 `米饭`、`西红柿炒鸡蛋`、`宫保鸡丁` 等，看命中的食物与命中方式；再填一个不存在的词，返回“未找到”的明确提示。`GET /api/nutrition/foods/{food_id}` 查看营养、标签、份量和来源（出处与授权状态）。
+3. 记录三餐看汇总：`POST /api/nutrition/meals`，`eaten_on` 填今天，`meal_type` 选早餐、午餐、晚餐，`food_id` 填检索得到的编号，`grams` 或 `portion` 二选一；记录几次后 `GET /api/nutrition/summary` 看每餐与全天合计、估算的需求与剩余额度，与手算对照；`GET /api/nutrition/needs` 单独看估算的需求。
+4. 判断同一个食物：`POST /api/nutrition/evaluate`，填同一个 `food_id`（例如麻婆豆腐、西瓜、啤酒、猪肝、鸡胸肉），依次换 `demo_avoid`、`demo_period`、`demo_muscle`、`demo_healthy` 登录（重新授权），比较四个账号的结论与依据：忌口账号对麻婆豆腐、啤酒得到“不建议”并指出是哪条医嘱；经期账号对西瓜得到“谨慎”，依据来自经期提示（传统经验，不是医嘱）；增肌账号对鸡胸肉得到健身目标的正面依据；健康账号对常见食物都是“适合”。
+5. 判断一整餐：`POST /api/nutrition/evaluate-meal`，`items` 里放几个食物，看每一项和整餐的结论。
+6. 看标签：`GET /api/nutrition/tags` 查看全部标签及类别，寒凉、温热是传统经验，不是医学结论。
+
+判断只针对今天，接口没有日期参数；到期转待复核需要改变“今天”，请用自动化测试核对（见验收记录）。想让自己注册的账号体验：登录并确认免责声明后直接访问即可，档案里填好出生年份、身高、体重、活动水平后才有估算的需求，经期规则需要把 `gender` 设为 `female` 并录入月经。
+
+完整的数据来源与授权、标签审核表、约束融合规则、接口、验证场景与验收记录见 `docs/04-交付物/`。
