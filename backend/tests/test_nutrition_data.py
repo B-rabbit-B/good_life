@@ -240,3 +240,28 @@ def test_data_entries_reject_unknown_fields(monkeypatch):
 
 def test_copied_data_files_load(monkeypatch):
     assert _load_with(monkeypatch).get("dish:tomato_egg") is not None
+
+
+# ---- 修复轮 1 ----
+
+def test_every_high_fat_red_meat_entry_is_fatty_meat():
+    """fatty_meat 的依据是"畜肉类中每 100 克脂肪不少于 20 克的条目"，逐条列出时不能漏。"""
+    catalog = load_catalog()
+    missing = sorted(
+        f"{food.id} {food.name}"
+        for food in catalog.foods.values()
+        if food.id.startswith("cfcd:") and food.category.startswith("畜肉类")
+        and food.nutrients.fat_g is not None and food.nutrients.fat_g >= 20 and "fatty_meat" not in food.tags
+    )
+    assert missing == []
+
+
+def test_canned_fruit_in_syrup_is_high_sugar():
+    catalog = load_catalog()
+    syrup = [food for food in catalog.foods.values() if food.id.startswith("cfcd:") and "糖水" in food.name]
+    assert {food.id for food in syrup} >= {"cfcd:061229", "cfcd:062116", "cfcd:072010"}
+    assert [food.name for food in syrup if "high_sugar" not in food.tags] == []
+
+
+def test_butter_tea_contains_caffeine():
+    assert "caffeine" in load_catalog().get("cfcd:105010").tags
