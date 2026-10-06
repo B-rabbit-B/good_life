@@ -120,6 +120,9 @@
     "多饮水": {"not_applicable": true},
     "多喝水": {"not_applicable": true},
     "水": {"not_applicable": true},
+    "其制品": {"not_applicable": true},
+    "及其制品": {"not_applicable": true},
+    "制品": {"not_applicable": true},
     "素食": {"violates": ["meat", "seafood"]},
     "吃素": {"violates": ["meat", "seafood"]}
   }

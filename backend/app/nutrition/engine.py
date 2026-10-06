@@ -18,7 +18,7 @@ from app.nutrition.catalog import (
     round_one,
 )
 from app.nutrition.needs import Needs
-from app.nutrition.rules import VocabularyEntry, load_soft_rules, load_vocabulary
+from app.nutrition.rules import Vocabulary, VocabularyEntry, load_soft_rules, load_vocabulary
 
 SUITABLE = "suitable"
 CAUTION = "caution"
@@ -35,6 +35,7 @@ REQUIRE_CATEGORY = "diet_require"
 PHASE_NAMES = {"menstrual": "月经期", "follicular": "卵泡期", "ovulation": "排卵期", "luteal": "黄体期"}
 GOAL_NAMES = {"lose_fat": "减脂", "gain_muscle": "增肌", "maintain": "维持"}
 LICENSE_NAMES = {LICENSE_PERSONAL_STUDY: "仅供个人学习", LICENSE_SELF_ESTIMATE: "手动估算，未核对"}
+SUBJECT_PREFIXES = ("食用", "饮用", "吃", "喝")  # 说法开头的动词，"吃鸡肉"按"鸡肉"判断
 
 
 @dataclass(frozen=True)
@@ -208,6 +209,20 @@ def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Ca
     return AvoidHit(own, ingredients, mode in (VOCABULARY, TERM_IN_NAME))
 
 
+def subject_term(raw: str, vocabulary: Vocabulary, catalog: Catalog) -> str:
+    """医嘱或档案里的一个说法去掉空白；不在词汇表里、也不是营养库里的食物名称时，再去掉开头的"吃""食用""饮用""喝"。
+
+    词汇表里的说法（"吃素"）和食物名称（"饮用水"）保持原样。
+    """
+    term = normalize_query(raw)
+    if not term or vocabulary.lookup(term) is not None or catalog.has_name_containing(term):
+        return term
+    for prefix in SUBJECT_PREFIXES:
+        if term.startswith(prefix) and len(term) > len(prefix):
+            return term[len(prefix):]
+    return term
+
+
 def _unverifiable_message(constraint: HardConstraint, term: str, verb: str) -> str:
     return f"无法自动判断这个食物是否{verb}医嘱「{constraint.content}」中的「{term}」，请自行核对或咨询医生。"
 
@@ -223,7 +238,7 @@ def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -
     vocabulary = load_vocabulary()
     reasons = []
     for subject in constraint.subjects:
-        term = normalize_query(subject)
+        term = subject_term(subject, vocabulary, catalog)
         if not term:
             continue
         entry = vocabulary.lookup(term)
@@ -306,7 +321,7 @@ def _preference_reasons(food: Food, context: EvaluationContext, catalog: Catalog
     vocabulary = load_vocabulary()
     reasons = []
     for raw in context.food_avoidances:
-        term = normalize_query(raw)
+        term = subject_term(raw, vocabulary, catalog)
         entry = vocabulary.lookup(term) if term else None
         if not term or (entry and entry.non_food):
             continue

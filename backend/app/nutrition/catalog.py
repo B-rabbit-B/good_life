@@ -55,6 +55,7 @@ EXACT_MATCH_TYPES = ("exact_name", "common_name", "exact_alias")
 KIND_ORDER = {"dish": 0, "supplement": 1, "ingredient": 2}
 SEARCH_LIMIT = 20
 MIN_CONTAINED_LENGTH = 2
+TERM_CACHE_SIZE = 4096  # 按说法缓存全库扫描结果的条数上限
 BRACKET_RE = re.compile(r"［([^］]*)］")
 PAREN_RE = re.compile(r"[（(][^（()）]*[）)]")
 ALIAS_SPLIT_RE = re.compile(r"[、，,]")
@@ -260,8 +261,9 @@ class Catalog:
         for alias, food_id in self.common_aliases.items():
             if food_id in self._match_names and alias not in self._match_names[food_id]:
                 self._match_names[food_id] += (alias,)
-        self._containing: dict[str, bool] = {}  # 按说法缓存全库名称扫描的结果（营养库只读，结果不会变）
-        self._within: dict[str, bool] = {}
+        # 按说法缓存全库名称扫描的结果（营养库只读，结果不会变），条数有上限
+        self._containing = lru_cache(maxsize=TERM_CACHE_SIZE)(self._scan_containing)
+        self._within = lru_cache(maxsize=TERM_CACHE_SIZE)(self._scan_within)
 
     def get(self, food_id: str) -> Food | None:
         return self.foods.get(food_id)
@@ -312,18 +314,22 @@ class Catalog:
 
     def has_name_containing(self, term: str) -> bool:
         """是否有食物的某个说法包含这个说法。"""
-        if term not in self._containing:
-            self._containing[term] = any(term in name for names in self._match_names.values() for name in names)
-        return self._containing[term]
+        return self._containing(term)
 
     def has_name_within(self, term: str) -> bool:
         """是否有食物的某个说法（长度不少于 2）被这个说法包含。"""
-        if term not in self._within:
-            self._within[term] = any(
-                len(name) >= MIN_CONTAINED_LENGTH and name in term
-                for names in self._match_names.values() for name in names
-            )
-        return self._within[term]
+        return self._within(term)
+
+    def name_scan_cache_info(self) -> tuple:
+        return self._containing.cache_info(), self._within.cache_info()
+
+    def _scan_containing(self, term: str) -> bool:
+        return any(term in name for names in self._match_names.values() for name in names)
+
+    def _scan_within(self, term: str) -> bool:
+        return any(
+            len(name) >= MIN_CONTAINED_LENGTH and name in term for names in self._match_names.values() for name in names
+        )
 
 
 def load_tag_entries() -> list[_TagEntry]:

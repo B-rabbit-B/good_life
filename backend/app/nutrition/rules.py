@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.cycle.engine import PHASES
 from app.cycle.tips import load_tip_rules
-from app.nutrition.catalog import DATA_DIR, load_tag_entries, normalize_query
+from app.nutrition.catalog import DATA_DIR, TERM_CACHE_SIZE, load_tag_entries, normalize_query
 from app.profile.schemas import Goal
 
 TERM_SUFFIXES = ("食物", "食品", "类", "饮食", "性")
@@ -52,7 +52,7 @@ class VocabularyEntry(BaseModel):
 class Vocabulary:
     def __init__(self, terms: dict[str, VocabularyEntry]):
         self.terms = MappingProxyType(dict(sorted(terms.items())))
-        self._embedded: dict[str, tuple[str, ...]] = {}
+        self._embedded = lru_cache(maxsize=TERM_CACHE_SIZE)(self._scan_embedded)
 
     def lookup(self, term: str) -> VocabularyEntry | None:
         """先按原样查，查不到再逐次去掉结尾的"食物""食品""类""饮食""性"后查（辛辣刺激性食物 → 辛辣刺激性 → 辛辣刺激）。"""
@@ -69,12 +69,14 @@ class Vocabulary:
         return None
 
     def embedded(self, term: str) -> tuple[str, ...]:
-        """说法里包含的其他词汇表说法（至少两个字，不含说法本身），按说法排序；结果按说法缓存。"""
-        if term not in self._embedded:
-            self._embedded[term] = tuple(
-                key for key in self.terms if len(key) >= MIN_EMBEDDED_LENGTH and key != term and key in term
-            )
-        return self._embedded[term]
+        """说法里包含的其他词汇表说法（至少两个字，不含说法本身），按说法排序；结果按说法缓存，条数有上限。"""
+        return self._embedded(term)
+
+    def embedded_cache_info(self) -> tuple:
+        return (self._embedded.cache_info(),)
+
+    def _scan_embedded(self, term: str) -> tuple[str, ...]:
+        return tuple(key for key in self.terms if len(key) >= MIN_EMBEDDED_LENGTH and key != term and key in term)
 
 
 class CycleRule(BaseModel):

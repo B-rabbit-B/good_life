@@ -737,6 +737,11 @@ FOLLOWUP_PROBES = [
     # 4. 数据补漏
     ("忌肉。", "cfcd:011503", NOT_RECOMMENDED),  # 面筋（肉馅）
     ("忌甜食。", "cfcd:011407", NOT_RECOMMENDED),  # 烧饼（加糖）
+    # 5. 说法的前缀与"其制品"
+    ("忌食花生及其制品。", "宫保鸡丁", NOT_RECOMMENDED), ("忌食花生及其制品。", "花生", NOT_RECOMMENDED),
+    ("忌食花生及其制品。", "米饭", SUITABLE),
+    ("忌吃鸡肉。", "鸡腿", NOT_RECOMMENDED), ("忌吃鸡肉。", "鸡蛋", SUITABLE),
+    ("忌喝酒。", "啤酒", NOT_RECOMMENDED), ("忌喝酒。", "米饭", SUITABLE),
 ]
 
 
@@ -752,3 +757,25 @@ def test_vocabulary_subject_never_matches_recipe_ingredient_names():
     assert [r for r in result.reasons if r.source == "medical"] == []
     eggs = _order_result("忌鸡蛋。", "茶叶蛋")  # 鸡蛋按继承的含蛋标签命中，依据仍列出配方食材
     assert any("菜品配方含「鸡蛋（代表值）」" in r.message for r in eggs.reasons if r.effect == "block")
+
+
+def test_subject_prefix_is_stripped_but_vocabulary_terms_and_food_names_are_kept():
+    from app.nutrition.catalog import load_catalog
+    from app.nutrition.engine import subject_term
+    from app.nutrition.rules import load_vocabulary
+
+    vocabulary, catalog = load_vocabulary(), load_catalog()
+    assert subject_term("吃鸡肉", vocabulary, catalog) == "鸡肉"
+    assert subject_term("食用 花生", vocabulary, catalog) == "花生"
+    assert subject_term("喝酒", vocabulary, catalog) == "酒"
+    assert subject_term("吃素", vocabulary, catalog) == "吃素"  # 词汇表里的要求类说法
+    assert subject_term("饮用水", vocabulary, catalog) == "饮用水"  # 营养库里的食物名称
+    assert _real_conclusion("diet_require", ["吃素"], "鸡腿") == NOT_RECOMMENDED
+
+
+def test_personal_avoidance_prefix_is_stripped():
+    from app.nutrition.catalog import load_catalog
+
+    context = EvaluationContext(food_avoidances=("吃鸡肉",), needs=NEEDS)
+    result = evaluate_food(_real_food("鸡腿"), 100, context, load_catalog())
+    assert [(r.source, r.effect) for r in result.reasons] == [("preference", "caution")]

@@ -146,3 +146,17 @@ def test_partial_matches_are_labelled_as_partial():
     for query, name in [("酸菜鱼", "酸白菜"), ("螺蛳粉", "螺蛳"), ("皮蛋瘦肉粥", "松花蛋（鸭蛋）"), ("小龙虾", "龙虾")]:
         first = catalog.search(query)[0]
         assert (first.food.name, first.match) == (name, "query_contains"), query
+
+
+def test_per_term_caches_are_bounded():
+    from app.nutrition.catalog import TERM_CACHE_SIZE
+    from app.nutrition.rules import load_vocabulary
+
+    catalog = load_catalog()
+    for i in range(TERM_CACHE_SIZE + 50):
+        catalog.has_name_containing(f"不存在的说法{i}")
+        catalog.has_name_within(f"不存在的说法{i}")
+        load_vocabulary().embedded(f"不存在的说法{i}")
+    assert catalog.has_name_containing("菠菜") and not catalog.has_name_containing("不存在的说法")
+    for info in (catalog.name_scan_cache_info(), load_vocabulary().embedded_cache_info()):
+        assert all(item.maxsize == TERM_CACHE_SIZE and item.currsize <= TERM_CACHE_SIZE for item in info)
