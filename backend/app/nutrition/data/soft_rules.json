@@ -1,0 +1,32 @@
+{
+  "cycle": {
+    "menstrual": [
+      {"tags": ["raw_cold", "cold_nature"], "effect": "caution", "tradition": true, "tip_id": "menstrual-warm",
+       "message": "经期可以优先选择温热的饮食，少吃生冷寒凉的食物"},
+      {"tags": ["alcohol", "caffeine"], "effect": "caution", "tradition": false, "tip_id": "menstrual-caffeine-alcohol",
+       "message": "痛经明显时可以暂时减少咖啡、浓茶和酒精"},
+      {"tags": ["high_sodium"], "effect": "caution", "tradition": false, "tip_id": "menstrual-salt-water",
+       "message": "经期少吃过咸的食物，可能有助于减轻水肿"},
+      {"tags": ["iron_rich"], "effect": "prefer", "tradition": false, "tip_id": "menstrual-iron",
+       "message": "经期可以适当多吃富含铁的食物"}
+    ],
+    "luteal": [
+      {"tags": ["high_sodium", "sweets", "sugary_drink"], "effect": "caution", "tradition": false,
+       "tip_id": "luteal-slow-carbs", "message": "经前可以少吃高盐和高糖的零食"},
+      {"tags": ["slow_carb"], "effect": "prefer", "tradition": false, "tip_id": "luteal-slow-carbs",
+       "message": "经前主食多选全谷物等慢碳"},
+      {"tags": ["calcium_rich"], "effect": "prefer", "tradition": false, "tip_id": "luteal-calcium",
+       "message": "经前保证富含钙的食物"}
+    ]
+  },
+  "goals": {
+    "lose_fat": [
+      {"tags": ["fried", "high_fat", "fatty_meat"], "effect": "caution", "message": "减脂期间少吃油炸和高脂肪的食物"},
+      {"tags": ["sweets", "sugary_drink", "high_sugar"], "effect": "caution", "message": "减脂期间少吃甜食和含糖饮料"},
+      {"tags": ["high_protein", "high_fiber"], "effect": "prefer", "message": "高蛋白、高纤维的食物饱腹感更强，适合减脂"}
+    ],
+    "gain_muscle": [
+      {"tags": ["high_protein"], "effect": "prefer", "message": "增肌期间保证蛋白质摄入"}
+    ]
+  }
+}
