@@ -286,3 +286,20 @@ def test_dishes_inherit_spicy_alcohol_and_caffeine():
         if food.kind == "dish":
             from_ingredients = {tag for i in food.ingredients for tag in catalog.get(i).tags}
             assert {"spicy", "alcohol", "caffeine"} & from_ingredients <= food.tags, food.name
+
+
+def test_new_draft_tags_and_members():
+    catalog = load_catalog()
+    for tag, kind in [("red_meat", "composition"), ("fish", "composition"), ("legume", "composition"),
+                      ("nut", "composition"), ("grapefruit", "dietary"), ("pork", "composition"),
+                      ("beef", "composition"), ("mutton", "composition")]:
+        assert (catalog.tags[tag].kind, catalog.tags[tag].review_status) == (kind, "draft"), tag
+    assert "red_meat" in _food("牛肉").tags and "red_meat" in _food("红烧肉").tags
+    assert "red_meat" not in _food("鸡腿").tags and "red_meat" not in _food("宫保鸡丁").tags
+    assert {food.id for food in catalog.foods.values() if "grapefruit" in food.tags} == {"cfcd:064303", "cfcd:064304"}
+    assert "fish" in _food("带鱼").tags and "fish" in _food("红烧鱼").tags and "fish" in catalog.get("cfcd:219043").tags
+    assert "fish" in catalog.get("cfcd:129018").tags  # 鱼翅（鲨鱼）
+    assert "fish" not in _food("虾").tags and "fish" not in _food("鱼香肉丝").tags
+    assert "legume" in _food("豆腐").tags and "legume" in _food("麻婆豆腐").tags
+    assert "nut" in _food("核桃").tags and "nut" in _food("宫保鸡丁").tags
+    assert "alcohol" in catalog.get("cfcd:062309").tags  # 酒枣

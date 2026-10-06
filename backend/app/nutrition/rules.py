@@ -17,11 +17,15 @@ from app.nutrition.catalog import DATA_DIR, load_tag_entries, normalize_query
 from app.profile.schemas import Goal
 
 TERM_SUFFIXES = ("食物", "食品", "类", "饮食", "性")
+MIN_EMBEDDED_LENGTH = 2
 Tags = tuple[str, ...]
 
 
 class VocabularyEntry(BaseModel):
-    """一个说法恰好是一种：避免类标签、不是食物、要求类（违反/符合）、无法判断、与具体食物无关。"""
+    """一个说法恰好是一种：避免类标签、不是食物、要求类（违反/符合/需控制量）、无法判断、与具体食物无关。
+
+    要求类的 cautions 是"需要控制食用量"的标签：带有这些标签的食物得到医嘱的谨慎依据，而不是不建议。
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -29,24 +33,26 @@ class VocabularyEntry(BaseModel):
     non_food: bool = False
     violates: Tags = ()
     prefers: Tags = ()
+    cautions: Tags = ()
     unverifiable: bool = False
     not_applicable: bool = False
 
     @model_validator(mode="after")
     def exactly_one_kind(self) -> "VocabularyEntry":
-        kinds = (bool(self.tags), self.non_food, bool(self.violates or self.prefers), self.unverifiable,
+        kinds = (bool(self.tags), self.non_food, bool(self.violates or self.prefers or self.cautions), self.unverifiable,
                  self.not_applicable)
         if sum(kinds) != 1:
-            raise ValueError("每个说法必须恰好是一种：tags、non_food、violates/prefers、unverifiable、not_applicable")
+            raise ValueError("每个说法必须恰好是一种：tags、non_food、violates/prefers/cautions、unverifiable、not_applicable")
         return self
 
     def referenced_tags(self) -> Tags:
-        return (*self.tags, *self.violates, *self.prefers)
+        return (*self.tags, *self.violates, *self.prefers, *self.cautions)
 
 
 class Vocabulary:
     def __init__(self, terms: dict[str, VocabularyEntry]):
         self.terms = MappingProxyType(dict(sorted(terms.items())))
+        self._embedded: dict[str, tuple[str, ...]] = {}
 
     def lookup(self, term: str) -> VocabularyEntry | None:
         """先按原样查，查不到再逐次去掉结尾的"食物""食品""类""饮食""性"后查（辛辣刺激性食物 → 辛辣刺激性 → 辛辣刺激）。"""
@@ -61,6 +67,14 @@ class Vocabulary:
             else:
                 return None
         return None
+
+    def embedded(self, term: str) -> tuple[str, ...]:
+        """说法里包含的其他词汇表说法（至少两个字，不含说法本身），按说法排序；结果按说法缓存。"""
+        if term not in self._embedded:
+            self._embedded[term] = tuple(
+                key for key in self.terms if len(key) >= MIN_EMBEDDED_LENGTH and key != term and key in term
+            )
+        return self._embedded[term]
 
 
 class CycleRule(BaseModel):

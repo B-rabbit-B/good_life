@@ -310,7 +310,7 @@ def test_vocabulary_strips_trailing_xing():
 
     vocabulary = load_vocabulary()
     assert vocabulary.lookup("寒凉性食物").tags == ("cold_nature",)
-    assert vocabulary.lookup("辛辣刺激性食物").tags == ("spicy",)
+    assert vocabulary.lookup("辛辣刺激性食物").tags == ("spicy", "caffeine", "alcohol")
 
 
 def test_json_parser_rejects_duplicate_keys():
@@ -386,7 +386,7 @@ def test_vocabulary_has_caffeine_and_red_meat():
 
     vocabulary = load_vocabulary()
     assert vocabulary.lookup("咖啡因").tags == ("caffeine",)
-    assert vocabulary.lookup("红肉").tags == ("meat",)
+    assert vocabulary.lookup("红肉").tags == ("red_meat",)
 
 
 def test_personal_avoidance_of_compound_subject_ignores_unverifiable():
@@ -507,3 +507,138 @@ def test_personal_avoidance_hits_dish_through_ingredient():
 ])
 def test_pork_beef_and_mutton_orders_cover_the_whole_subcategory(text, name_or_id, expected):
     assert _order_result(text, name_or_id).conclusion == expected
+
+
+# ---- Final fix wave: vocabulary, new tags and embedded vocabulary terms ----
+
+
+VOCABULARY_PROBES = [
+    # 红肉只对应畜肉，不再拦禽肉
+    ("少吃红肉，多吃白肉。", "鸡腿", SUITABLE),
+    ("少吃红肉，多吃白肉。", "炸鸡", SUITABLE),
+    ("少吃红肉，多吃白肉。", "宫保鸡丁", SUITABLE),
+    ("少吃红肉，多吃白肉。", "牛肉", NOT_RECOMMENDED),
+    ("少吃红肉，多吃白肉。", "红烧肉", NOT_RECOMMENDED),
+    ("少吃红肉，多吃白肉。", "猪肝", NOT_RECOMMENDED),
+    # 葡萄柚汁不再按"葡萄"误拦葡萄
+    ("服用他汀期间避免食用葡萄柚或饮用葡萄柚汁。", "葡萄", SUITABLE),
+    ("服用他汀期间避免食用葡萄柚或饮用葡萄柚汁。", "cfcd:064303", NOT_RECOMMENDED),
+    ("服用他汀期间避免食用葡萄柚或饮用葡萄柚汁。", "cfcd:064304", NOT_RECOMMENDED),
+    ("服用他汀期间避免食用葡萄柚或饮用葡萄柚汁。", "cfcd:064301", SUITABLE),  # 柚（文旦）不是葡萄柚
+    # 单字说法只按标签与完全相同的名称命中，不再按字面片段误拦
+    ("忌鱼。", "鱼香肉丝", SUITABLE),
+    ("忌鱼。", "鱼腥草", SUITABLE),
+    ("忌鱼。", "红烧鱼", NOT_RECOMMENDED),
+    ("忌鱼。", "带鱼", NOT_RECOMMENDED),
+    ("忌鱼。", "麻辣烫", NOT_RECOMMENDED),  # 配方里有鱼丸
+    ("忌鱼。", "白灼虾", SUITABLE),  # 只对应鱼，不含虾蟹贝
+    ("忌奶。", "奶白菜", SUITABLE),
+    ("忌奶。", "豆奶", SUITABLE),
+    ("忌奶。", "牛奶", NOT_RECOMMENDED),
+    ("忌奶。", "奶茶", NOT_RECOMMENDED),
+    ("忌茶。", "茶树菇", SUITABLE),
+    ("忌茶。", "茶油", SUITABLE),
+    ("忌茶。", "茶水", NOT_RECOMMENDED),
+    ("忌茶。", "咖啡", NOT_RECOMMENDED),
+    ("忌肉。", "桂圆肉", SUITABLE),
+    ("忌肉。", "猪肉", NOT_RECOMMENDED),
+    ("忌肉。", "宫保鸡丁", NOT_RECOMMENDED),
+    ("忌蛋。", "鸡蛋", NOT_RECOMMENDED),
+    ("忌蛋。", "蛋糕", NOT_RECOMMENDED),
+    ("忌蛋。", "米饭", SUITABLE),
+    ("忌水。", "饺子", SUITABLE),
+    ("忌水。", "年糕", SUITABLE),
+    ("忌水。", "水煮鱼", SUITABLE),
+    ("忌酒。", "啤酒", NOT_RECOMMENDED),
+    ("忌酒。", "酒枣", NOT_RECOMMENDED),
+    # 常见类别说法
+    ("忌鸡蛋。", "蛋糕", NOT_RECOMMENDED),
+    ("忌鱼类。", "带鱼", NOT_RECOMMENDED),
+    ("忌鱼类。", "红烧鱼", NOT_RECOMMENDED),
+    ("忌鱼类。", "虾", SUITABLE),
+    ("忌海产品。", "白灼虾", NOT_RECOMMENDED),
+    ("忌海产品。", "虾", NOT_RECOMMENDED),
+    ("忌蛋类。", "鸡蛋", NOT_RECOMMENDED),
+    ("忌蛋类。", "番茄炒蛋", NOT_RECOMMENDED),
+    ("忌豆类、豆制品。", "豆腐", NOT_RECOMMENDED),
+    ("忌豆类、豆制品。", "豆腐干", NOT_RECOMMENDED),
+    ("忌豆类、豆制品。", "豆浆", NOT_RECOMMENDED),
+    ("忌豆类、豆制品。", "麻婆豆腐", NOT_RECOMMENDED),
+    ("忌豆类、豆制品。", "米饭", SUITABLE),
+    ("忌乳制品。", "酸奶", NOT_RECOMMENDED),
+    ("忌乳制品。", "豆浆", SUITABLE),
+    ("忌奶制品。", "酸奶", NOT_RECOMMENDED),
+    ("忌牛奶。", "酸奶", NOT_RECOMMENDED),
+    ("忌坚果。", "核桃", NOT_RECOMMENDED),
+    ("忌坚果。", "宫保鸡丁", NOT_RECOMMENDED),
+    ("忌坚果。", "米饭", SUITABLE),
+    ("忌腌制品。", "咸鸭蛋", NOT_RECOMMENDED),
+    ("忌腌制食品。", "咸鸭蛋", NOT_RECOMMENDED),
+    ("忌烧烤。", "米饭", CAUTION),  # 没有对应的标签，仍是无法判断
+    # 刺激性不只是辛辣
+    ("禁食生冷、刺激性食物。", "咖啡", NOT_RECOMMENDED),
+    ("禁食生冷、刺激性食物。", "啤酒", NOT_RECOMMENDED),
+    ("禁食生冷、刺激性食物。", "麻婆豆腐", NOT_RECOMMENDED),
+    ("禁食生冷、刺激性食物。", "米饭", SUITABLE),
+]
+
+
+@pytest.mark.parametrize(("text", "name_or_id", "expected"), VOCABULARY_PROBES)
+def test_vocabulary_probes_from_extractor_text(text, name_or_id, expected):
+    result = _order_result(text, name_or_id)
+    assert result.conclusion == expected, (text, name_or_id, result.reasons)
+
+
+def test_grapefruit_order_leaves_grapes_without_any_medical_reason():
+    result = _order_result("服用他汀期间避免食用葡萄柚或饮用葡萄柚汁。", "葡萄")
+    assert [r for r in result.reasons if r.source == "medical"] == []
+
+
+def test_embedded_vocabulary_terms_block_their_tags_and_others_are_unverifiable():
+    text = "忌高嘌呤食物如动物内脏。"
+    assert [c.subjects for c in _extracted(text)] == [("高嘌呤食物如动物内脏",)]
+    liver = _order_result(text, "猪肝")
+    assert liver.conclusion == NOT_RECOMMENDED
+    assert any("高嘌呤" in r.message and "动物内脏" in r.message for r in liver.reasons if r.effect == "block")
+    assert _order_result(text, "火锅").conclusion == NOT_RECOMMENDED  # 火锅显式声明高嘌呤
+    rice = _order_result(text, "米饭")
+    assert (rice.conclusion, [(r.effect, r.code) for r in rice.reasons if r.source == "medical"]) == (
+        CAUTION, [("unverifiable", "avoid_unverifiable")])
+
+
+def test_embedded_scan_ignores_single_character_terms():
+    from app.nutrition.rules import load_vocabulary
+
+    vocabulary = load_vocabulary()
+    assert vocabulary.embedded("高嘌呤食物如动物内脏") == ("内脏", "动物内脏", "嘌呤", "高嘌呤")
+    assert vocabulary.embedded("鱼腥草汁") == ()
+
+
+def test_diabetes_diet_cautions_staples_and_blocks_sugar():
+    text = "糖尿病饮食。"
+    rice = _order_result(text, "米饭")
+    assert rice.conclusion == CAUTION
+    [reason] = [r for r in rice.reasons if r.source == "medical"]
+    assert (reason.effect, reason.code) == ("caution", "require_caution")
+    assert "糖尿病饮食" in reason.message and "控制" in reason.message and "快消化碳水" in reason.message
+    assert _order_result(text, "可乐").conclusion == NOT_RECOMMENDED
+    assert _order_result(text, "清炒西兰花").conclusion == SUITABLE
+
+
+def test_diabetes_diet_preference_still_cautions_fast_carbs():
+    from app.nutrition.catalog import load_catalog
+
+    context = EvaluationContext(diet_preferences=("糖尿病饮食",), needs=NEEDS)
+    result = evaluate_food(_real_food("米饭"), 100, context, load_catalog())
+    assert [(r.source, r.effect) for r in result.reasons] == [("preference", "caution")]
+
+
+def test_requirement_cautions_are_validated_against_tags():
+    from app.nutrition.rules import VocabularyEntry, parse_vocabulary
+
+    assert VocabularyEntry(violates=("high_sugar",), cautions=("fast_carb",)).referenced_tags() == (
+        "high_sugar", "fast_carb")
+    with pytest.raises(ValueError, match="nope"):
+        parse_vocabulary({"terms": {"怪": {"violates": ["high_sugar"], "cautions": ["nope"]}}})
+    with pytest.raises(ValueError):
+        VocabularyEntry(tags=("spicy",), cautions=("fast_carb",))

@@ -138,37 +138,47 @@ class AvoidHit:
 
 
 def _avoid_mode(term: str, entry: VocabularyEntry | None, catalog: Catalog) -> tuple[str, tuple[str, ...]]:
-    """这个避免类说法按哪种方式判断，以及按哪些标签命中。"""
+    """这个避免类说法按哪种方式判断，以及按哪些标签命中（情形 b 里是说法中包含的词汇表说法的标签）。"""
     if entry is not None:
         return VOCABULARY, entry.tags
     long_term = len(term) >= MIN_CONTAINED_LENGTH
     if long_term and catalog.has_name_containing(term):
         return TERM_IN_NAME, ()
-    if long_term and catalog.has_name_within(term):
-        return NAME_IN_TERM, ()
+    vocabulary = load_vocabulary()
+    embedded = tuple(sorted({tag for key in vocabulary.embedded(term) for tag in vocabulary.terms[key].tags}))
+    if long_term and (embedded or catalog.has_name_within(term)):
+        return NAME_IN_TERM, embedded
     return TERM_IN_NAME_OR_UNVERIFIABLE, ()
 
 
 def _own_hit(food: Food, term: str, mode: str, tags: tuple[str, ...], catalog: Catalog,
              allowed_tags: frozenset[str] | None = None) -> str | None:
-    """一个食物本身是否命中；allowed_tags 不为空时只认其中的标签（用于菜品的配方食材）。"""
+    """一个食物本身是否命中；allowed_tags 不为空时只认其中的标签（用于菜品的配方食材）。
+
+    词汇表里的说法按名称命中只认"说法在名称中"，单字说法只认与名称完全相同（"鱼"不命中"鱼香肉丝"），
+    不认"名称在说法中"（"葡萄柚汁"不命中"葡萄"）。
+    """
     names = _food_names(food, term, catalog)
     matched = food.tags & set(tags)
     if allowed_tags is not None:
         matched &= allowed_tags
+    hits = [f"这个食物带有「{_tag_names(matched, catalog)}」标签"] if matched else []
     if mode == VOCABULARY:
-        hits = []
-        if matched:
-            hits.append(f"这个食物带有「{_tag_names(matched, catalog)}」标签")
-        name = _term_in_name(names, term) or _name_in_term(names, term)
+        if len(term) < MIN_CONTAINED_LENGTH:
+            name = next((name for name in names if name == term), None)
+        else:
+            name = _term_in_name(names, term)
         if name:
             hits.append(f"食物名称「{name}」与「{term}」对得上")
-        return "，".join(hits) or None
-    if mode == NAME_IN_TERM:
+    elif mode == NAME_IN_TERM:
         name = _name_in_term(names, term)
-        return f"食物名称「{name}」包含在「{term}」中" if name else None
-    name = _term_in_name(names, term)
-    return f"食物名称「{name}」包含「{term}」" if name else None
+        if name:
+            hits.append(f"食物名称「{name}」包含在「{term}」中")
+    else:
+        name = _term_in_name(names, term)
+        if name:
+            hits.append(f"食物名称「{name}」包含「{term}」")
+    return "，".join(hits) or None
 
 
 def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Catalog) -> AvoidHit:
@@ -176,7 +186,9 @@ def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Ca
 
     词汇表里的说法：按标签命中，或名称与说法互相包含。词汇表里没有的说法：
     a) 营养库有名称包含这个说法 → 只按"说法在名称中"命中，不命中即不影响（葡萄柚不命中葡萄）；
-    b) 否则有名称（长度不少于 2）在说法中 → 这些食物命中，其他食物无法判断（牛羊肉命中羊肉，牛肉无法判断）；
+    b) 否则有名称（长度不少于 2）在说法中，或说法里包含其他词汇表说法（长度不少于 2）→ 名称在说法中的食物、
+       带有被包含说法的标签的食物命中，其他食物无法判断（牛羊肉命中羊肉，牛肉无法判断；
+       "高嘌呤食物如动物内脏"命中高嘌呤与动物内脏）；
     c) 否则（含单字说法）只按"说法在名称中"命中，其他食物无法判断。
     菜品本身命中，或配方里任何一个食材按同样的方式命中，菜品都命中；食材的标签只认菜品会继承的那些
     （成分类与辛辣、含酒精、含咖啡因），调料自己的高钠、高糖、高脂肪等不让菜品命中。
@@ -213,11 +225,15 @@ def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -
         order = f"医嘱「{constraint.content}」中的「{term}」"
         if entry and (entry.non_food or entry.not_applicable):
             continue
-        if entry and (entry.violates or entry.prefers):
+        if entry and (entry.violates or entry.prefers or entry.cautions):
             violated = food.tags & set(entry.violates)
             if violated:
                 reasons.append(("block", "require_violated",
                                 f"{order}：这个食物带有「{_tag_names(violated, catalog)}」标签，不符合要求。"))
+            cautioned = food.tags & set(entry.cautions)
+            if cautioned:
+                reasons.append(("caution", "require_caution",
+                                f"{order}：这个食物带有「{_tag_names(cautioned, catalog)}」标签，需要控制食用量。"))
             preferred = food.tags & set(entry.prefers)
             if preferred:
                 reasons.append(("prefer", "require_met",
@@ -296,7 +312,7 @@ def _preference_reasons(food: Food, context: EvaluationContext, catalog: Catalog
         entry = vocabulary.lookup(term) if term else None
         if entry is None:
             continue
-        violated = food.tags & set(entry.violates)
+        violated = food.tags & set(entry.violates + entry.cautions)
         if violated:
             reasons.append(Reason("preference", "caution", "preference_violated",
                                   f"你在档案里的饮食偏好是「{term}」：这个食物带有「{_tag_names(violated, catalog)}」标签。",
