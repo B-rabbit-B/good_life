@@ -113,33 +113,82 @@ def _name_in_term(names: tuple[str, ...], term: str) -> str | None:
     return next((name for name in names if len(name) >= MIN_CONTAINED_LENGTH and name in term), None)
 
 
-def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Catalog) -> tuple[str | None, bool]:
-    """避免类说法是否命中这个食物：返回（命中方式的说明或 None，对这个食物是否可判断）。
+VOCABULARY = "vocabulary"
+TERM_IN_NAME = "term_in_name"  # 情形 a：只按"说法在名称中"命中，其他食物不受影响
+NAME_IN_TERM = "name_in_term"  # 情形 b：按"名称在说法中"命中，其他食物无法判断
+TERM_IN_NAME_OR_UNVERIFIABLE = "term_in_name_or_unverifiable"  # 情形 c：按"说法在名称中"命中，其他食物无法判断
+
+
+@dataclass(frozen=True)
+class AvoidHit:
+    own: str | None  # 食物本身命中的说明
+    ingredients: tuple[str, ...]  # 菜品配方里命中的食材名称（按配方顺序）
+    verifiable: bool  # 没有命中时，是否能确认这个食物不属于这个说法
+
+    @property
+    def hit(self) -> bool:
+        return bool(self.own or self.ingredients)
+
+    def text(self) -> str:
+        """命中的说明：配方食材命中写"菜品配方含「…」"，食物本身命中写具体方式。"""
+        if not self.ingredients:
+            return self.own or ""
+        names = "、".join(f"「{name}」" for name in self.ingredients)
+        return f"菜品配方含{names}"
+
+
+def _avoid_mode(term: str, entry: VocabularyEntry | None, catalog: Catalog) -> tuple[str, tuple[str, ...]]:
+    """这个避免类说法按哪种方式判断，以及按哪些标签命中。"""
+    if entry is not None:
+        return VOCABULARY, entry.tags
+    long_term = len(term) >= MIN_CONTAINED_LENGTH
+    if long_term and catalog.has_name_containing(term):
+        return TERM_IN_NAME, ()
+    if long_term and catalog.has_name_within(term):
+        return NAME_IN_TERM, ()
+    return TERM_IN_NAME_OR_UNVERIFIABLE, ()
+
+
+def _own_hit(food: Food, term: str, mode: str, tags: tuple[str, ...], catalog: Catalog,
+             allowed_tags: frozenset[str] | None = None) -> str | None:
+    """一个食物本身是否命中；allowed_tags 不为空时只认其中的标签（用于菜品的配方食材）。"""
+    names = _food_names(food, term, catalog)
+    matched = food.tags & set(tags)
+    if allowed_tags is not None:
+        matched &= allowed_tags
+    if mode == VOCABULARY:
+        hits = []
+        if matched:
+            hits.append(f"这个食物带有「{_tag_names(matched, catalog)}」标签")
+        name = _term_in_name(names, term) or _name_in_term(names, term)
+        if name:
+            hits.append(f"食物名称「{name}」与「{term}」对得上")
+        return "，".join(hits) or None
+    if mode == NAME_IN_TERM:
+        name = _name_in_term(names, term)
+        return f"食物名称「{name}」包含在「{term}」中" if name else None
+    name = _term_in_name(names, term)
+    return f"食物名称「{name}」包含「{term}」" if name else None
+
+
+def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Catalog) -> AvoidHit:
+    """避免类说法是否命中这个食物。
 
     词汇表里的说法：按标签命中，或名称与说法互相包含。词汇表里没有的说法：
     a) 营养库有名称包含这个说法 → 只按"说法在名称中"命中，不命中即不影响（葡萄柚不命中葡萄）；
     b) 否则有名称（长度不少于 2）在说法中 → 这些食物命中，其他食物无法判断（牛羊肉命中羊肉，牛肉无法判断）；
     c) 否则（含单字说法）只按"说法在名称中"命中，其他食物无法判断。
+    菜品本身命中，或配方里任何一个食材按同样的方式命中，菜品都命中；食材的标签只认菜品会继承的那些
+    （成分类与辛辣、含酒精、含咖啡因），调料自己的高钠、高糖、高脂肪等不让菜品命中。
     """
-    names = _food_names(food, term, catalog)
-    if entry is not None:
-        hits = []
-        tags = food.tags & set(entry.tags)
-        if tags:
-            hits.append(f"这个食物带有「{_tag_names(tags, catalog)}」标签")
-        name = _term_in_name(names, term) or _name_in_term(names, term)
-        if name:
-            hits.append(f"食物名称「{name}」与「{term}」对得上")
-        return "，".join(hits) or None, True
-    long_term = len(term) >= MIN_CONTAINED_LENGTH
-    if long_term and catalog.has_name_containing(term):
-        name = _term_in_name(names, term)
-        return (f"食物名称「{name}」包含「{term}」" if name else None), True
-    if long_term and catalog.has_name_within(term):
-        name = _name_in_term(names, term)
-        return (f"食物名称「{name}」包含在「{term}」中", True) if name else (None, False)
-    name = _term_in_name(names, term)
-    return (f"食物名称「{name}」包含「{term}」", True) if name else (None, False)
+    mode, tags = _avoid_mode(term, entry, catalog)
+    own = _own_hit(food, term, mode, tags, catalog)
+    parts = (catalog.get(food_id) for food_id in food.ingredients)
+    ingredients = tuple(dict.fromkeys(
+        part.name for part in parts
+        if part is not None and _own_hit(part, term, mode, tags, catalog, catalog.inherited_tags)
+    ))
+    return AvoidHit(own, ingredients, mode in (VOCABULARY, TERM_IN_NAME))
 
 
 def _unverifiable_message(constraint: HardConstraint, term: str, verb: str) -> str:
@@ -176,10 +225,13 @@ def _medical_reasons(food: Food, constraint: HardConstraint, catalog: Catalog) -
         elif (entry and entry.unverifiable) or constraint.category == REQUIRE_CATEGORY:
             reasons.append(("unverifiable", "require_unverifiable", _unverifiable_message(constraint, term, "符合")))
         else:
-            hit, verifiable = _avoid_hit(food, term, entry, catalog)
-            if hit:
-                reasons.append(("block", "avoid_match", f"{order}：{hit}，不建议食用。"))
-            elif not verifiable:
+            hit = _avoid_hit(food, term, entry, catalog)
+            if hit.ingredients:
+                own = f"；{hit.own}" if hit.own else ""
+                reasons.append(("block", "avoid_match", f"{hit.text()}，与{order}相符{own}，不建议食用。"))
+            elif hit.own:
+                reasons.append(("block", "avoid_match", f"{order}：{hit.own}，不建议食用。"))
+            elif not hit.verifiable:
                 reasons.append(("unverifiable", "avoid_unverifiable", _unverifiable_message(constraint, term, "属于")))
     note = PENDING_REVIEW_NOTE if constraint.needs_review else ""
     return [Reason("medical", effect, code, message + note, constraint.item_id) for effect, code, message in reasons]
@@ -235,10 +287,10 @@ def _preference_reasons(food: Food, context: EvaluationContext, catalog: Catalog
         entry = vocabulary.lookup(term) if term else None
         if not term or (entry and entry.non_food):
             continue
-        hit, _ = _avoid_hit(food, term, entry, catalog)
-        if hit:
+        hit = _avoid_hit(food, term, entry, catalog)
+        if hit.hit:
             reasons.append(Reason("preference", "caution", "avoidance_match",
-                                  f"你在档案里填写了不吃「{term}」：{hit}。", term))
+                                  f"你在档案里填写了不吃「{term}」：{hit.text()}。", term))
     for raw in context.diet_preferences:
         term = normalize_query(raw)
         entry = vocabulary.lookup(term) if term else None

@@ -52,6 +52,15 @@
      "cfcd:081424", "cfcd:081427", "cfcd:081429",
      "cfcd:083102", "cfcd:083110", "cfcd:083306"
    ]}},
+  {"id": "pork", "name": "含猪肉", "kind": "composition", "review_status": "draft",
+   "basis": "成分表“畜肉类及其制品-猪”小类的全部条目（含猪排、猪蹄、猪内脏、火腿、香肠、腊肉、肉松等）；猪油属于动物油脂类，不计入；菜品按配方食材继承",
+   "members": {"categories": ["畜肉类及其制品-猪"]}},
+  {"id": "beef", "name": "含牛肉", "kind": "composition", "review_status": "draft",
+   "basis": "成分表“畜肉类及其制品-牛”小类的全部条目（含牦牛、牛蹄筋、牛内脏等）；牛油属于动物油脂类，不计入；菜品按配方食材继承",
+   "members": {"categories": ["畜肉类及其制品-牛"]}},
+  {"id": "mutton", "name": "含羊肉", "kind": "composition", "review_status": "draft",
+   "basis": "成分表“畜肉类及其制品-羊”小类的全部条目（含羊蹄筋、羊内脏、羊血等）；菜品按配方食材继承",
+   "members": {"categories": ["畜肉类及其制品-羊"]}},
   {"id": "alcohol", "name": "含酒精", "kind": "composition", "review_status": "draft",
    "basis": "酒类（啤酒、白酒、葡萄酒等，成分表未收录，由手动补充的食物显式声明）；菜品按配方食材继承"},
 

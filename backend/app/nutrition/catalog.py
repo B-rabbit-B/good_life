@@ -33,6 +33,7 @@ SUPPLEMENT_DATASET = "手动补充估算"
 LICENSE_PERSONAL_STUDY = "personal_study_only"
 LICENSE_SELF_ESTIMATE = "self_estimate_unverified"
 INHERITED_TAG_KINDS = ("composition",)
+INHERITED_TAGS = ("alcohol", "caffeine", "spicy")  # 不属于成分类、但同样按配方继承的标签
 DEFAULT_SERVING_UNIT = "份"
 DEFAULT_GRAMS = 100.0
 NUTRIENT_FIELDS = (
@@ -152,6 +153,7 @@ class Food:
     source: Source
     portions: tuple[tuple[str, float], ...] = ()  # （单位, 克），按单位名排序
     default_grams: float = 100.0
+    ingredients: tuple[str, ...] = ()  # 菜品配方里的食材编号（按配方顺序，去重）；其他食物为空
 
 
 def match_names(food: Food) -> tuple[str, ...]:
@@ -246,6 +248,9 @@ class Catalog:
         self.foods = MappingProxyType({food.id: food for food in sorted(foods, key=lambda f: f.id)})
         self.tags = MappingProxyType({tag.id: tag for tag in sorted(tag_definitions, key=lambda t: t.id)})
         self.common_aliases = MappingProxyType(dict(sorted(common_aliases.items())))
+        self.inherited_tags = frozenset(
+            tag.id for tag in self.tags.values() if tag.kind in INHERITED_TAG_KINDS or tag.id in INHERITED_TAGS
+        )
         self._names = {food.id: match_names(food) for food in self.foods.values()}
         self._match_names = dict(self._names)
         for alias, food_id in self.common_aliases.items():
@@ -434,7 +439,8 @@ def _dish_note(note: str, parts: list[tuple[Food, float]]) -> str:
 def _load_dishes(base_foods: dict[str, Food]) -> list[Food]:
     """按配方计算菜品：各食材每 100 克数值乘以用量后相加，再除以总用量换算回每 100 克；缺失按 0 计，烹调失水不计。
 
-    base_foods 是已经打过标签的食材与手动补充食物；菜品继承其中 kind 属于 INHERITED_TAG_KINDS 的标签。
+    base_foods 是已经打过标签的食材与手动补充食物；菜品继承其中 kind 属于 INHERITED_TAG_KINDS 的标签，
+    以及 INHERITED_TAGS 列出的辛辣、含酒精、含咖啡因；配方食材的编号保存在菜品的 ingredients 里。
     """
     kinds = {entry.id: entry.kind for entry in load_tag_entries()}
     foods = []
@@ -449,7 +455,10 @@ def _load_dishes(base_foods: dict[str, Food]) -> list[Food]:
             name: sum((getattr(food.nutrients, name) or 0) * grams / 100 for food, grams in parts) / total * 100
             for name in NUTRIENT_FIELDS
         })
-        inherited = {tag for food, _ in parts for tag in food.tags if kinds.get(tag) in INHERITED_TAG_KINDS}
+        inherited = {
+            tag for food, _ in parts for tag in food.tags
+            if kinds.get(tag) in INHERITED_TAG_KINDS or tag in INHERITED_TAGS
+        }
         foods.append(
             Food(
                 id=f"dish:{entry.id}",
@@ -462,6 +471,7 @@ def _load_dishes(base_foods: dict[str, Food]) -> list[Food]:
                 source=Source(DISH_DATASET, entry.id, LICENSE_PERSONAL_STUDY, _dish_note(entry.note, parts)),
                 portions=((DEFAULT_SERVING_UNIT, entry.serving_grams),),
                 default_grams=entry.serving_grams,
+                ingredients=tuple(dict.fromkeys(item.food for item in entry.ingredients)),
             )
         )
     return foods

@@ -167,8 +167,7 @@ def test_broad_name_patterns_do_not_over_tag():
     # 牛肉股内肉的别名"黄瓜条"、西瓜子、凤梨不属于寒凉
     for food_id in ("cfcd:082118", "cfcd:072014", "cfcd:065002", "cfcd:061227"):
         assert "cold_nature" not in catalog.get(food_id).tags, catalog.get(food_id).name
-    # 菜品里的调料不让菜品带上饮品类标签
-    assert "caffeine" not in _food("可乐鸡翅").tags
+    # 菜品里的调料不让菜品带上饮品类标签（含咖啡因按配方继承，见下面的继承测试）
     assert "sugary_drink" not in _food("可乐鸡翅").tags
 
 
@@ -265,3 +264,25 @@ def test_canned_fruit_in_syrup_is_high_sugar():
 
 def test_butter_tea_contains_caffeine():
     assert "caffeine" in load_catalog().get("cfcd:105010").tags
+
+
+# ---- 最终修复：菜品保留配方食材，并继承辛辣、含酒精、含咖啡因 ----
+
+def test_dishes_keep_recipe_ingredient_ids():
+    catalog = load_catalog()
+    raw = {dish["id"]: dish for dish in json.loads((DATA_DIR / "dishes.json").read_text("utf-8"))}
+    for dish_id, dish in raw.items():
+        expected = tuple(dict.fromkeys(item["food"] for item in dish["ingredients"]))
+        assert catalog.get(f"dish:{dish_id}").ingredients == expected
+    assert catalog.get("cfcd:072022").ingredients == ()
+    assert catalog.get("supplement:cola").ingredients == ()
+
+
+def test_dishes_inherit_spicy_alcohol_and_caffeine():
+    assert "spicy" in _food("醋溜白菜").tags  # 配方里有干辣椒
+    assert "caffeine" in _food("可乐鸡翅").tags  # 可乐含咖啡因
+    catalog = load_catalog()
+    for food in catalog.foods.values():
+        if food.kind == "dish":
+            from_ingredients = {tag for i in food.ingredients for tag in catalog.get(i).tags}
+            assert {"spicy", "alcohol", "caffeine"} & from_ingredients <= food.tags, food.name

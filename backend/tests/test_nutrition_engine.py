@@ -400,3 +400,110 @@ def test_personal_avoidance_of_compound_subject_ignores_unverifiable():
     assert beef.reasons == () and beef.conclusion == SUITABLE
     grape = evaluate_food(_real("葡萄"), 100, EvaluationContext(food_avoidances=("葡萄柚",), needs=NEEDS), catalog)
     assert grape.reasons == ()
+
+
+# ---- Final fix wave: dishes are hit through their recipe ingredients ----
+
+
+def _extracted(text):
+    """把医嘱原文交给规则抽取器，再按抽取出的条目组装硬约束（与线上流程一致）。"""
+    from datetime import date
+
+    from app.medical.extraction import RuleBasedExtractor
+
+    items = RuleBasedExtractor().extract(text, date(2026, 10, 6)).items
+    assert items, text
+    return tuple(HardConstraint(f"m{i}", item.category, item.content, tuple(item.subjects))
+                 for i, item in enumerate(items))
+
+
+def _real_food(name_or_id):
+    from app.nutrition.catalog import load_catalog
+
+    catalog = load_catalog()
+    return catalog.get(name_or_id) if ":" in name_or_id else catalog.search(name_or_id)[0].food
+
+
+def _order_result(text, name_or_id, **kwargs):
+    from app.nutrition.catalog import load_catalog
+
+    context = EvaluationContext(constraints=_extracted(text), **kwargs)
+    return evaluate_food(_real_food(name_or_id), 100, context, load_catalog())
+
+
+DISH_PROBES = [
+    ("忌花生。", "宫保鸡丁"),
+    *[("忌猪肉。", name) for name in ("红烧肉", "回锅肉", "鱼香肉丝", "青椒肉丝", "糖醋排骨", "冬瓜排骨汤", "馄饨",
+                                     "炸酱面", "炒面", "干煸四季豆", "麻辣烫")],
+    *[("忌鸡蛋。", name) for name in ("茶叶蛋", "紫菜蛋花汤", "炸鸡")],
+    ("忌牛肉。", "麻婆豆腐"), ("忌牛肉。", "火锅"), ("忌羊肉。", "火锅"), ("忌菠菜。", "麻辣烫"),
+]
+
+
+@pytest.mark.parametrize(("text", "name"), DISH_PROBES)
+def test_avoid_order_hits_dish_through_recipe_ingredient(text, name):
+    result = _order_result(text, name)
+    assert result.conclusion == NOT_RECOMMENDED, (text, name, result.reasons)
+    assert any(r.effect == "block" and r.code == "avoid_match" and "菜品配方含「" in r.message
+               for r in result.reasons), result.reasons
+
+
+def test_ingredient_hit_message_names_ingredient_order_and_subject():
+    [block] = [r for r in _order_result("忌花生。", "宫保鸡丁").reasons if r.effect == "block"]
+    assert block.message.startswith("菜品配方含「花生仁（油炸）」，与医嘱「")
+    assert "中的「花生」相符" in block.message and block.message.endswith("不建议食用。")
+
+
+SINGLE_FOOD_ORDERS = ("花生", "猪肉", "牛肉", "羊肉", "鸡蛋", "菠菜", "辣椒", "酒", "咖啡")
+
+
+@pytest.mark.parametrize("subject", SINGLE_FOOD_ORDERS)
+def test_every_dish_with_a_blocked_ingredient_is_blocked(subject):
+    """真实营养库矩阵：菜品配方里任何一个食材本身被这条医嘱判为不建议，菜品也必须是不建议。"""
+    from app.nutrition.catalog import load_catalog
+
+    catalog = load_catalog()
+    context = EvaluationContext(constraints=(_avoid("m", f"忌{subject}", [subject]),))
+    dishes = [food for food in catalog.foods.values() if food.kind == "dish"]
+    assert len(dishes) >= 40 and all(dish.ingredients for dish in dishes)
+    missed, hit = [], 0
+    for dish in dishes:
+        blocked = [catalog.get(i).name for i in dish.ingredients
+                   if evaluate_food(catalog.get(i), 100, context, catalog).conclusion == NOT_RECOMMENDED]
+        if blocked:
+            hit += 1
+            if evaluate_food(dish, 100, context, catalog).conclusion != NOT_RECOMMENDED:
+                missed.append((dish.name, blocked))
+    assert missed == []
+    if subject != "酒":  # 目前没有菜品用到酒
+        assert hit > 0
+
+
+def test_non_inherited_ingredient_tags_do_not_block_dishes():
+    """油、糖、盐这些调料自己带的营养类、饮食类标签（高脂肪、高糖、高钠）只描述每 100 克调料，不让菜品命中。"""
+    assert _order_result("一周内忌食辛辣、油腻食物。", "清炒西兰花").conclusion == SUITABLE
+    assert _order_result("忌甜食。", "番茄炒蛋").conclusion == SUITABLE
+    assert _order_result("忌高盐食物。", "清炒西兰花").conclusion == SUITABLE
+
+
+def test_personal_avoidance_hits_dish_through_ingredient():
+    from app.nutrition.catalog import load_catalog
+
+    context = EvaluationContext(food_avoidances=("花生",), needs=NEEDS)
+    result = evaluate_food(_real_food("宫保鸡丁"), 100, context, load_catalog())
+    [reason] = result.reasons
+    assert (reason.source, reason.effect, reason.code) == ("preference", "caution", "avoidance_match")
+    assert "菜品配方含「花生仁（油炸）」" in reason.message
+
+
+@pytest.mark.parametrize(("text", "name_or_id", "expected"), [
+    ("忌猪肉。", "cfcd:081131", NOT_RECOMMENDED),  # 名称里没有"猪肉"的猪小排，按含猪肉标签命中
+    ("忌猪肉。", "火腿肠", NOT_RECOMMENDED),
+    ("忌猪肉。", "牛肉", SUITABLE),
+    ("忌牛肉。", "牛肚", NOT_RECOMMENDED),
+    ("忌牛肉。", "猪肉", SUITABLE),
+    ("忌羊肉。", "羊肝", NOT_RECOMMENDED),
+    ("忌羊肉。", "鸡胸肉", SUITABLE),
+])
+def test_pork_beef_and_mutton_orders_cover_the_whole_subcategory(text, name_or_id, expected):
+    assert _order_result(text, name_or_id).conclusion == expected
