@@ -2,7 +2,7 @@ import datetime as dt
 import uuid
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.nutrition.catalog import NUTRIENT_FIELDS, Nutrients, round_one
 
@@ -149,4 +149,55 @@ class SummaryOut(BaseModel):
     incomplete_fields: list[str]
     needs: NeedsOut
     remaining: dict[str, float] | None
+    disclaimer: str
+
+
+class MealItemIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    food_id: Annotated[str, Field(min_length=1, max_length=64)]
+    grams: Annotated[float, Field(allow_inf_nan=False)] | None = None
+    portion: PortionIn | None = None
+
+    @model_validator(mode="after")
+    def at_most_one_amount(self) -> "MealItemIn":
+        if self.grams is not None and self.portion is not None:
+            raise ValueError("克数和份量最多填写一项")
+        return self
+
+
+class EvaluateIn(MealItemIn):
+    pass
+
+
+class EvaluateMealIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: Annotated[list[MealItemIn], Field(min_length=1, max_length=20)]
+
+
+class ReasonOut(BaseModel):
+    source: str
+    effect: str
+    code: str
+    message: str
+    ref: str
+
+
+class EvaluationOut(BaseModel):
+    food_id: str
+    food_name: str
+    grams: float
+    nutrients: NutrientsOut
+    conclusion: str
+    reasons: list[ReasonOut]
+    tradeoff: str
+    data_source: str
+    disclaimer: str
+
+
+class MealEvaluationOut(BaseModel):
+    items: list[EvaluationOut]
+    conclusion: str
+    total: NutrientsOut
     disclaimer: str

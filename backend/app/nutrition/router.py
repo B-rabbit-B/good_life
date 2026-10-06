@@ -9,6 +9,8 @@ from app.auth.models import User
 from app.common.clock import get_today
 from app.db import get_db
 from app.nutrition import meals
+from app.nutrition.context import build_context
+from app.nutrition.engine import Evaluation, evaluate_food, evaluate_meal
 from app.nutrition.catalog import Food, TagDefinition, load_catalog, round_one
 from app.nutrition.deps import require_nutrition_user
 from app.nutrition.models import MealEntry
@@ -16,12 +18,18 @@ from app.nutrition.needs import needs_for_profile
 from app.nutrition.schemas import (
     SUMMARY_DISCLAIMER,
     FoodDetailOut,
+    EvaluateIn,
+    EvaluateMealIn,
+    EvaluationOut,
     FoodSummaryOut,
     MealCreate,
+    MealEvaluationOut,
+    MealItemIn,
     MealOut,
     MealUpdate,
     NeedsOut,
     PortionOut,
+    ReasonOut,
     SearchOut,
     SourceOut,
     SummaryOut,
@@ -161,3 +169,44 @@ def get_summary(user: NutritionUser, db: DbSession, today: Today, day: DayQuery 
 @router.get("/needs", response_model=NeedsOut)
 def get_needs(user: NutritionUser, db: DbSession, today: Today) -> NeedsOut:
     return NeedsOut.model_validate(needs_for_profile(get_or_create_profile(db, user.id), today))
+
+
+def _resolve_item(item: MealItemIn) -> tuple[Food, float]:
+    food = meals.get_food(item.food_id)
+    if item.grams is None and item.portion is None:
+        return food, food.default_grams
+    return food, meals.resolve_grams(food, item.grams, item.portion.model_dump() if item.portion else None)
+
+
+def _evaluation_out(evaluation: Evaluation) -> EvaluationOut:
+    return EvaluationOut(
+        food_id=evaluation.food_id,
+        food_name=evaluation.food_name,
+        grams=evaluation.grams,
+        nutrients=nutrients_out(evaluation.nutrients),
+        conclusion=evaluation.conclusion,
+        reasons=[ReasonOut(**vars(reason)) for reason in evaluation.reasons],
+        tradeoff=evaluation.tradeoff,
+        data_source=evaluation.data_source,
+        disclaimer=evaluation.disclaimer,
+    )
+
+
+@router.post("/evaluate", response_model=EvaluationOut)
+def evaluate(body: EvaluateIn, user: NutritionUser, db: DbSession, today: Today) -> EvaluationOut:
+    food, grams = _resolve_item(body)
+    context = build_context(db, user.id, today)
+    return _evaluation_out(evaluate_food(food, grams, context, load_catalog()))
+
+
+@router.post("/evaluate-meal", response_model=MealEvaluationOut)
+def evaluate_meal_items(body: EvaluateMealIn, user: NutritionUser, db: DbSession, today: Today) -> MealEvaluationOut:
+    items = [_resolve_item(item) for item in body.items]
+    context = build_context(db, user.id, today)
+    result = evaluate_meal(items, context, load_catalog())
+    return MealEvaluationOut(
+        items=[_evaluation_out(evaluation) for evaluation in result.items],
+        conclusion=result.conclusion,
+        total=nutrients_out(result.total),
+        disclaimer=result.disclaimer,
+    )
