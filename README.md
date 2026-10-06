@@ -217,7 +217,7 @@ uv run python -m app.nutrition.demo
 启动服务后，在接口文档页面（http://localhost:8000/docs）按下面顺序体验，登录与授权的操作同第 8 节：
 
 1. 登录：`POST /api/auth/login`，先用 `demo_healthy` 和 `demo-pass-123` 登录，把令牌填进 Authorize。
-2. 体验检索：`GET /api/nutrition/foods/search`，q 填 `米饭`、`西红柿炒鸡蛋`、`宫保鸡丁` 等，看命中的食物与命中方式；再填一个不存在的词，返回“未找到”的明确提示。`GET /api/nutrition/foods/{food_id}` 查看营养、标签、份量和来源（出处与授权状态）。
+2. 体验检索：`GET /api/nutrition/foods/search`，q 填 `米饭`、`西红柿炒鸡蛋`、`宫保鸡丁` 等，看命中的食物与命中方式；再填 `酸菜鱼` 这类库里没有、只有相近名称的词，返回的 `exact` 为假并提示请确认候选；再填一个不存在的词，返回“未找到”的明确提示。`GET /api/nutrition/foods/{food_id}` 查看营养、标签、份量和来源（出处与授权状态）。
 3. 记录三餐看汇总：`POST /api/nutrition/meals`，`eaten_on` 填今天，`meal_type` 选早餐、午餐、晚餐，`food_id` 填检索得到的编号，`grams` 或 `portion` 二选一；记录几次后 `GET /api/nutrition/summary` 看每餐与全天合计、估算的需求与剩余额度，与手算对照；`GET /api/nutrition/needs` 单独看估算的需求。
 4. 判断同一个食物：`POST /api/nutrition/evaluate`，填同一个 `food_id`（例如麻婆豆腐、西瓜、啤酒、猪肝、鸡胸肉），依次换 `demo_avoid`、`demo_period`、`demo_muscle`、`demo_healthy` 登录（重新授权），比较四个账号的结论与依据：忌口账号对麻婆豆腐、啤酒得到“不建议”并指出是哪条医嘱；经期账号对西瓜得到“谨慎”，依据来自经期提示（传统经验，不是医嘱）；增肌账号对鸡胸肉得到健身目标的正面依据；健康账号对常见食物都是“适合”。
 5. 判断一整餐：`POST /api/nutrition/evaluate-meal`，`items` 里放几个食物，看每一项和整餐的结论。
