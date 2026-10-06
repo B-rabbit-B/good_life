@@ -201,7 +201,7 @@ def test_vocabulary_lookup_strips_suffixes_and_entries_have_one_kind():
 
     vocabulary = load_vocabulary()
     assert vocabulary.lookup("油腻食物").tags == ("fried", "high_fat")
-    assert vocabulary.lookup("低盐饮食").violates == ("high_sodium",)
+    assert vocabulary.lookup("低盐饮食").violates == ("high_sodium", "cured")
     assert vocabulary.lookup("海鲜类食物").tags == ("seafood",)
     assert vocabulary.lookup("吸烟").non_food
     assert vocabulary.lookup("发物") is None and vocabulary.lookup("食物") is None
@@ -694,3 +694,61 @@ def test_ranking_every_food_for_a_five_subject_order_is_fast():
     elapsed = time.perf_counter() - started
     assert elapsed < 2, elapsed
     assert len(results) == len(catalog.foods)
+
+
+# ---- Follow-up (Ruling 12): vocabulary subjects never match recipe ingredient names ----
+
+
+SALTED = ("cfcd:081308", "cfcd:081305", "cfcd:081409")  # 咸肉、腊肉（生）、火腿肠
+
+FOLLOWUP_PROBES = [
+    # 1. 词汇表说法只按食物自己的标签与名称、以及配方食材会被菜品继承的标签命中
+    *[(text, name, expected) for text in ("少吃盐。", "限盐。") for name, expected in [
+        ("食盐", NOT_RECOMMENDED), ("酱油", NOT_RECOMMENDED), ("咸鸭蛋", NOT_RECOMMENDED),
+        ("清炒西兰花", SUITABLE), ("凉拌黄瓜", SUITABLE), ("番茄炒蛋", SUITABLE), ("米饭", SUITABLE)]],
+    ("忌醋。", "醋溜白菜", NOT_RECOMMENDED),  # 不在词汇表里的说法仍按配方食材名称命中
+    ("忌醋。", "米饭", CAUTION),
+    ("忌白糖。", "番茄炒蛋", NOT_RECOMMENDED),
+    ("忌酱油。", "红烧肉", NOT_RECOMMENDED),
+    ("忌牛奶。", "cfcd:011410", NOT_RECOMMENDED),  # 花卷（加牛奶）
+    ("忌油炸食物。", "宫保鸡丁", NOT_RECOMMENDED),  # 菜品显式声明油炸（油炸花生仁）
+    ("忌油炸食物。", "炸鸡", NOT_RECOMMENDED),
+    # 2. 腌腊制品
+    *[(text, food_id, NOT_RECOMMENDED) for text in ("忌咸。", "少吃盐。", "低盐饮食。", "忌腌制食品。")
+      for food_id in SALTED],
+    ("少吃盐。", "麻辣烫", NOT_RECOMMENDED),  # 配方里的火腿肠，继承腌腊制品
+    # 3. 具体的禽、鱼、虾蟹贝、菌类
+    *[("忌鸡肉。", name, NOT_RECOMMENDED) for name in ("鸡腿", "鸡胸肉", "宫保鸡丁", "炸鸡", "可乐鸡翅")],
+    ("忌鸡肉。", "鸡蛋", SUITABLE), ("忌鸡肉。", "番茄炒蛋", SUITABLE),
+    *[("忌鸡。", name, NOT_RECOMMENDED) for name in ("鸡腿", "宫保鸡丁", "可乐鸡翅")],
+    ("忌鸡。", "鸡蛋", SUITABLE), ("忌鸡。", "番茄炒蛋", SUITABLE),
+    ("忌鸭肉。", "烤鸭", NOT_RECOMMENDED), ("忌鸭肉。", "鸭肉", NOT_RECOMMENDED), ("忌鸭肉。", "咸鸭蛋", SUITABLE),
+    ("忌禽肉。", "鸭肉", NOT_RECOMMENDED), ("忌禽肉。", "鸡腿", NOT_RECOMMENDED), ("忌禽肉。", "牛肉", SUITABLE),
+    *[("忌鱼肉。", name, NOT_RECOMMENDED) for name in ("带鱼", "草鱼", "红烧鱼", "清蒸鱼")],
+    ("忌鱼肉。", "cfcd:129013", SUITABLE),  # 章鱼不是鱼
+    ("忌虾仁。", "白灼虾", NOT_RECOMMENDED), ("忌虾仁。", "虾", NOT_RECOMMENDED), ("忌虾仁。", "带鱼", SUITABLE),
+    ("忌螃蟹。", "螃蟹", NOT_RECOMMENDED), ("忌蟹。", "螃蟹", NOT_RECOMMENDED),
+    ("忌贝类。", "扇贝", NOT_RECOMMENDED), ("忌贝类。", "虾", SUITABLE),
+    ("忌蘑菇。", "香菇", NOT_RECOMMENDED), ("忌蘑菇。", "金针菇", NOT_RECOMMENDED), ("忌蘑菇。", "麻辣烫", NOT_RECOMMENDED),
+    ("忌蘑菇。", "米饭", SUITABLE),
+    ("忌鱼虾。", "带鱼", NOT_RECOMMENDED), ("忌鱼虾。", "虾", NOT_RECOMMENDED),
+    ("忌豆。", "豆腐", NOT_RECOMMENDED), ("忌豆。", "麻婆豆腐", NOT_RECOMMENDED),
+    ("忌豆。", "地三鲜", SUITABLE), ("忌豆。", "酸辣土豆丝", SUITABLE), ("忌豆。", "清炒西兰花", SUITABLE),
+    # 4. 数据补漏
+    ("忌肉。", "cfcd:011503", NOT_RECOMMENDED),  # 面筋（肉馅）
+    ("忌甜食。", "cfcd:011407", NOT_RECOMMENDED),  # 烧饼（加糖）
+]
+
+
+@pytest.mark.parametrize(("text", "name_or_id", "expected"), FOLLOWUP_PROBES)
+def test_followup_probes_from_extractor_text(text, name_or_id, expected):
+    result = _order_result(text, name_or_id)
+    assert result.conclusion == expected, (text, name_or_id, result.reasons)
+
+
+def test_vocabulary_subject_never_matches_recipe_ingredient_names():
+    """"盐"在词汇表里：配方里的食盐（名称就是"盐"）不让菜品命中；只有菜品会继承的标签才算。"""
+    result = _order_result("少吃盐。", "番茄炒蛋")
+    assert [r for r in result.reasons if r.source == "medical"] == []
+    eggs = _order_result("忌鸡蛋。", "茶叶蛋")  # 鸡蛋按继承的含蛋标签命中，依据仍列出配方食材
+    assert any("菜品配方含「鸡蛋（代表值）」" in r.message for r in eggs.reasons if r.effect == "block")

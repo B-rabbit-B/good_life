@@ -152,33 +152,35 @@ def _avoid_mode(term: str, entry: VocabularyEntry | None, catalog: Catalog) -> t
 
 
 def _own_hit(food: Food, term: str, mode: str, tags: tuple[str, ...], catalog: Catalog,
-             allowed_tags: frozenset[str] | None = None) -> str | None:
-    """一个食物本身是否命中；allowed_tags 不为空时只认其中的标签（用于菜品的配方食材）。
+             allowed_tags: frozenset[str] | None = None, use_names: bool = True) -> str | None:
+    """一个食物本身是否命中；allowed_tags 不为空时只认其中的标签，use_names 为假时不比名称（用于菜品的配方食材）。
 
     词汇表里的说法按名称命中只认"说法在名称中"，单字说法只认与名称完全相同（"鱼"不命中"鱼香肉丝"），
     不认"名称在说法中"（"葡萄柚汁"不命中"葡萄"）。
     """
-    names = _food_names(food, term, catalog)
     matched = food.tags & set(tags)
     if allowed_tags is not None:
         matched &= allowed_tags
     hits = [f"这个食物带有「{_tag_names(matched, catalog)}」标签"] if matched else []
+    if use_names:
+        name_hit = _name_hit(_food_names(food, term, catalog), term, mode)
+        if name_hit:
+            hits.append(name_hit)
+    return "，".join(hits) or None
+
+
+def _name_hit(names: tuple[str, ...], term: str, mode: str) -> str | None:
     if mode == VOCABULARY:
         if len(term) < MIN_CONTAINED_LENGTH:
             name = next((name for name in names if name == term), None)
         else:
             name = _term_in_name(names, term)
-        if name:
-            hits.append(f"食物名称「{name}」与「{term}」对得上")
-    elif mode == NAME_IN_TERM:
+        return f"食物名称「{name}」与「{term}」对得上" if name else None
+    if mode == NAME_IN_TERM:
         name = _name_in_term(names, term)
-        if name:
-            hits.append(f"食物名称「{name}」包含在「{term}」中")
-    else:
-        name = _term_in_name(names, term)
-        if name:
-            hits.append(f"食物名称「{name}」包含「{term}」")
-    return "，".join(hits) or None
+        return f"食物名称「{name}」包含在「{term}」中" if name else None
+    name = _term_in_name(names, term)
+    return f"食物名称「{name}」包含「{term}」" if name else None
 
 
 def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Catalog) -> AvoidHit:
@@ -190,15 +192,18 @@ def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Ca
        带有被包含说法的标签的食物命中，其他食物无法判断（牛羊肉命中羊肉，牛肉无法判断；
        "高嘌呤食物如动物内脏"命中高嘌呤与动物内脏）；
     c) 否则（含单字说法）只按"说法在名称中"命中，其他食物无法判断。
-    菜品本身命中，或配方里任何一个食材按同样的方式命中，菜品都命中；食材的标签只认菜品会继承的那些
+    菜品本身命中，或配方里任何一个食材命中，菜品都命中；食材的标签只认菜品会继承的那些
     （成分类与辛辣、含酒精、含咖啡因），调料自己的高钠、高糖、高脂肪等不让菜品命中。
+    词汇表里的说法只按食材的这些标签命中，从不比较食材名称（"盐"不因配方里的食盐命中每道菜）；
+    词汇表里没有的说法，食材的名称照样参与（"忌花生"命中含油炸花生仁的宫保鸡丁）。
     """
     mode, tags = _avoid_mode(term, entry, catalog)
     own = _own_hit(food, term, mode, tags, catalog)
     parts = (catalog.get(food_id) for food_id in food.ingredients)
     ingredients = tuple(dict.fromkeys(
         part.name for part in parts
-        if part is not None and _own_hit(part, term, mode, tags, catalog, catalog.inherited_tags)
+        if part is not None
+        and _own_hit(part, term, mode, tags, catalog, catalog.inherited_tags, use_names=mode != VOCABULARY)
     ))
     return AvoidHit(own, ingredients, mode in (VOCABULARY, TERM_IN_NAME))
 

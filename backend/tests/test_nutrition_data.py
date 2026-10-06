@@ -303,3 +303,27 @@ def test_new_draft_tags_and_members():
     assert "legume" in _food("豆腐").tags and "legume" in _food("麻婆豆腐").tags
     assert "nut" in _food("核桃").tags and "nut" in _food("宫保鸡丁").tags
     assert "alcohol" in catalog.get("cfcd:062309").tags  # 酒枣
+
+
+# ---- 跟进修复（裁定 12）：新标签与数据补漏 ----
+
+def test_followup_draft_tags():
+    catalog = load_catalog()
+    for tag in ("cured", "poultry", "chicken", "duck", "shrimp", "crab", "shellfish", "fungi"):
+        assert (catalog.tags[tag].kind, catalog.tags[tag].review_status) == ("composition", "draft"), tag
+    for food_id in ("cfcd:081308", "cfcd:081305", "cfcd:081320", "cfcd:081410", "cfcd:081413", "cfcd:081409",
+                    "cfcd:081421", "cfcd:112203", "cfcd:121224"):
+        assert "cured" in catalog.get(food_id).tags, food_id
+    assert "cured" in _food("麻辣烫").tags and "cured" not in _food("猪肉").tags
+    assert "chicken" in _food("宫保鸡丁").tags and "poultry" in _food("炸鸡").tags
+    assert "chicken" not in _food("鸡蛋").tags and "duck" not in _food("咸鸭蛋").tags
+    assert "shrimp" in _food("白灼虾").tags and "crab" in _food("螃蟹").tags and "shellfish" in _food("扇贝").tags
+    assert "fungi" in _food("香菇").tags and "fungi" in _food("麻辣烫").tags  # 配方里的金针菇
+    assert "fried" in _food("宫保鸡丁").tags
+
+
+def test_followup_data_gaps():
+    catalog = load_catalog()
+    assert "dairy" in catalog.get("cfcd:011410").tags  # 花卷（加牛奶）
+    assert "meat" in catalog.get("cfcd:011503").tags  # 面筋（肉馅）
+    assert "sweets" in catalog.get("cfcd:011407").tags  # 烧饼（加糖）

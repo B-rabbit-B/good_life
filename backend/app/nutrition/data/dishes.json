@@ -13,7 +13,7 @@
      {"food": "supplement:soy_sauce", "grams": 10}, {"food": "supplement:vinegar", "grams": 8}, {"food": "supplement:sugar", "grams": 8},
      {"food": "cfcd:022103", "grams": 5}, {"food": "supplement:salt", "grams": 1.5}
    ],
-   "serving_grams": 260, "tags": ["spicy"],
+   "serving_grams": 260, "tags": ["spicy", "fried"],
    "note": "家常做法一人份估计：鸡胸肉、油炸花生米、葱段、干辣椒与花椒，荔枝味汁，烹调失水不计"},
   {"id": "yuxiang_pork", "name": "鱼香肉丝", "aliases": [], "category": "菜品-家常菜",
    "ingredients": [
