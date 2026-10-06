@@ -2,14 +2,15 @@
 
 数据来源，每个食物都带出处与授权状态：
 - 中国食物成分表（第 6 版）整理数据：Sanotsu/china-food-composition-data 固定版本 d15675c，原样保存并校验哈希；
-- 自建菜品配方：按配方中各食材的成分表数值计算（任务 2）；
-- 手动补充：成分表没有的酒类、饮料、甜点等的估算值（任务 2）。
+- 自建菜品配方：按配方中各食材的成分表数值计算；
+- 手动补充：成分表没有的调料、酒类、饮料、甜点等的估算值。
 """
 
 import csv
 import json
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass, replace
 from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
@@ -17,7 +18,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 DATA_DIR = Path(__file__).with_name("data")
 CFCD_FILE = DATA_DIR / "cfcd_food_composition.csv"
@@ -27,11 +28,20 @@ CFCD_NOTE = (
     "来自 Sanotsu/china-food-composition-data 固定版本 d15675c；由视觉大模型从原书识别并经交叉校验，"
     "作者声明不保证与原书完全一致；版权归原作者，仅供个人学习，商用前须核实授权或替换。"
 )
+DISH_DATASET = "自建菜品配方"
+SUPPLEMENT_DATASET = "手动补充估算"
 LICENSE_PERSONAL_STUDY = "personal_study_only"
 LICENSE_SELF_ESTIMATE = "self_estimate_unverified"
+INHERITED_TAG_KINDS = ("composition",)
+DEFAULT_SERVING_UNIT = "份"
+DEFAULT_GRAMS = 100.0
 NUTRIENT_FIELDS = (
     "energy_kcal", "protein_g", "fat_g", "carbohydrate_g", "fiber_g", "sodium_mg", "iron_mg", "calcium_mg",
 )
+NUTRIENT_LABELS = {
+    "energy_kcal": "能量", "protein_g": "蛋白质", "fat_g": "脂肪", "carbohydrate_g": "碳水化合物",
+    "fiber_g": "膳食纤维", "sodium_mg": "钠", "iron_mg": "铁", "calcium_mg": "钙",
+}
 CFCD_COLUMNS = {
     "energy_kcal": "energyKCal", "protein_g": "protein", "fat_g": "fat", "carbohydrate_g": "CHO",
     "fiber_g": "dietaryFiber", "sodium_mg": "Na", "iron_mg": "Fe", "calcium_mg": "Ca",
@@ -41,6 +51,7 @@ KIND_ORDER = {"dish": 0, "supplement": 1, "ingredient": 2}
 SEARCH_LIMIT = 20
 MIN_CONTAINED_LENGTH = 2
 BRACKET_RE = re.compile(r"［([^］]*)］")
+PAREN_RE = re.compile(r"[（(][^（()）]*[）)]")
 ALIAS_SPLIT_RE = re.compile(r"[、，,]")
 WHITESPACE_RE = re.compile(r"[\s　]+")
 
@@ -63,6 +74,11 @@ def split_name(raw: str) -> tuple[str, tuple[str, ...]]:
         alias.strip() for group in BRACKET_RE.findall(raw) for alias in ALIAS_SPLIT_RE.split(group) if alias.strip()
     )
     return BRACKET_RE.sub("", raw).strip(), aliases
+
+
+def base_name(name: str) -> str:
+    """去掉名称里全角或半角括号中的限定说明：菠菜（鲜） → 菠菜；米饭（蒸，代表值） → 米饭。"""
+    return PAREN_RE.sub("", name).strip()
 
 
 def normalize_query(text: str) -> str:
@@ -138,6 +154,11 @@ class Food:
     default_grams: float = 100.0
 
 
+def match_names(food: Food) -> tuple[str, ...]:
+    """用于名称匹配的全部说法：名称、别名、去掉括号限定后的基本名称（去重，顺序固定）。"""
+    return tuple(dict.fromkeys(name for name in (food.name, *food.aliases, base_name(food.name)) if name))
+
+
 @dataclass(frozen=True)
 class SearchHit:
     food: Food
@@ -173,12 +194,59 @@ class _TagEntry(BaseModel):
     members: _TagMembers | None = None
 
 
+class _NutrientValues(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    energy_kcal: float | None = None
+    protein_g: float | None = None
+    fat_g: float | None = None
+    carbohydrate_g: float | None = None
+    fiber_g: float | None = None
+    sodium_mg: float | None = None
+    iron_mg: float | None = None
+    calcium_mg: float | None = None
+
+
+class _SupplementEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str
+    aliases: list[str] = []
+    category: str
+    nutrients: _NutrientValues
+    serving_grams: float = Field(gt=0)
+    serving_unit: str = Field(min_length=1)
+    tags: list[str] = []
+    note: str
+
+
+class _DishIngredient(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    food: str
+    grams: float = Field(gt=0)
+
+
+class _DishEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str
+    aliases: list[str] = []
+    category: str
+    ingredients: list[_DishIngredient] = Field(min_length=1)
+    serving_grams: float = Field(gt=0)
+    tags: list[str] = []
+    note: str
+
+
 class Catalog:
     def __init__(self, foods: list[Food], tag_definitions: list[TagDefinition], common_aliases: dict[str, str]):
         self.foods = MappingProxyType({food.id: food for food in sorted(foods, key=lambda f: f.id)})
         self.tags = MappingProxyType({tag.id: tag for tag in sorted(tag_definitions, key=lambda t: t.id)})
         self.common_aliases = MappingProxyType(dict(sorted(common_aliases.items())))
-        self._names = {food.id: (food.name, *food.aliases) for food in self.foods.values()}
+        self._names = {food.id: match_names(food) for food in self.foods.values()}
 
     def get(self, food_id: str) -> Food | None:
         return self.foods.get(food_id)
@@ -221,7 +289,7 @@ class Catalog:
         return [SearchHit(self.foods[food_id], MATCH_TYPES[rank]) for food_id, rank in ordered[:limit]]
 
     def name_matches(self, term: str) -> bool:
-        """营养库里是否有食物的名称或别名与这个说法对得上（互相包含）。"""
+        """营养库里是否有食物的名称、别名或基本名称与这个说法对得上（互相包含）。"""
         t = normalize_query(term)
         if not t:
             return False
@@ -306,13 +374,130 @@ def _load_common_aliases(food_ids: set[str]) -> dict[str, str]:
     return aliases
 
 
-def build_catalog(foods: list[Food]) -> Catalog:
-    entries = _load_tag_entries()
-    tagged = [replace(food, tags=assign_tags(food, entries)) for food in foods]
-    definitions = [TagDefinition(e.id, e.name, e.kind, e.basis, e.review_status) for e in entries]
-    return Catalog(tagged, definitions, _load_common_aliases({food.id for food in tagged}))
+def _load_supplements() -> list[Food]:
+    foods = []
+    for raw in json.loads((DATA_DIR / "supplements.json").read_text("utf-8")):
+        entry = _SupplementEntry.model_validate(raw)
+        if "估算" not in entry.note:
+            raise ValueError(f"手动补充食物 {entry.id} 的说明必须写明估算依据")
+        foods.append(
+            Food(
+                id=f"supplement:{entry.id}",
+                name=entry.name,
+                aliases=tuple(entry.aliases),
+                category=entry.category,
+                kind="supplement",
+                nutrients=Nutrients(**entry.nutrients.model_dump()),
+                tags=frozenset(entry.tags),
+                source=Source(SUPPLEMENT_DATASET, entry.id, LICENSE_SELF_ESTIMATE, entry.note),
+                portions=((entry.serving_unit, entry.serving_grams),),
+                default_grams=entry.serving_grams,
+            )
+        )
+    return foods
+
+
+def _dish_note(note: str, parts: list[tuple[Food, float]]) -> str:
+    """在配方说明后补上：哪些食材的哪些营养缺失按 0 计、哪些食材是手动估算值。"""
+    missing = []
+    for food, _ in parts:
+        fields = [NUTRIENT_LABELS[name] for name in NUTRIENT_FIELDS if getattr(food.nutrients, name) is None]
+        if fields:
+            missing.append(f"{food.name}的{'、'.join(fields)}")
+    estimated = list(dict.fromkeys(food.name for food, _ in parts if food.kind == "supplement"))
+    extra = []
+    if missing:
+        extra.append(f"食材营养缺失按 0 计：{'；'.join(missing)}")
+    if estimated:
+        extra.append(f"其中{'、'.join(estimated)}为手动补充的估算值，未核对")
+    return "；".join([note.rstrip("。；"), *extra]) + "。"
+
+
+def _load_dishes(base_foods: dict[str, Food]) -> list[Food]:
+    """按配方计算菜品：各食材每 100 克数值乘以用量后相加，再除以总用量换算回每 100 克；缺失按 0 计，烹调失水不计。
+
+    base_foods 是已经打过标签的食材与手动补充食物；菜品继承其中 kind 属于 INHERITED_TAG_KINDS 的标签。
+    """
+    kinds = {entry.id: entry.kind for entry in _load_tag_entries()}
+    foods = []
+    for raw in json.loads((DATA_DIR / "dishes.json").read_text("utf-8")):
+        entry = _DishEntry.model_validate(raw)
+        unknown = [item.food for item in entry.ingredients if item.food not in base_foods]
+        if unknown:
+            raise ValueError(f"菜品 {entry.id} 引用了不存在的食材：{unknown}")
+        parts = [(base_foods[item.food], item.grams) for item in entry.ingredients]
+        total = sum(grams for _, grams in parts)
+        nutrients = Nutrients(**{
+            name: sum((getattr(food.nutrients, name) or 0) * grams / 100 for food, grams in parts) / total * 100
+            for name in NUTRIENT_FIELDS
+        })
+        inherited = {tag for food, _ in parts for tag in food.tags if kinds.get(tag) in INHERITED_TAG_KINDS}
+        foods.append(
+            Food(
+                id=f"dish:{entry.id}",
+                name=entry.name,
+                aliases=tuple(entry.aliases),
+                category=entry.category,
+                kind="dish",
+                nutrients=nutrients,
+                tags=frozenset(entry.tags) | inherited,
+                source=Source(DISH_DATASET, entry.id, LICENSE_PERSONAL_STUDY, _dish_note(entry.note, parts)),
+                portions=((DEFAULT_SERVING_UNIT, entry.serving_grams),),
+                default_grams=entry.serving_grams,
+            )
+        )
+    return foods
+
+
+def _load_portions(food_ids: set[str]) -> dict[str, dict[str, float]]:
+    portions = json.loads((DATA_DIR / "portions.json").read_text("utf-8"))
+    for food_id, units in sorted(portions.items()):
+        if food_id not in food_ids:
+            raise ValueError(f"portions.json 引用了不存在的食物：{food_id}")
+        for unit, grams in sorted(units.items()):
+            if not unit or isinstance(grams, bool) or not isinstance(grams, (int, float)) or grams <= 0:
+                raise ValueError(f"portions.json 中 {food_id} 的份量“{unit}”无效")
+    return portions
+
+
+def _with_portions(food: Food, units: dict[str, float]) -> Food:
+    """合并份量并按单位名排序；食材的默认克数取排序后的第一个份量，没有则 100 克。"""
+    merged = dict(food.portions)
+    merged.update({unit: float(grams) for unit, grams in units.items()})
+    portions = tuple(sorted(merged.items()))
+    default = food.default_grams
+    if food.kind == "ingredient":
+        default = portions[0][1] if portions else DEFAULT_GRAMS
+    return replace(food, portions=portions, default_grams=default)
+
+
+def _check_foods(foods: list[Food], entries: list[_TagEntry]) -> None:
+    """编号唯一；食物带的标签都在 tags.json 中定义；标签成员引用的食物都存在。"""
+    counts = Counter(food.id for food in foods)
+    duplicated = sorted(food_id for food_id, count in counts.items() if count > 1)
+    if duplicated:
+        raise ValueError(f"食物编号重复：{duplicated}")
+    defined = {entry.id for entry in entries}
+    for food in foods:
+        undefined = sorted(food.tags - defined)
+        if undefined:
+            raise ValueError(f"{food.id} 声明了未定义的标签：{undefined}")
+    known = set(counts)
+    for entry in entries:
+        if entry.members:
+            unknown = sorted(set(entry.members.ids + entry.members.exclude_ids) - known)
+            if unknown:
+                raise ValueError(f"标签 {entry.id} 的成员引用了不存在的食物：{unknown}")
 
 
 @lru_cache
 def load_catalog() -> Catalog:
-    return build_catalog(_load_cfcd())
+    entries = _load_tag_entries()
+    base = [replace(food, tags=assign_tags(food, entries)) for food in (*_load_cfcd(), *_load_supplements())]
+    dishes = [replace(dish, tags=assign_tags(dish, entries)) for dish in _load_dishes({f.id: f for f in base})]
+    foods = [*base, *dishes]
+    _check_foods(foods, entries)
+    portions = _load_portions({food.id for food in foods})
+    foods = [_with_portions(food, portions.get(food.id, {})) for food in foods]
+    definitions = [TagDefinition(e.id, e.name, e.kind, e.basis, e.review_status) for e in entries]
+    return Catalog(foods, definitions, _load_common_aliases({food.id for food in foods}))

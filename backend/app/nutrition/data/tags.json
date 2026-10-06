@@ -12,5 +12,140 @@
   {"id": "iron_rich", "name": "富含铁", "kind": "nutrition", "review_status": "reviewed",
    "basis": "每 100 克铁不少于 3 毫克", "rule": {"nutrient": "iron_mg", "min": 3}},
   {"id": "calcium_rich", "name": "富含钙", "kind": "nutrition", "review_status": "reviewed",
-   "basis": "每 100 克钙不少于 150 毫克", "rule": {"nutrient": "calcium_mg", "min": 150}}
+   "basis": "每 100 克钙不少于 150 毫克", "rule": {"nutrient": "calcium_mg", "min": 150}},
+
+  {"id": "meat", "name": "含畜禽肉", "kind": "composition", "review_status": "draft",
+   "basis": "成分表中畜肉类与禽肉类的全部条目；菜品按配方食材继承",
+   "members": {"categories": ["畜肉类及其制品", "禽肉类及其制品"]}},
+  {"id": "seafood", "name": "含鱼虾蟹贝", "kind": "composition", "review_status": "draft",
+   "basis": "成分表中鱼虾蟹贝类的全部条目，另加归在其他类的鱼肚、鱼唇；藻类不计入；菜品按配方食材继承",
+   "members": {"categories": ["鱼虾蟹贝类"], "ids": ["cfcd:219043", "cfcd:219044"]}},
+  {"id": "egg", "name": "含蛋", "kind": "composition", "review_status": "draft",
+   "basis": "成分表中蛋类的全部条目，另加名称写明含蛋的鸡蛋龙须面、蛋清肠与甲鱼蛋；菜品按配方食材继承",
+   "members": {"categories": ["蛋类及其制品"], "ids": ["cfcd:011315", "cfcd:081404", "cfcd:129014"]}},
+  {"id": "dairy", "name": "含奶", "kind": "composition", "review_status": "draft",
+   "basis": "成分表中乳类的全部条目；手动补充的奶茶、拿铁、蛋糕、冰淇淋显式声明；菜品按配方食材继承",
+   "members": {"categories": ["乳类及其制品"]}},
+  {"id": "organ_meat", "name": "动物内脏", "kind": "composition", "review_status": "draft",
+   "basis": "畜禽的肝、肾（腰子）、心、肚（胃、百叶、肫）、肠、肺、脑、脾、胰等内脏，逐条列出编号；不按名称片段匹配，以免误伤牛肝菌、肚里黄、红心萝卜、素大肠等",
+   "members": {"ids": [
+     "cfcd:082202", "cfcd:082203", "cfcd:082204", "cfcd:082205", "cfcd:082206", "cfcd:082208", "cfcd:082209", "cfcd:082210",
+     "cfcd:081113", "cfcd:081202", "cfcd:081203", "cfcd:081205", "cfcd:081206", "cfcd:081209", "cfcd:081210", "cfcd:081211",
+     "cfcd:081213", "cfcd:081214", "cfcd:081216", "cfcd:081306", "cfcd:081310",
+     "cfcd:083201", "cfcd:083202", "cfcd:083203", "cfcd:083204", "cfcd:083205", "cfcd:083207", "cfcd:083208",
+     "cfcd:085201",
+     "cfcd:091201", "cfcd:091202", "cfcd:091203", "cfcd:091205",
+     "cfcd:092201", "cfcd:092202", "cfcd:092203", "cfcd:092204", "cfcd:092206", "cfcd:092210", "cfcd:092211", "cfcd:092212", "cfcd:092213",
+     "cfcd:093201", "cfcd:093202", "cfcd:094201", "cfcd:094202"
+   ]}},
+  {"id": "fatty_meat", "name": "肥肉或高脂畜肉", "kind": "composition", "review_status": "draft",
+   "basis": "成分表畜肉类中每 100 克脂肪不少于 20 克的条目（含肥肉、五花肉、猪肉代表值、肋排、香肠腊肉等），按成分表数值逐条列出编号；菜品按配方食材继承",
+   "members": {"ids": [
+     "cfcd:082114", "cfcd:082115", "cfcd:082116", "cfcd:082303",
+     "cfcd:081101x", "cfcd:081102", "cfcd:081103", "cfcd:081104", "cfcd:081105", "cfcd:081107", "cfcd:081108", "cfcd:081109",
+     "cfcd:081112", "cfcd:081114", "cfcd:081118", "cfcd:081121", "cfcd:081122", "cfcd:081125", "cfcd:081126", "cfcd:081130",
+     "cfcd:081131", "cfcd:081132", "cfcd:081302", "cfcd:081303", "cfcd:081305", "cfcd:081308", "cfcd:081319", "cfcd:081320",
+     "cfcd:081323", "cfcd:081326", "cfcd:081328", "cfcd:081330", "cfcd:081331",
+     "cfcd:081401", "cfcd:081402", "cfcd:081403", "cfcd:081404", "cfcd:081406", "cfcd:081407", "cfcd:081410", "cfcd:081411",
+     "cfcd:081412", "cfcd:081413", "cfcd:081414", "cfcd:081415", "cfcd:081416", "cfcd:081420", "cfcd:081421", "cfcd:081423",
+     "cfcd:081424", "cfcd:081427", "cfcd:081429",
+     "cfcd:083102", "cfcd:083110", "cfcd:083306"
+   ]}},
+  {"id": "alcohol", "name": "含酒精", "kind": "composition", "review_status": "draft",
+   "basis": "酒类（啤酒、白酒、葡萄酒等，成分表未收录，由手动补充的食物显式声明）；菜品按配方食材继承"},
+
+  {"id": "spicy", "name": "辛辣", "kind": "culinary", "review_status": "draft",
+   "basis": "辣椒、花椒及其制品（名称含“辣”或“花椒”），宫爆类罐头；辛辣菜品在配方中显式声明",
+   "members": {"name_contains": ["辣", "花椒"], "ids": ["cfcd:081302"]}},
+  {"id": "fried", "name": "油炸", "kind": "culinary", "review_status": "draft",
+   "basis": "成分表中写明油炸或本身为油炸食品的条目（油条、油饼、炸鸡块、油面筋、油豆腐等），逐条列出编号；油炸菜品在配方中显式声明",
+   "members": {"ids": [
+     "cfcd:011409", "cfcd:011408", "cfcd:091303", "cfcd:031525", "cfcd:035202", "cfcd:083305", "cfcd:121404", "cfcd:121414",
+     "cfcd:121422", "cfcd:071019", "cfcd:072022", "cfcd:051040", "cfcd:011502", "cfcd:031506"
+   ]}},
+  {"id": "raw_cold", "name": "生冷", "kind": "culinary", "review_status": "draft",
+   "basis": "冷饮、冰淇淋、凉拌菜等（名称含“凉拌”“冰淇淋”“冰激凌”“雪糕”）；其他生冷菜品在配方中显式声明",
+   "members": {"name_contains": ["凉拌", "冰淇淋", "冰激凌", "雪糕"]}},
+
+  {"id": "fast_carb", "name": "快消化碳水", "kind": "dietary", "review_status": "draft",
+   "basis": "精米白面及其制品、淀粉与粉丝粉条，以及糖、甜食与含糖饮料（手动补充食物显式声明），升糖较快；糙米、黑米、全麦粒、麸皮、面筋、魔芋粉除外",
+   "members": {
+     "categories": ["谷类及其制品-稻米", "谷类及其制品-小麦", "薯类淀粉及其制品-淀粉类"],
+     "exclude_ids": [
+       "cfcd:012216", "cfcd:012212", "cfcd:012211", "cfcd:012304", "cfcd:012303", "cfcd:011101", "cfcd:011204", "cfcd:011205",
+       "cfcd:011501", "cfcd:011502", "cfcd:011503", "cfcd:022107"
+     ]}},
+  {"id": "slow_carb", "name": "慢消化碳水", "kind": "dietary", "review_status": "draft",
+   "basis": "全谷物（燕麦、荞麦、小米、玉米、糙米、黑米等）、杂豆（绿豆、红豆、芸豆、蚕豆、豌豆等）与薯类（马铃薯、甘薯、山药、芋头等）；加糖的豆沙、油炸蚕豆、罐头玉米笋除外",
+   "members": {
+     "categories": [
+       "谷类及其制品-其他", "谷类及其制品-大麦", "谷类及其制品-小米黄米", "谷类及其制品-玉米", "薯类淀粉及其制品-薯类",
+       "干豆类及其制品-绿豆", "干豆类及其制品-芸豆", "干豆类及其制品-蚕豆", "干豆类及其制品-赤豆", "干豆类及其制品-其他"
+     ],
+     "ids": [
+       "cfcd:012216", "cfcd:012212", "cfcd:012211", "cfcd:012304", "cfcd:012303", "cfcd:011101",
+       "cfcd:047101", "cfcd:047103", "cfcd:047104", "cfcd:047105", "cfcd:047202", "cfcd:047203", "cfcd:047204"
+     ],
+     "exclude_ids": ["cfcd:013201", "cfcd:033204", "cfcd:033205", "cfcd:035202"]}},
+  {"id": "high_sugar", "name": "高糖", "kind": "dietary", "review_status": "draft",
+   "basis": "添加糖多的食物：糖本身、甜炼乳、蜜饯、豆沙馅、糖水罐头莲子，以及含糖饮料与甜点（手动补充食物与菜品显式声明）",
+   "members": {"ids": [
+     "cfcd:109001", "cfcd:109004", "cfcd:109005", "cfcd:109006", "cfcd:064211", "cfcd:062310", "cfcd:033204", "cfcd:033205",
+     "cfcd:072010"
+   ]}},
+  {"id": "sweets", "name": "甜食", "kind": "dietary", "review_status": "draft",
+   "basis": "糕点、冰淇淋、蜜饯、豆沙等甜点零食（手动补充食物显式声明）",
+   "members": {"ids": ["cfcd:064211", "cfcd:062310", "cfcd:033204", "cfcd:033205"]}},
+  {"id": "sugary_drink", "name": "含糖饮料", "kind": "dietary", "review_status": "draft",
+   "basis": "加糖的饮料：可乐等汽水、奶茶、果汁，以及成分表中加糖调味的调制乳（手动补充食物显式声明）",
+   "members": {"ids": ["cfcd:101167", "cfcd:101168", "cfcd:101169", "cfcd:101175"]}},
+  {"id": "caffeine", "name": "含咖啡因", "kind": "dietary", "review_status": "draft",
+   "basis": "咖啡、茶（浓茶）、奶茶、可乐等含咖啡因的饮品（成分表未收录，由手动补充的食物显式声明）"},
+  {"id": "high_purine", "name": "高嘌呤", "kind": "dietary", "review_status": "draft",
+   "basis": "按常见痛风饮食指导中的高嘌呤类别：动物内脏、带鱼、沙丁鱼、凤尾鱼、鲭鱼、鲢鱼、蛤蜊、牡蛎、扇贝、干贝、虾米虾皮、鱼子，浓肉汤，以及啤酒；成分表不含嘌呤数值，属于按类别归入，菜品在配方中显式声明",
+   "members": {"ids": [
+     "cfcd:082202", "cfcd:082203", "cfcd:082204", "cfcd:082205", "cfcd:082206", "cfcd:082208", "cfcd:082209", "cfcd:082210",
+     "cfcd:081113", "cfcd:081202", "cfcd:081203", "cfcd:081205", "cfcd:081206", "cfcd:081209", "cfcd:081210", "cfcd:081211",
+     "cfcd:081213", "cfcd:081214", "cfcd:081216", "cfcd:081306", "cfcd:081310",
+     "cfcd:083201", "cfcd:083202", "cfcd:083203", "cfcd:083204", "cfcd:083205", "cfcd:083207", "cfcd:083208",
+     "cfcd:085201",
+     "cfcd:091201", "cfcd:091202", "cfcd:091203", "cfcd:091205",
+     "cfcd:092201", "cfcd:092202", "cfcd:092203", "cfcd:092204", "cfcd:092206", "cfcd:092210", "cfcd:092211", "cfcd:092212", "cfcd:092213",
+     "cfcd:093201", "cfcd:093202", "cfcd:094201", "cfcd:094202",
+     "cfcd:121203", "cfcd:121241", "cfcd:121217", "cfcd:121417", "cfcd:121418", "cfcd:121419", "cfcd:121230", "cfcd:121231",
+     "cfcd:121403", "cfcd:121244", "cfcd:121410", "cfcd:121414", "cfcd:121415", "cfcd:121416", "cfcd:121122", "cfcd:121132",
+     "cfcd:124201x", "cfcd:124202", "cfcd:124203", "cfcd:124204", "cfcd:124205", "cfcd:124206", "cfcd:124108", "cfcd:124109",
+     "cfcd:124111", "cfcd:124112", "cfcd:122201", "cfcd:122205", "cfcd:121205", "cfcd:121402", "cfcd:121306", "cfcd:121229",
+     "cfcd:091306"
+   ]}},
+
+  {"id": "cold_nature", "name": "寒凉（传统经验）", "kind": "tradition", "review_status": "draft",
+   "basis": "传统饮食经验，缺少充分的现代医学证据：西瓜、梨、苦瓜、螃蟹、绿豆及绿豆芽、冬瓜、黄瓜、香蕉、柿子、柚子、猕猴桃、荸荠、海带、紫菜等被认为性寒凉；逐条列出编号，鳄梨、凤梨、西瓜子、蟹足棒不计入",
+   "members": {"ids": [
+     "cfcd:066201x", "cfcd:066202", "cfcd:066203", "cfcd:066204", "cfcd:066206",
+     "cfcd:061201x", "cfcd:061202", "cfcd:061203", "cfcd:061204", "cfcd:061205", "cfcd:061206", "cfcd:061207", "cfcd:061208",
+     "cfcd:061209", "cfcd:061210", "cfcd:061211", "cfcd:061212", "cfcd:061213", "cfcd:061214", "cfcd:061215", "cfcd:061216",
+     "cfcd:061217", "cfcd:061218", "cfcd:061219", "cfcd:061220", "cfcd:061221", "cfcd:061222", "cfcd:061223", "cfcd:061224",
+     "cfcd:061225", "cfcd:061226", "cfcd:061228", "cfcd:061229",
+     "cfcd:043212",
+     "cfcd:123001", "cfcd:123002", "cfcd:123003", "cfcd:123004", "cfcd:123005", "cfcd:123006", "cfcd:123007", "cfcd:123008",
+     "cfcd:123009", "cfcd:123010", "cfcd:123011", "cfcd:123302", "cfcd:123303", "cfcd:123304", "cfcd:123305", "cfcd:123306",
+     "cfcd:123307",
+     "cfcd:032101", "cfcd:032102", "cfcd:032201", "cfcd:042206",
+     "cfcd:043221", "cfcd:043208", "cfcd:043225", "cfcd:043226",
+     "cfcd:065033", "cfcd:065031", "cfcd:065032", "cfcd:065001",
+     "cfcd:063301", "cfcd:063302", "cfcd:063303",
+     "cfcd:064301", "cfcd:064303", "cfcd:064304", "cfcd:063909",
+     "cfcd:046008", "cfcd:052002", "cfcd:052003", "cfcd:052004", "cfcd:052008"
+   ]}},
+  {"id": "warm_nature", "name": "温热（传统经验）", "kind": "tradition", "review_status": "draft",
+   "basis": "传统饮食经验，缺少充分的现代医学证据：羊肉、生姜、桂圆、红枣、荔枝、榴莲、韭菜、狗肉、鹿肉、核桃、红糖等被认为性温热；红糖由手动补充食物显式声明",
+   "members": {
+     "categories": ["畜肉类及其制品-羊"],
+     "ids": [
+       "cfcd:047301", "cfcd:047302", "cfcd:047303",
+       "cfcd:065006", "cfcd:065007", "cfcd:065008", "cfcd:065021",
+       "cfcd:062301", "cfcd:062302", "cfcd:062303", "cfcd:062304", "cfcd:062305", "cfcd:062306", "cfcd:062313",
+       "cfcd:065010", "cfcd:065024", "cfcd:065025", "cfcd:044404", "cfcd:089001", "cfcd:089006", "cfcd:071004"
+     ]}}
 ]

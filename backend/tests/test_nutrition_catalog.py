@@ -5,7 +5,9 @@ from app.nutrition.catalog import (
     CFCD_SHA256,
     LICENSE_PERSONAL_STUDY,
     Nutrients,
+    base_name,
     load_catalog,
+    match_names,
     normalize_query,
     parse_value,
     round_half_up,
@@ -100,5 +102,31 @@ def test_nutrition_tags_are_computed_from_values():
 def test_name_matches():
     catalog = load_catalog()
     assert catalog.name_matches("菠菜")
+    assert catalog.name_matches("新鲜菠菜")
     assert catalog.name_matches("新鲜土豆")
     assert not catalog.name_matches("发物")
+
+
+def test_base_name_drops_parenthetical_qualifiers():
+    assert base_name("菠菜（鲜）") == "菠菜"
+    assert base_name("米饭（蒸，代表值）") == "米饭"
+    assert base_name("牛肉(代表值)") == "牛肉"
+    assert base_name("番茄") == "番茄"
+
+
+def test_match_names_include_base_name_without_duplicates():
+    catalog = load_catalog()
+    assert match_names(catalog.get("cfcd:045301")) == ("菠菜（鲜）", "赤根菜", "菠菜")
+    assert match_names(catalog.get("cfcd:021101")) == ("马铃薯", "土豆", "洋芋")
+
+
+def test_base_name_is_searchable_as_alias_but_real_names_win():
+    catalog = load_catalog()
+    first = catalog.search("菠菜")[0]
+    assert (first.food.id, first.match) == ("cfcd:045301", "exact_alias")
+    assert catalog.search("新鲜菠菜")[0].food.id == "cfcd:045301"
+    assert catalog.search("新鲜菠菜")[0].match == "query_contains"
+    # 真正的名称（香蕉［甘蕉］）排在只靠去括号得到的"香蕉"（香蕉（红皮））前面
+    hits = catalog.search("香蕉")
+    assert (hits[0].food.id, hits[0].match) == ("cfcd:065033", "exact_name")
+    assert {h.food.id for h in hits if h.match == "exact_alias"} >= {"cfcd:065031", "cfcd:065032"}
