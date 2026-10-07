@@ -32,9 +32,6 @@ def _parts(message: ChatMessage) -> list[dict]:
     return parts
 
 
-_RATE_WINDOWS = ("perminute", "per_minute", "perday", "per_day")
-
-
 def _is_rate_limit(details: Any) -> bool:
     """RESOURCE_EXHAUSTED 带 RetryInfo，或 QuotaFailure 指向每分钟、每天的请求配额时，属于限流而不是额度用尽。"""
     for detail in details if isinstance(details, list) else ():
@@ -48,7 +45,10 @@ def _is_rate_limit(details: Any) -> bool:
                 if not isinstance(violation, dict):
                     continue
                 quota = f"{violation.get('quotaId', '')} {violation.get('quotaMetric', '')}".lower()
-                if any(window in quota for window in _RATE_WINDOWS):
+                per_minute = "perminute" in quota or "per_minute" in quota
+                # 每天的请求次数上限次日恢复，算限流；每天的 token 用量上限算额度用尽
+                per_day_requests = ("perday" in quota or "per_day" in quota) and "request" in quota
+                if per_minute or per_day_requests:
                     return True
     return False
 

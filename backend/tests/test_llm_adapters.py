@@ -397,6 +397,14 @@ def _quota_failure(quota_id, metric="generativelanguage.googleapis.com/generate_
     ([_RETRY_INFO], "rate_limited"),
     ([_quota_failure("GenerateRequestsPerDayPerProjectPerModel-FreeTier")], "rate_limited"),
     ([_quota_failure("x", metric="generativelanguage.googleapis.com/requests_per_minute")], "rate_limited"),
+    ([_quota_failure("x", metric="generativelanguage.googleapis.com/requests_per_day")], "rate_limited"),
+    ([_quota_failure("GenerateContentInputTokensPerModelPerMinute-FreeTier",
+                     metric="generativelanguage.googleapis.com/generate_content_free_tier_input_token_count")],
+     "rate_limited"),
+    ([_quota_failure("GenerateContentInputTokensPerModelPerDay-FreeTier",
+                     metric="generativelanguage.googleapis.com/generate_content_free_tier_input_token_count")],
+     "quota_exceeded"),
+    ([_quota_failure("x", metric="generativelanguage.googleapis.com/input_tokens_per_day")], "quota_exceeded"),
     ([_quota_failure("GenerateContentPaidTierInputTokens", metric="paid_tier_input_token_count")], "quota_exceeded"),
     ([{"@type": "type.googleapis.com/google.rpc.Help", "links": []}], "quota_exceeded"),
 ])
@@ -497,7 +505,8 @@ def test_redirect_is_not_followed(kind):
 
 
 @pytest.mark.parametrize("kind", KINDS)
-@pytest.mark.parametrize("bad_key", ["sk-abc\ndef0123456789", "sk-ａbc0123456789", "sk-abc\t0123456789", ""])
+@pytest.mark.parametrize("bad_key", ["sk-abc\ndef0123456789", "sk-ａbc0123456789", "sk-abc\t0123456789", "",
+                                     " sk-abc0123456789", "sk-abc0123456789 ", "   "])
 def test_unusable_key_is_invalid_key_without_leaking(kind, bad_key):
     rec = Recorder((200, {"data": []}))
     adapter = make_adapter(kind, BASES[kind], bad_key, transport=httpx2.MockTransport(rec))

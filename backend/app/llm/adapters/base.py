@@ -212,9 +212,10 @@ class HttpAdapter:
     def _request(self, method: str, path: str, *, during: During, params: dict | None = None,
                  body: dict | None = None) -> Any:
         """发出请求并返回解析后的 JSON；网络错误、非 2xx 与非 JSON 正文都转成 LlmError。"""
-        # 含换行、制表符或全角字符的密钥无法放进请求头，底层异常可能带出密钥原文，所以在发请求前拒绝
-        if not (self._api_key and self._api_key.isascii() and self._api_key.isprintable()):
-            raise LlmError("invalid_key", "密钥为空或含有空白控制字符、全角字符，请重新复制密钥后再试")
+        # 含换行、制表符、首尾空格或全角字符的密钥无法正确放进请求头，底层异常可能带出密钥原文，所以在发请求前拒绝
+        key = self._api_key
+        if not (key and key == key.strip() and key.isascii() and key.isprintable()):
+            raise LlmError("invalid_key", "密钥为空，或含有首尾空格、控制字符、全角字符，请重新复制密钥后再试")
         # 注入 transport（测试）时不读取环境中的代理设置，保证请求一定走注入的 transport
         with httpx2.Client(transport=self._transport, timeout=self._timeout, headers=self._headers(),
                            trust_env=self._transport is None) as client:
