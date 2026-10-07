@@ -804,3 +804,35 @@ def test_luncheon_ham_is_cured_and_blocked_by_low_salt():
 def test_cured_and_edible_fungi_subjects_are_vocabulary_terms(subject, blocked, name):
     assert _real_conclusion("diet_avoid", [subject], blocked) == NOT_RECOMMENDED
     assert _real_conclusion("diet_avoid", [subject], name) == SUITABLE
+
+
+# ---- 第一阶段验收修复：生冷类医嘱下，冷热不确定的食物为无法判断 ----
+
+ICED_OR_NOT = Food(
+    id="t:drink", name="某饮料", aliases=(), category="补充-饮料", kind="supplement",
+    nutrients=Nutrients(energy_kcal=40, sodium_mg=5), tags=frozenset(), source=SOURCE,
+    uncertain_tags=frozenset({"raw_cold"}),
+)
+
+
+def test_uncertain_member_is_unverifiable_under_matching_order():
+    result = evaluate_food(ICED_OR_NOT, 100, _ctx(constraints=(_avoid("m1", "忌生冷", ["生冷"]),)), CATALOG)
+    assert result.conclusion == CAUTION
+    [reason] = result.reasons
+    assert (reason.source, reason.effect, reason.code, reason.ref) == (
+        "medical", "unverifiable", "avoid_unverifiable", "m1")
+    assert "忌生冷" in reason.message and "核对" in reason.message
+
+
+def test_uncertain_member_does_not_affect_other_orders_or_soft_rules():
+    result = evaluate_food(ICED_OR_NOT, 100, _ctx(constraints=(_avoid("m1", "忌辛辣", ["辛辣"]),)), CATALOG)
+    assert (result.conclusion, result.reasons) == (SUITABLE, ())
+    result = evaluate_food(ICED_OR_NOT, 100, _ctx(cycle_phase="menstrual"), CATALOG)
+    assert (result.conclusion, result.reasons) == (SUITABLE, ())
+
+
+def test_tagged_member_still_blocks_even_if_also_uncertain():
+    food = Food(**{**ICED_OR_NOT.__dict__, "tags": frozenset({"raw_cold"})})
+    result = evaluate_food(food, 100, _ctx(constraints=(_avoid("m1", "忌生冷", ["生冷"]),)), CATALOG)
+    assert result.conclusion == NOT_RECOMMENDED
+    assert [(r.effect, r.code) for r in result.reasons] == [("block", "avoid_match")]

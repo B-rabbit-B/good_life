@@ -152,7 +152,7 @@ TERM_IN_NAME_OR_UNVERIFIABLE = "term_in_name_or_unverifiable"  # 情形 c：按"
 class AvoidHit:
     own: str | None  # 食物本身命中的说明
     ingredients: tuple[str, ...]  # 菜品配方里命中的食材名称（按配方顺序）
-    verifiable: bool  # 没有命中时，是否能确认这个食物不属于这个说法
+    verifiable: bool  # 没有命中时，是否能确认这个食物不属于这个说法（食物是说法标签的不确定成员时不能确认）
 
     @property
     def hit(self) -> bool:
@@ -225,6 +225,8 @@ def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Ca
     （成分类与辛辣、含酒精、含咖啡因），调料自己的高钠、高糖、高脂肪等不让菜品命中。
     词汇表里的说法只按食材的这些标签命中，从不比较食材名称（"盐"不因配方里的食盐命中每道菜）；
     词汇表里没有的说法，食材的名称照样参与（"忌花生"命中含油炸花生仁的宫保鸡丁）。
+    食物本身没有命中、但它是这个说法所对应标签的不确定成员时（饮料是否生冷），无法判断；
+    不确定成员只看食物本身，不看菜品的配方食材。
     """
     mode, tags = _avoid_mode(term, entry, catalog)
     own = _own_hit(food, term, mode, tags, catalog)
@@ -234,7 +236,8 @@ def _avoid_hit(food: Food, term: str, entry: VocabularyEntry | None, catalog: Ca
         if part is not None
         and _own_hit(part, term, mode, tags, catalog, catalog.inherited_tags, use_names=mode != VOCABULARY)
     ))
-    return AvoidHit(own, ingredients, mode in (VOCABULARY, TERM_IN_NAME))
+    uncertain = bool(food.uncertain_tags & set(tags))
+    return AvoidHit(own, ingredients, mode in (VOCABULARY, TERM_IN_NAME) and not uncertain)
 
 
 def subject_term(raw: str, vocabulary: Vocabulary, catalog: Catalog) -> str:
