@@ -5,6 +5,7 @@ from app.auth import models as auth_models  # noqa: F401
 from app.cycle import models as cycle_models  # noqa: F401
 from app.disclaimer import models as disclaimer_models  # noqa: F401
 from app.fitness import models as fitness_models  # noqa: F401
+from app.llm import models as llm_models  # noqa: F401
 from app.medical import models as medical_models  # noqa: F401
 from app.nutrition import models as nutrition_models  # noqa: F401
 from app.profile import models as profile_models  # noqa: F401

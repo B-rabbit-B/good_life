@@ -1,6 +1,6 @@
 # good-life
 
-个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件）。此外还完成了步骤 04（营养与饮食约束引擎：营养库与检索、饮食记录与每日汇总、需求估算、融合医嘱、经期、目标与当日摄入的饮食判断）。随后完成了步骤 05（健身模块：内置动作库与自定义动作、训练记录、周汇总与动作趋势、能量消耗估算、训练信号与饮食联动、运动限制冲突提示）。随后完成了步骤 06（SDK 与 MCP：进程内 SDK 封装前面各模块的能力，用户可签发只读或读写的智能体授权，再通过本地 MCP 服务让任何支持 MCP 的客户端调用，医嘱确认与解除不暴露给模型，每次调用留审计）。步骤 01 至 06 均已验收通过。
+个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件）。此外还完成了步骤 04（营养与饮食约束引擎：营养库与检索、饮食记录与每日汇总、需求估算、融合医嘱、经期、目标与当日摄入的饮食判断）。随后完成了步骤 05（健身模块：内置动作库与自定义动作、训练记录、周汇总与动作趋势、能量消耗估算、训练信号与饮食联动、运动限制冲突提示）。随后完成了步骤 06（SDK 与 MCP：进程内 SDK 封装前面各模块的能力，用户可签发只读或读写的智能体授权，再通过本地 MCP 服务让任何支持 MCP 的客户端调用，医嘱确认与解除不暴露给模型，每次调用留审计）。步骤 01 至 06 均已验收通过。步骤 07（多模型接入：用户填写模型服务的地址与密钥，由后端拉取模型列表、标注看图与工具调用能力、测试连通性、为日常对话与看图识别分别选择模型，并用统一的方式调用 Claude、Gemini 与各种兼容格式的服务，密钥加密保存、只显示掩码）已有条件通过：除真实服务实测外的 6 条验收标准已代验通过，真实服务实测需要你本人运行实测脚本补做，见第 16 节。
 
 定位声明：只提供生活方式建议，不做医疗诊断，不替代医生。
 
@@ -37,7 +37,7 @@ cd backend
 uv sync
 ```
 
-`uv sync` 会创建 `backend/.venv` 并安装运行依赖与开发依赖（测试用的 HTTP 客户端依赖是 `httpx2`，不是 `httpx`）。后面的命令都在 `backend` 目录下执行，并统一用 `uv run` 开头。
+`uv sync` 会创建 `backend/.venv` 并安装运行依赖与开发依赖（HTTP 客户端依赖是 `httpx2`，不是 `httpx`；后端用它调用模型服务，测试也用它）。后面的命令都在 `backend` 目录下执行，并统一用 `uv run` 开头。
 
 ## 4. 配置
 
@@ -68,7 +68,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 uv run alembic upgrade head
 ```
 
-该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）以及 `custom_exercises`、`workouts`、`strength_sets`、`cardio_entries`（步骤 05 健身模块）以及 `agent_grants`、`sdk_call_audits`（步骤 06 的智能体授权与调用审计）共十八张表。营养库与内置动作库都不入数据库，随程序从数据文件加载。
+该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）以及 `custom_exercises`、`workouts`、`strength_sets`、`cardio_entries`（步骤 05 健身模块）以及 `agent_grants`、`sdk_call_audits`（步骤 06 的智能体授权与调用审计）以及 `llm_providers`、`llm_models`、`llm_assignments`（步骤 07 的模型服务、模型与用途分配）共二十一张表。营养库与内置动作库都不入数据库，随程序从数据文件加载。
 
 ## 6. 运行测试
 
@@ -327,3 +327,47 @@ uv run python -m app.phase1_demo
 ```
 
 脚本会重建演示账号 `demo_phase1`（密码 `demo-pass-123`）并签发一个读写授权，然后以子进程方式启动 MCP 服务，通过标准输入输出依次：记录四次经期并查询预测与阶段、录入一条医嘱（只生成待确认条目）、尝试用工具确认（被拒绝）、由“用户本人”确认、评估麻婆豆腐与西瓜等食物、记录早餐与午餐、记录一次轻度和一次高强度训练（后者提示与医嘱冲突）、查看训练后当日能量需求的变化、最后提出解除建议。每一步打印观察到的结果，结尾是审计统计。验收结果见 `docs/第一阶段整体验收记录.md`。
+
+## 16. 多模型接入
+
+步骤 07 让你填写模型服务的地址和密钥，由后端去拉取模型列表、测试连通性，并为不同用途选择不同模型。浏览器不直接带着密钥请求第三方，密钥加密保存在数据库里，接口只回传形如 `****abcd` 的掩码。支持三种服务类型：`openai_compatible`（通义千问、DeepSeek、豆包、智谱、OpenAI 等兼容格式的服务）、`anthropic`（Claude）、`gemini`（Gemini）。
+
+先确认开发库已建到最新版本（包含 `llm_providers`、`llm_models`、`llm_assignments` 三张表），在 `backend` 目录执行：
+
+```powershell
+uv run alembic upgrade head
+```
+
+### 通过接口文档页面添加并使用一个服务
+
+启动后端服务（第 7 节），在 http://localhost:8000/docs 注册、登录、确认免责声明并 Authorize（第 8 节），然后在 llm 分组里：
+
+1. 看预设：`GET /api/llm/presets` 返回七个预设的服务类型与默认地址，只用来帮你填地址，之后都可以改。
+2. 添加服务：`POST /api/llm/providers`，填 `name`（自己起的名字）、`kind`（服务类型）、`base_url`（地址，非本机必须是 https，不能带用户名密码或查询参数）、`api_key`（你自己的密钥）。响应里只有 `key_hint`，没有密钥。
+3. 先测一测（可选）：保存前用 `POST /api/llm/providers/test`，保存后用 `POST /api/llm/providers/{provider_id}/test`，再填一个模型编号，结论会区分密钥错误（`invalid_key`）、地址错误（`bad_url`）、模型不可用（`model_unavailable`）等，每种都带中文说明和下一步建议。
+4. 获取模型：`POST /api/llm/providers/{provider_id}/fetch-models`，返回模型列表，每个模型带看图、工具调用、对话三项能力的标注（支持、不支持或未知）。有的服务（例如豆包）可能没有模型列表接口，这时用 `POST /api/llm/providers/{provider_id}/models` 手动添加模型编号。
+5. 修正能力标注：能力来自随代码维护的对照表，不一定准确；不对的，用 `PATCH /api/llm/models/{model_pk}` 把 `vision`、`tools`、`chat` 改成 true 或 false（null 表示回到对照表）。
+6. 分配用途：`PUT /api/llm/assignments/chat`（日常对话）与 `PUT /api/llm/assignments/vision`（看图识别），`model_id` 填模型对象里的 `id`。看图识别只接受明确支持看图的模型，否则返回明确提示。
+7. 统一调用：`POST /api/llm/chat`，`purpose` 选 `chat` 或 `vision`，`messages` 里放消息（用户消息可带最多 4 张图片，base64 编码）。后端按用途找到你分配的模型去调用，失败时给出可读的原因（密钥错误、额度不足、模型不存在、超时等）。
+
+完整的接口、字段、错误码、各类型的调用方式与数据说明见 `docs/07-交付物/`。
+
+### 运行实测脚本
+
+步骤 07 的验收要求至少四家服务实测通过，这需要你自己的密钥，所以由你本人在本机运行实测脚本（自动化测试只用假服务，不会访问任何真实服务）。
+
+重要：密钥文件里是你的真实密钥，绝对不能提交到仓库，也不能发给任何人或贴到聊天里。`backend/llm_keys.local.env` 与结果文件 `backend/llm_live_result.md` 已在 `backend/.gitignore` 中忽略；仓库里只保留不含密钥的模板 `backend/llm_keys.local.env.example`。
+
+在 `backend` 目录执行：
+
+```powershell
+Copy-Item llm_keys.local.env.example llm_keys.local.env
+```
+
+用文本编辑器打开 `llm_keys.local.env`，把你有的服务的密钥填在等号后面（模板里密钥一律留空），按注释填写模型名（豆包要填方舟控制台里的模型名或接入点编号；没有密钥的服务留空，会被跳过），保存为 UTF-8 编码。然后运行：
+
+```powershell
+uv run python -m app.llm.live_check
+```
+
+脚本对每家服务依次检查拉取模型、对话、工具调用、看图（一张脚本自己生成的纯红色小图），以及三个故意的错误（密钥改错、地址改错、模型名改错，看系统是否归到预期的错误类别），每次调用最多等 60 秒。运行中逐项打印进度，结束后把结果表打印在屏幕上，并写入 `backend/llm_live_result.md`；中途按 Ctrl+C 中断时，已完成的检查也会写进这个文件。输出前会去掉全部密钥，仍请你先看一遍。再把结果摘抄进 `docs/07-交付物/实测记录.md`，并对照 `docs/07-交付物/验收记录.md` 逐条核对。Claude 与 Gemini 目前只做了模拟测试，没有实测。

@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     jwt_secret: str
     field_encryption_key: str
     access_token_expire_minutes: int = 60 * 24 * 7
+    llm_allow_private_hosts: bool = False  # 为真时模型服务地址不做内网检查，只用于测试与本地模拟服务
+    llm_timeout_seconds: float = 20.0
 
     @field_validator("jwt_secret", "field_encryption_key")
     @classmethod
