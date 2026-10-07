@@ -9,7 +9,7 @@ from app.auth.models import User
 from app.common.clock import get_today
 from app.db import get_db
 from app.nutrition import meals
-from app.nutrition.context import build_context
+from app.nutrition.context import build_context, needs_for_day
 from app.nutrition.engine import Evaluation, evaluate_food, evaluate_meal
 from app.nutrition.catalog import EXACT_MATCH_TYPES, Food, TagDefinition, load_catalog, round_one
 from app.nutrition.deps import require_nutrition_user
@@ -158,7 +158,7 @@ def delete_meal(entry_id: uuid.UUID, user: NutritionUser, db: DbSession) -> Resp
 @router.get("/summary", response_model=SummaryOut)
 def get_summary(user: NutritionUser, db: DbSession, today: Today, day: DayQuery = None) -> SummaryOut:
     target = day or today
-    needs = needs_for_profile(get_or_create_profile(db, user.id), today)
+    needs = needs_for_day(db, user.id, target, today)
     summary = meals.daily_summary(db, user.id, target, needs)
     return SummaryOut(
         date=target,

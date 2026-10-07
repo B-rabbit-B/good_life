@@ -1,6 +1,6 @@
 """每日能量与营养素需求估算（Mifflin-St Jeor 公式乘活动系数）。只是估算，不是医疗指标。"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -21,6 +21,7 @@ ESTIMATE_NOTE = "以上是根据档案估算的大致需求，不是医疗指标
 UNSPECIFIED_SEX_NOTE = "档案没有填写男女，按男女公式的中间值估算。"
 MINOR_NOTE = "未成年人的营养需求与成人不同，请咨询医生或营养师。"
 INSUFFICIENT_NOTE = "档案缺少估算所需的信息，补充后才能估算每日需求。"
+TRAINING_NOTE = "已计入今天训练估算消耗的下限 {kcal} 千卡。"
 
 
 @dataclass(frozen=True)
@@ -92,4 +93,18 @@ def needs_for_profile(profile: Any, today: date) -> Needs:
         activity_level=profile.activity_level,
         goal=profile.goal,
         today=today,
+    )
+
+
+def with_training_bonus(needs: Needs, kcal: float) -> Needs:
+    """训练日把估算消耗的下限加进能量目标与范围上下限；需求无法估算或没有消耗时原样返回。"""
+    bonus = round_half_up(kcal)
+    if needs.status != "ok" or bonus <= 0:
+        return needs
+    return replace(
+        needs,
+        energy_kcal=needs.energy_kcal + bonus,
+        energy_kcal_low=needs.energy_kcal_low + bonus,
+        energy_kcal_high=needs.energy_kcal_high + bonus,
+        notes=(*needs.notes, TRAINING_NOTE.format(kcal=bonus)),
     )
