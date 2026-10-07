@@ -23,7 +23,7 @@
   {"id": "dumbbell_row", "name": "哑铃划船", "aliases": ["单臂哑铃划船"], "kind": "strength", "primary_muscles": ["back", "biceps"], "equipment": "dumbbell", "traits": [], "met": null},
   {"id": "seated_row", "name": "坐姿划船", "aliases": ["坐姿绳索划船"], "kind": "strength", "primary_muscles": ["back", "biceps"], "equipment": "cable", "traits": [], "met": null},
   {"id": "barbell_shrug", "name": "杠铃耸肩", "aliases": ["耸肩"], "kind": "strength", "primary_muscles": ["back", "shoulders"], "equipment": "barbell", "traits": [], "met": null},
-  {"id": "overhead_press", "name": "推举", "aliases": ["站姿推举", "站姿杠铃推举", "杠铃推举"], "kind": "strength", "primary_muscles": ["shoulders", "triceps"], "equipment": "barbell", "traits": [], "met": null},
+  {"id": "overhead_press", "name": "站姿推举", "aliases": ["站姿杠铃推举", "杠铃推举"], "kind": "strength", "primary_muscles": ["shoulders", "triceps"], "equipment": "barbell", "traits": [], "met": null},
   {"id": "dumbbell_shoulder_press", "name": "哑铃推举", "aliases": ["哑铃肩推"], "kind": "strength", "primary_muscles": ["shoulders", "triceps"], "equipment": "dumbbell", "traits": [], "met": null},
   {"id": "lateral_raise", "name": "侧平举", "aliases": ["哑铃侧平举"], "kind": "strength", "primary_muscles": ["shoulders"], "equipment": "dumbbell", "traits": [], "met": null},
   {"id": "face_pull", "name": "面拉", "aliases": ["绳索面拉"], "kind": "strength", "primary_muscles": ["shoulders", "back"], "equipment": "cable", "traits": [], "met": null},

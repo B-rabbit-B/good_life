@@ -9,9 +9,12 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    from app.fitness.models import CustomExercise
 
 DATA_FILE = Path(__file__).with_name("data") / "exercises.json"
 MUSCLES = (
@@ -27,6 +30,7 @@ MET_SOURCE_NOTE = (
     "这些都是近似值，仅用于粗略估算能量消耗，个体差异较大。"
 )
 BUILTIN_ID_PREFIX = "ex:"
+CUSTOM_ID_PREFIX = "custom:"
 MATCH_TYPES = ("exact_name", "exact_alias", "prefix", "contains", "query_contains")
 MATCH_RANKS = {match: rank for rank, match in enumerate(MATCH_TYPES)}  # 名次越小越靠前
 SEARCH_LIMIT = 20
@@ -149,3 +153,21 @@ def load_library() -> ExerciseLibrary:
         )
         for entry in entries
     ])
+
+
+def exercise_from_custom(row: "CustomExercise") -> Exercise:
+    """把数据库里的自定义动作转成 Exercise；编号形如 custom:<uuid>。"""
+    met = None
+    if row.kind == "cardio":
+        met = (row.met_light, row.met_moderate, row.met_vigorous)
+    return Exercise(
+        id=f"{CUSTOM_ID_PREFIX}{row.id}",
+        name=row.name,
+        aliases=tuple(row.aliases),
+        kind=row.kind,
+        primary_muscles=tuple(row.primary_muscles),
+        equipment=row.equipment,
+        traits=tuple(row.traits),
+        met=met,
+        custom=True,
+    )
