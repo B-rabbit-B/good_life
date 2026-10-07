@@ -2,12 +2,12 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.agent_grants import service
 from app.agent_grants.models import AgentGrant
-from app.agent_grants.schemas import GrantCreate, GrantCreatedOut, GrantOut
+from app.agent_grants.schemas import AuditOut, GrantCreate, GrantCreatedOut, GrantOut
 from app.auth.models import User
 from app.db import get_db
 from app.disclaimer.deps import require_disclaimer_user
@@ -48,6 +48,13 @@ def create_grant(body: GrantCreate, user: GrantUser, db: DbSession) -> GrantCrea
 def list_grants(user: GrantUser, db: DbSession) -> list[GrantOut]:
     current = service.now()
     return [_out(g, current) for g in service.list_grants(db, user.id)]
+
+
+@router.get("/audit", response_model=list[AuditOut])
+def list_audits(
+    user: GrantUser, db: DbSession, limit: Annotated[int, Query(ge=1, le=200)] = 50
+) -> list[AuditOut]:
+    return [AuditOut.model_validate(a) for a in service.list_audits(db, user.id, limit)]
 
 
 @router.delete("/{grant_id}", status_code=204)

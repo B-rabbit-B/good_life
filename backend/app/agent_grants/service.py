@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agent_grants.models import AgentGrant
+from app.agent_grants.models import AgentGrant, SdkCallAudit
 from app.common.ownership import get_owned_or_404, owned_by
 from app.errors import AppError
 
@@ -73,3 +73,8 @@ def authenticate_grant(db: Session, token: str, now: datetime) -> AgentGrant | N
     db.commit()
     db.refresh(grant)
     return grant
+
+
+def list_audits(db: Session, user_id: uuid.UUID, limit: int) -> list[SdkCallAudit]:
+    query = owned_by(SdkCallAudit, user_id).order_by(SdkCallAudit.created_at.desc(), SdkCallAudit.id).limit(limit)
+    return list(db.scalars(query))

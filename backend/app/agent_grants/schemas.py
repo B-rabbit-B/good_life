@@ -37,3 +37,17 @@ class GrantOut(BaseModel):
     created_at: dt.datetime
     revoked_at: dt.datetime | None
     last_used_at: dt.datetime | None
+
+
+class AuditOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    grant_id: uuid.UUID | None
+    credential_kind: str
+    client_name: str
+    capability: str
+    outcome: str
+    error_code: str | None
+    duration_ms: int
+    created_at: dt.datetime

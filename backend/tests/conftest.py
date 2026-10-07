@@ -40,6 +40,11 @@ def clean_tables():
 
 
 @pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.fixture
 def client():
     with TestClient(create_app()) as test_client:
         yield test_client
