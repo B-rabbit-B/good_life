@@ -64,8 +64,9 @@ def build_server(
         return types.ListToolsResult(tools=tools)
 
     async def on_call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
-        # 查不到的工具名原样交给 SDK，由它返回 unknown_capability 并记审计；绝不还原成 user_confirmed 能力。
-        capability = capability_by_tool.get(params.name, params.name)
+        # 查不到的工具名把点换成下划线后交给 SDK（能力名都带点，所以必然查不到），由它返回 unknown_capability 并记审计；
+        # 这样任何工具名都到不了 user_confirmed 能力。
+        capability = capability_by_tool.get(params.name) or tool_name(params.name)
         arguments = params.arguments or {}
 
         def call() -> dict[str, Any]:

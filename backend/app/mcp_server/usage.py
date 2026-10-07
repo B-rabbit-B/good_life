@@ -10,8 +10,8 @@ TOOL_USAGE: dict[str, tuple[str, str]] = {
         "想看平均周期、规律性等统计时不要用，改用 cycle_get_stats；想知道下次经期时不要用，改用 cycle_get_prediction",
     ),
     "cycle.record_period": (
-        "用户明确告诉你经期开始（或开始与结束）的具体日期、要求记下来时用；结束日期未知可以留空",
-        "日期含糊（如“前几天”）时不要猜，先问清具体日期；只是询问或闲聊经期时不要用；记录前可用 cycle_list_periods 确认没有重复",
+        "用户明确告诉你经期开始（或开始与结束）的具体日期、要求记下来时用；结束日期未知可以留空；记录前先用 cycle_list_periods 确认这次经期没有记过",
+        "日期含糊（如“前几天”）时不要猜，先问清具体日期；只是询问或闲聊经期时不要用",
     ),
     "cycle.get_stats": (
         "用户问自己的周期平均多长、规不规律、经期一般几天、常见症状时用",
@@ -74,8 +74,8 @@ TOOL_USAGE: dict[str, tuple[str, str]] = {
         "想看逐条饮食明细时不要用，改用 nutrition_list_meals；不要用它判断某种食物能不能吃",
     ),
     "nutrition.evaluate_food": (
-        "用户问“这个能不能吃”“吃多少合适”等关于单种食物的问题时用，它会综合医嘱约束、经期阶段、目标、训练与今日摄入给出结论和理由",
-        "用户已经吃了、要求记录时不要用，改用 nutrition_log_meal；一餐里有多种食物时改用 nutrition_evaluate_meal",
+        "用户问“这个能不能吃”“吃这么多行不行”等关于单种食物的问题时用；需要先用 nutrition_search_foods 拿到食物编号，它会按给定分量（不填则按默认份量）综合医嘱约束、经期阶段、目标、训练与今日摄入给出结论和理由",
+        "不要用它推算“吃多少最合适”，它只评估给定的分量；用户已经吃了、要求记录时改用 nutrition_log_meal；一餐里有多种食物时改用 nutrition_evaluate_meal",
     ),
     "nutrition.evaluate_meal": (
         "用户想评估一餐中的多种食物（如一份套餐或一桌菜）是否合适时用，会给出逐项与整体结论",
@@ -94,8 +94,8 @@ TOOL_USAGE: dict[str, tuple[str, str]] = {
         "只想看某周的汇总数据时不要用，改用 fitness_get_week_summary；只关心今天的训练对饮食的影响时改用 fitness_get_training_signal",
     ),
     "fitness.get_week_summary": (
-        "用户想了解某一周（默认本周）练了几次、训练量、各肌群分布、有氧时长与估算消耗时用",
-        "想看逐条训练明细时不要用，改用 fitness_list_workouts；开始日期不是星期一时不要硬填，默认本周即可",
+        "用户想了解某一周（默认本周）练了几次、训练量、各肌群分布、有氧时长与估算消耗时用；开始日期必须是星期一，查上周或其他某周时先换算成那一周的星期一再填",
+        "想看逐条训练明细时不要用，改用 fitness_list_workouts；想看跨多周或任意日期段的记录时也改用 fitness_list_workouts",
     ),
     "fitness.get_exercise_trend": (
         "用户想知道某个力量动作的进步情况（最大重量、训练量的变化）时用；需要先拿到动作编号",

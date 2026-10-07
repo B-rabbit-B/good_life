@@ -65,6 +65,36 @@ async def test_write_and_read_through_mcp(client):
 
 
 @pytest.mark.anyio
+async def test_dotted_tool_names_never_reach_a_capability(client):
+    headers = ready_user(client, "alice", {"gender": "female"})
+    async with Client(_server(_token(client, headers))) as mcp:
+        confirm = await mcp.call_tool("medical.confirm_item", {"item_id": "00000000-0000-0000-0000-000000000000"})
+        meal = await mcp.call_tool("nutrition.log_meal", {"meal_type": "lunch"})
+    for result in (confirm, meal):
+        assert result.is_error and result.structured_content["error"]["code"] == "unknown_capability"
+
+
+@pytest.mark.anyio
+async def test_revoked_grant_takes_effect_on_the_next_call(client):
+    headers = ready_user(client, "alice")
+    grant = client.post("/api/agent-grants", json={"name": "mcp", "access": "read"}, headers=headers).json()
+    async with Client(_server(grant["token"])) as mcp:
+        before = await mcp.call_tool("profile_get_capabilities", {})
+        assert client.delete(f"/api/agent-grants/{grant['id']}", headers=headers).status_code == 204
+        after = await mcp.call_tool("profile_get_capabilities", {})
+    assert not before.is_error
+    assert after.is_error and after.structured_content["error"]["kind"] == "unauthenticated"
+
+
+@pytest.mark.anyio
+async def test_call_without_arguments(client):
+    headers = ready_user(client, "alice")
+    async with Client(_server(_token(client, headers, "read"))) as mcp:
+        result = await mcp.call_tool("profile_get_capabilities")
+    assert not result.is_error and result.structured_content["ok"] is True
+
+
+@pytest.mark.anyio
 async def test_read_only_grant_cannot_write(client):
     headers = ready_user(client, "alice", {"gender": "female"})
     async with Client(_server(_token(client, headers, "read"))) as mcp:
