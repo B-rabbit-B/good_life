@@ -18,8 +18,8 @@ def test_demo_sample_doc_mentions_every_day_of_the_week():
     assert [day for day in WEEK_DAYS if day not in sample] == []
 
 
-def test_acceptance_record_lists_all_seven_criteria_and_leaves_user_column_empty():
-    record = (DOCS / "验收记录.md").read_text(encoding="utf-8")
+def test_acceptance_record_lists_all_seven_criteria_and_records_the_user_acceptance():
+    record = (DOCS / "验收记录.md").read_text(encoding="utf-8").split("## 自动化验证记录")[0]
     rows = [line for line in record.splitlines() if line.startswith("| ") and line.split("|")[1].strip().isdigit()]
     assert [row.split("|")[1].strip() for row in rows] == [str(n) for n in range(1, 8)]
-    assert all(row.split("|")[-2].strip() == "" for row in rows)
+    assert all(row.split("|")[-2].strip() == "通过（代验，见“代为验收记录”）" for row in rows)
