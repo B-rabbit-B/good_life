@@ -31,6 +31,12 @@ def test_search_exact_alias_and_not_found():
     assert [h.exercise.id for h in library.search("推")] == [h.exercise.id for h in library.search("推")]
 
 
+def test_treadmill_walking_is_not_an_exact_running_match():
+    hits = load_library().search("跑步机走路")
+    assert not any(h.match in ("exact_name", "exact_alias") and "running" in h.exercise.traits for h in hits)
+    assert load_library().search("跑步机跑步")[0].exercise.name == "跑步机"
+
+
 def test_traits():
     library = load_library()
     by_name = {e.name: e for e in library.exercises.values()}

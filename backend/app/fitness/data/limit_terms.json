@@ -25,6 +25,6 @@
     "骑行": {"match": "traits", "traits": ["cycling"]},
     "久坐": {"not_applicable": true},
     "久站": {"not_applicable": true},
-    "卧床": {"not_applicable": true}
+    "卧床": {"match": "bed_rest"}
   }
 }

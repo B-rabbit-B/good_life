@@ -6,7 +6,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.cycle.insights import get_phase_info
-from app.fitness.signals import TrainingSignal, training_signal
+from app.fitness.signals import TrainingSignal, training_energy_low, training_signal
 from app.medical.items import get_current_constraints
 from app.nutrition import meals
 from app.nutrition.engine import EvaluationContext, HardConstraint, TrainingConflict, TrainingContext
@@ -16,11 +16,11 @@ from app.profile.models import Profile
 from app.profile.service import get_or_create_profile
 
 
-def _training_signal(db: Session, user_id: uuid.UUID, day: date, profile: Profile) -> TrainingSignal | None:
-    """只在开放健身模块时读取这一天的训练信号。"""
+def _training_signal(db: Session, user_id: uuid.UUID, today: date, profile: Profile) -> TrainingSignal | None:
+    """只在开放健身模块时读取今天的训练信号（含冲突，会按今天读取医嘱）。"""
     if not compute_capabilities(profile)["fitness"]:
         return None
-    return training_signal(db, user_id, day)
+    return training_signal(db, user_id, today)
 
 
 def _with_training(needs: Needs, signal: TrainingSignal | None) -> Needs:
@@ -40,9 +40,15 @@ def _training_context(signal: TrainingSignal | None) -> TrainingContext | None:
 
 
 def needs_for_day(db: Session, user_id: uuid.UUID, day: date, today: date) -> Needs:
-    """某一天的需求：按档案估算，再加上这一天训练估算消耗的下限。"""
+    """某一天的需求：按档案估算，再加上这一天训练估算消耗的下限。
+
+    只读训练记录与档案，不读医嘱，没有副作用；今天以后的日期不读训练，直接给按档案估算的需求。
+    """
     profile = get_or_create_profile(db, user_id)
-    return _with_training(needs_for_profile(profile, today), _training_signal(db, user_id, day, profile))
+    needs = needs_for_profile(profile, today)
+    if day > today or not compute_capabilities(profile)["fitness"]:
+        return needs
+    return with_training_bonus(needs, training_energy_low(db, user_id, day, profile.weight_kg) or 0)
 
 
 def build_context(db: Session, user_id: uuid.UUID, today: date) -> EvaluationContext:

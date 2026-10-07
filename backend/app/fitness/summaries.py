@@ -153,7 +153,8 @@ def exercise_trend_for(db: Session, user_id: uuid.UUID, exercise_id: str) -> tup
     rows = db.execute(
         select(Workout.performed_on, StrengthSet.weight_kg, StrengthSet.reps)
         .join(Workout, Workout.id == StrengthSet.workout_id)
-        .where(StrengthSet.user_id == user_id, Workout.user_id == user_id, StrengthSet.exercise_id == exercise_id)
+        .where(StrengthSet.user_id == user_id, Workout.user_id == user_id, StrengthSet.exercise_id == exercise.id)
+        .order_by(Workout.performed_on, StrengthSet.workout_id, StrengthSet.position, StrengthSet.set_index)
     ).all()
     points = [TrendPoint(day, weight, weight * reps, reps, 1) for day, weight, reps in rows]
     return exercise, exercise_trend(points)

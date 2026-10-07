@@ -23,13 +23,14 @@ STRIPPED_SUFFIXES = ("运动", "活动", "动作")
 HIGH_IMPACT = "high_impact"
 CONFLICT = "conflict"
 UNVERIFIABLE = "unverifiable"
-CONFLICT_MESSAGE = "今天的训练可能与医嘱「{content}」冲突：涉及「{subject}」，请确认是否适合继续，或咨询医生。"
-UNVERIFIABLE_MESSAGE = "无法自动判断今天的训练是否符合医嘱「{content}」中的「{subject}」，请自行核对"
+CONFLICT_MESSAGE = "这次训练可能与医嘱「{content}」冲突：涉及「{subject}」，请确认是否适合继续，或咨询医生。"
+UNVERIFIABLE_MESSAGE = "无法自动判断这次训练是否符合医嘱「{content}」中的「{subject}」，请自行核对"
 UNVERIFIABLE_REASON = "（原因：{reasons}）"
 NO_LOAD_EQUIPMENT = ("bodyweight", "none")
 NO_RPE_REASON = "未填写主观强度"
 NO_WEIGHT_REASON = "未填写重量"
 WEIGHT_BEARING_REASON = "负重可能指患肢负重（跑步、跳跃、深蹲等也会负重）"
+BED_REST_REASON = "卧床可能指需要卧床休息"
 CUSTOM_TRAIT_REASON = "自定义动作「{name}」未标注相关特征"
 PENDING_REVIEW_NOTE = "（这条医嘱正在待复核）"
 
@@ -55,6 +56,10 @@ class _WeightBearing(_Strict):
     match: Literal["weight_bearing"]
 
 
+class _BedRest(_Strict):
+    match: Literal["bed_rest"]
+
+
 class _Traits(_Strict):
     match: Literal["traits"]
     traits: list[Literal[EXERCISE_TRAITS]] = Field(min_length=1)
@@ -64,7 +69,7 @@ class _NotApplicable(_Strict):
     not_applicable: Literal[True]
 
 
-Rule = _Any | _Intensity | _Loaded | _WeightBearing | _Traits | _NotApplicable
+Rule = _Any | _Intensity | _Loaded | _WeightBearing | _BedRest | _Traits | _NotApplicable
 
 
 class _TermsFile(_Strict):
@@ -125,10 +130,10 @@ def _unfilled_weight(workout: WorkoutInput) -> bool:
 
 
 def _unrated(workout: WorkoutInput) -> bool:
-    return (
-        workout.rpe is None
-        and all(s.rpe is None for block in workout.strength for s in block.sets)
-        and all(c.rpe is None for c in workout.cardio)
+    """整次训练没填主观强度时，只要有一组力量或一项有氧没填，这部分的实际强度就不详。"""
+    return workout.rpe is None and (
+        any(s.rpe is None for block in workout.strength for s in block.sets)
+        or any(c.rpe is None for c in workout.cardio)
     )
 
 
@@ -160,6 +165,8 @@ def _evaluate(rule: Rule, workout: WorkoutInput) -> tuple[bool, tuple[str, ...]]
             reasons.append(NO_WEIGHT_REASON)
         if isinstance(rule, _WeightBearing):
             reasons.append(WEIGHT_BEARING_REASON)
+    elif isinstance(rule, _BedRest):
+        reasons.append(BED_REST_REASON)
     elif isinstance(rule, _Traits):
         if any(t in e.traits for e in _exercises(workout) for t in rule.traits):
             return True, ()

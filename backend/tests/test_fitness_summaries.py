@@ -133,3 +133,35 @@ def test_deleted_custom_exercises_do_not_break_summaries(client, alice):
     trend = client.get(f"/api/fitness/exercises/{row}/trend", headers=alice)
     assert trend.status_code == 200
     assert (trend.json()["exercise_name"], [p["total_volume"] for p in trend.json()["points"]]) == ("我的划船", [400])
+
+
+def test_trend_accepts_an_uppercase_custom_id(client, alice):
+    custom_id = client.post("/api/fitness/exercises", headers=alice, json={
+        "name": "我的划船", "kind": "strength", "primary_muscles": ["back"], "equipment": "machine"}).json()["id"]
+    _post(client, alice, {"performed_on": "2026-10-06", "rpe": 6,
+                          "strength": [{"exercise_id": custom_id, "sets": [{"weight_kg": 40, "reps": 10}]}]})
+    upper = "custom:" + custom_id.removeprefix("custom:").upper()
+    body = client.get(f"/api/fitness/exercises/{upper}/trend", headers=alice).json()
+    assert body["exercise_id"] == custom_id
+    assert [(p["day"], p["total_volume"]) for p in body["points"]] == [("2026-10-06", 400)]
+
+
+def test_trend_query_has_a_fixed_row_order(client, alice):
+    from sqlalchemy import event
+
+    from app.db import get_engine
+
+    statements = []
+
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(get_engine(), "before_cursor_execute", capture)
+    try:
+        bench = _ex(client, alice, "卧推")
+        assert client.get(f"/api/fitness/exercises/{bench}/trend", headers=alice).status_code == 200
+    finally:
+        event.remove(get_engine(), "before_cursor_execute", capture)
+    [trend_sql] = [s for s in statements if "strength_sets.exercise_id" in s and "JOIN workouts" in s]
+    assert trend_sql.split("ORDER BY")[1].split() == [
+        "workouts.performed_on,", "strength_sets.workout_id,", "strength_sets.position,", "strength_sets.set_index"]

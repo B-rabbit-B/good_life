@@ -43,7 +43,7 @@
   {"id": "jogging", "name": "慢跑", "aliases": ["慢步跑"], "kind": "cardio", "primary_muscles": ["quads", "hamstrings", "calves"], "equipment": "none", "traits": ["running"], "met": [6.0, 7.0, 8.3]},
   {"id": "brisk_walking", "name": "快走", "aliases": ["快步走", "健走"], "kind": "cardio", "primary_muscles": ["quads", "hamstrings", "calves"], "equipment": "none", "traits": [], "met": [3.5, 4.3, 5.0]},
   {"id": "walking", "name": "散步", "aliases": ["走路", "遛弯"], "kind": "cardio", "primary_muscles": ["quads", "calves"], "equipment": "none", "traits": [], "met": [2.0, 2.8, 3.5]},
-  {"id": "treadmill", "name": "跑步机", "aliases": ["跑步机跑步", "跑步机走路"], "kind": "cardio", "primary_muscles": ["quads", "hamstrings", "calves"], "equipment": "machine", "traits": ["running"], "met": [6.0, 8.0, 10.0]},
+  {"id": "treadmill", "name": "跑步机", "aliases": ["跑步机跑步"], "kind": "cardio", "primary_muscles": ["quads", "hamstrings", "calves"], "equipment": "machine", "traits": ["running"], "met": [6.0, 8.0, 10.0]},
   {"id": "elliptical", "name": "椭圆机", "aliases": ["椭圆仪"], "kind": "cardio", "primary_muscles": ["quads", "glutes", "full_body"], "equipment": "machine", "traits": [], "met": [4.0, 5.0, 7.0]},
   {"id": "spinning", "name": "动感单车", "aliases": ["室内骑行", "单车", "室内单车"], "kind": "cardio", "primary_muscles": ["quads", "glutes", "calves"], "equipment": "machine", "traits": ["cycling"], "met": [3.5, 6.8, 8.8]},
   {"id": "cycling", "name": "骑自行车", "aliases": ["骑车", "户外骑行", "自行车"], "kind": "cardio", "primary_muscles": ["quads", "glutes", "calves"], "equipment": "other", "traits": ["cycling"], "met": [3.5, 5.8, 8.0]},

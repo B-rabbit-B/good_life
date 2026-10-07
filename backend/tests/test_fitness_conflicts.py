@@ -56,7 +56,7 @@ def test_loaded_bench_conflicts_with_heavy_lifting_only():
     assert found[0].item_id == POST_OP.item_id
     assert found[0].content == POST_OP.content
     assert found[0].message == (
-        "今天的训练可能与医嘱「术后两周内避免提重物及剧烈运动」冲突：涉及「提重物」，请确认是否适合继续，或咨询医生。"
+        "这次训练可能与医嘱「术后两周内避免提重物及剧烈运动」冲突：涉及「提重物」，请确认是否适合继续，或咨询医生。"
     )
 
 
@@ -83,8 +83,20 @@ def test_bending_limit_hits_deadlift_but_not_bench():
     assert _run([limit], _workout(strength=[_strength("卧推", 0)])) == ()
 
 
-def test_bedrest_is_not_applicable():
-    assert _run([_constraint("卧床休息", ["卧床"])], _workout(strength=[_strength("卧推", 60)])) == ()
+def test_bedrest_is_unverifiable_whenever_there_is_training():
+    limit = _constraint("卧床休息", ["卧床"])
+    for workout in (_workout(strength=[_strength("卧推", 60)]), _workout(cardio=[_cardio("快走")], rpe=2)):
+        found = _run([limit], workout)
+        assert _levels(found) == [("卧床", "unverifiable")]
+        assert found[0].message == (
+            "无法自动判断这次训练是否符合医嘱「卧床休息」中的「卧床」，请自行核对（原因：卧床可能指需要卧床休息）"
+        )
+    assert find_conflicts([limit], []) == ()
+
+
+def test_sitting_and_standing_limits_are_not_applicable():
+    for subject in ("久坐", "久站"):
+        assert _run([_constraint(f"避免{subject}", [subject])], _workout(cardio=[_cardio("跑步")], rpe=9)) == ()
 
 
 def test_any_exercise_limit_conflicts_with_any_workout():
@@ -101,7 +113,7 @@ def test_unknown_phrase_is_unverifiable_only_when_there_is_a_workout():
     limit = _constraint("避免对抗性运动", ["对抗性运动"])
     found = _run([limit], _workout(cardio=[_cardio("快走")], rpe=3))
     assert [(c.level, c.subject) for c in found] == [("unverifiable", "对抗性运动")]
-    assert found[0].message == "无法自动判断今天的训练是否符合医嘱「避免对抗性运动」中的「对抗性运动」，请自行核对"
+    assert found[0].message == "无法自动判断这次训练是否符合医嘱「避免对抗性运动」中的「对抗性运动」，请自行核对"
     assert find_conflicts([limit], []) == ()
 
 
@@ -216,6 +228,26 @@ def test_unrated_workout_is_unverifiable_under_vigorous_limit():
     assert "未填写主观强度" in found[0].message
     assert _run([limit], _workout(cardio=[_cardio("跑步")], rpe=5)) == ()
     assert _run([limit], _workout(cardio=[_cardio("跑步", rpe=5)])) == ()
+
+
+def test_partly_rated_workout_is_unverifiable_under_vigorous_limit():
+    limit = _constraint("避免剧烈运动", ["剧烈运动"])
+    # 整次未填，一组填了 5，另有一项 60 分钟跑步没填：跑步的实际强度不详
+    mixed_cardio = WorkoutInput(
+        DAY, None, None, (_strength("卧推", 60, rpe=5),), (CardioInput(_exercise("跑步"), 60, None, None),)
+    )
+    found = _run([limit], mixed_cardio)
+    assert _levels(found) == [("剧烈运动", "unverifiable")]
+    assert "未填写主观强度" in found[0].message
+    # 有氧填了，但力量里有一组没填
+    unrated_set = StrengthInput(_exercise("卧推"), (SetInput(60, 8, None, 5), SetInput(60, 8, None, None)))
+    found = _run([limit], _workout(strength=[unrated_set], cardio=[_cardio("快走", rpe=4)]))
+    assert _levels(found) == [("剧烈运动", "unverifiable")]
+    assert "未填写主观强度" in found[0].message
+    # 每一组、每一项都填了，或整次填了：不再提示
+    rated = _workout(strength=[_strength("卧推", 60, rpe=5)], cardio=[_cardio("快走", rpe=4)])
+    assert _run([limit], rated) == ()
+    assert _run([limit], _workout(strength=[unrated_set], cardio=[_cardio("快走")], rpe=5)) == ()
 
 
 def test_zero_weight_on_equipment_exercise_is_unverifiable_under_loaded_limit():

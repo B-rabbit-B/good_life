@@ -273,14 +273,14 @@ def test_engine_rules_follow_kind_and_intensity():
 def test_engine_conflicts_are_info_and_rest_days_give_nothing():
     conflicts = (
         TrainingConflict("m2", "避免剧烈运动", "剧烈运动", "unverifiable", "无法自动判断……请自行核对"),
-        TrainingConflict("m1", "避免提重物", "提重物", "conflict", "今天的训练可能与医嘱冲突。"),
+        TrainingConflict("m1", "避免提重物", "提重物", "conflict", "这次训练可能与医嘱冲突。"),
     )
     trained = _engine(SPINACH, TrainingContext(True, ("strength",), "moderate", 280, conflicts))
     infos = [r for r in trained.reasons if r.source == "training"]
     assert [(r.effect, r.code, r.ref) for r in infos] == [
         ("info", "training_conflict", "m1"), ("info", "training_energy_bonus", "needs"),
         ("info", "training_unverifiable", "m2")]
-    assert infos[0].message == "今天的训练可能与医嘱冲突。饮食判断不受影响，请留意运动安排。"
+    assert infos[0].message == "这次训练可能与医嘱冲突。饮食判断不受影响，请留意运动安排。"
     assert infos[1].message == "今天的能量额度已计入训练估算消耗的下限 280 千卡。"
     assert infos[2].message == "无法自动判断……请自行核对。饮食判断不受影响，请留意运动安排。"
     assert trained.conclusion == SUITABLE == _engine(SPINACH, None).conclusion
@@ -354,3 +354,26 @@ def test_soft_rules_training_section_is_loaded_and_validated():
         parse_soft_rules(bad)
     with pytest.raises(ValueError):
         parse_soft_rules({"cycle": {}, "goals": {}, "training": {"rest": []}})
+
+
+def test_summary_for_other_days_never_changes_medical_statuses(client):
+    headers = ready_user(client, "alice", PROFILE)
+    [confirmed] = _confirmed_order(client, headers, "两周内避免提重物及剧烈运动。")
+    pending = client.post("/api/medical/orders", json={"text": "一周内避免跑步。"}, headers=headers)
+    assert pending.status_code == 201, pending.text
+    [unconfirmed] = pending.json()["items"]
+    _log_bench(client, headers, performed_on="2026-10-06")
+
+    def states():
+        items = [client.get(f"/api/medical/items/{i['id']}", headers=headers).json() for i in (confirmed, unconfirmed)]
+        events = [client.get(f"/api/medical/items/{i['id']}/events", headers=headers).json() for i in items]
+        return [(i["status"], i["end_date"]) for i in items], [len(e) for e in events]
+
+    before = states()
+    assert [status for status, _ in before[0]] == ["active", "pending_confirmation"]
+    assert all(end is not None and end < "2026-12-31" for _, end in before[0])
+    future = _summary(client, headers, "2026-12-31")
+    assert future["needs"]["energy_kcal"] == REST_ENERGY
+    assert not any("训练" in note for note in future["needs"]["notes"])
+    assert _summary(client, headers, "2026-10-06")["needs"]["energy_kcal"] == TRAINING_ENERGY
+    assert states() == before
