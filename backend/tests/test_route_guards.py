@@ -99,3 +99,10 @@ def test_every_agent_grant_route_requires_disclaimer_user():
     assert len(routes) >= 3
     missing = [ctx.path for ctx in routes if require_disclaimer_user not in _dependency_calls(ctx.dependant)]
     assert missing == []
+
+
+def test_every_llm_route_requires_disclaimer_user():
+    routes = [ctx for ctx in _api_routes(create_app()) if ctx.path.startswith("/api/llm/")]
+    assert len(routes) >= 12
+    missing = [ctx.path for ctx in routes if require_disclaimer_user not in _dependency_calls(ctx.dependant)]
+    assert missing == []

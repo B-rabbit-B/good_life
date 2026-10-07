@@ -6,6 +6,7 @@ os.environ["DATABASE_URL"] = os.environ.get(
 )
 os.environ["JWT_SECRET"] = "test-jwt-secret-0123456789-abcdefghijklmnopqrstuvwxyz"
 os.environ["FIELD_ENCRYPTION_KEY"] = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+os.environ["LLM_ALLOW_PRIVATE_HOSTS"] = "true"  # 测试与本地模拟服务可以使用 127.0.0.1 地址
 
 from pathlib import Path
 
