@@ -294,6 +294,7 @@ dependencies = [
     { name = "argon2-cffi" },
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "httpx2" },
     { name = "mcp" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
@@ -305,7 +306,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx2" },
     { name = "pytest" },
 ]
 
@@ -315,6 +315,7 @@ requires-dist = [
     { name = "argon2-cffi", specifier = ">=25.1.0" },
     { name = "cryptography", specifier = ">=50.0.1" },
     { name = "fastapi", specifier = ">=0.142.1" },
+    { name = "httpx2", specifier = ">=2.13.1" },
     { name = "mcp", specifier = ">=2.3,<3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
@@ -325,10 +326,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "httpx2", specifier = ">=2.13.1" },
-    { name = "pytest", specifier = ">=9.1.1" },
-]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "h11"
