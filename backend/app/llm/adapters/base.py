@@ -124,6 +124,8 @@ def redact(text: str, secret: str | None) -> str:
 
 
 _QUOTA_WORDS = ("quota", "insufficient", "balance", "余额", "额度", "欠费", "arrearage")
+# 余额不足、欠费类正文：不论 400、402、403 还是 429，都归为额度不足（各家用的状态码不一样）
+_BALANCE_WORDS = ("arrearage", "credit balance is too low", "insufficient balance", "insufficient_quota", "余额不足", "欠费")
 _MODEL_MISSING_WORDS = ("model not found", "does not exist", "模型不存在", "invalidendpointormodel", "model_not_found")
 
 
@@ -133,7 +135,9 @@ def classify_http(status: int, body_text: str, *, during: During, secret: str | 
     拉取列表时不针对具体模型，所以 404 一律视为地址不存在，避免“Cannot GET /v1/models”这类正文被误判为模型不存在。
     """
     lowered = body_text.lower()
-    if status in (401, 403):
+    if status in (400, 402, 403, 429) and any(word in lowered for word in _BALANCE_WORDS):
+        code = "quota_exceeded"
+    elif status in (401, 403):
         code = "invalid_key"
     elif status == 402:
         code = "quota_exceeded"
@@ -208,6 +212,9 @@ class HttpAdapter:
     def _request(self, method: str, path: str, *, during: During, params: dict | None = None,
                  body: dict | None = None) -> Any:
         """发出请求并返回解析后的 JSON；网络错误、非 2xx 与非 JSON 正文都转成 LlmError。"""
+        # 含换行、制表符或全角字符的密钥无法放进请求头，底层异常可能带出密钥原文，所以在发请求前拒绝
+        if not (self._api_key and self._api_key.isascii() and self._api_key.isprintable()):
+            raise LlmError("invalid_key", "密钥为空或含有空白控制字符、全角字符，请重新复制密钥后再试")
         # 注入 transport（测试）时不读取环境中的代理设置，保证请求一定走注入的 transport
         with httpx2.Client(transport=self._transport, timeout=self._timeout, headers=self._headers(),
                            trust_env=self._transport is None) as client:
@@ -216,7 +223,10 @@ class HttpAdapter:
             except httpx2.TimeoutException:
                 raise LlmError("timeout") from None
             except httpx2.HTTPError as exc:
-                raise LlmError("unreachable", detail=redact(f"{type(exc).__name__}: {exc}", self._api_key)) from None
+                # 底层异常文本可能带出请求头，只记录异常类名
+                raise LlmError("unreachable", detail=type(exc).__name__) from None
+            except httpx2.InvalidURL:
+                raise LlmError("unreachable", "服务地址格式不正确，请检查地址") from None
         if not response.is_success:
             raise self._classify(response.status_code, response.text, during)
         try:

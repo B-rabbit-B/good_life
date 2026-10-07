@@ -373,7 +373,7 @@ def test_anthropic_error_types(error_type, status, during, expected):
     (400, "UNAUTHENTICATED", "Request had invalid authentication credentials.", "chat", "invalid_key"),
     (429, "RESOURCE_EXHAUSTED", "You exceeded your current quota, please check your plan and billing details.",
      "chat", "quota_exceeded"),
-    (429, "RESOURCE_EXHAUSTED", "Resource has been exhausted (e.g. check rate limits).", "chat", "rate_limited"),
+    (429, "RESOURCE_EXHAUSTED", "Resource has been exhausted (e.g. check rate limits).", "chat", "quota_exceeded"),
     (404, "NOT_FOUND", "models/gemini-x is not found for API version v1beta.", "chat", "model_not_found"),
     (404, "NOT_FOUND", "Requested entity was not found.", "list", "not_found"),
     (400, "INVALID_ARGUMENT", "Invalid JSON payload received.", "chat", "bad_request"),
@@ -382,6 +382,133 @@ def test_anthropic_error_types(error_type, status, during, expected):
 def test_gemini_error_status(code, status, message, during, expected):
     body = {"error": {"code": code, "status": status, "message": message}}
     assert _fail("gemini", during, Recorder((code, body))).code == expected
+
+
+_RETRY_INFO = {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "21s"}
+
+
+def _quota_failure(quota_id, metric="generativelanguage.googleapis.com/generate_content_free_tier_requests"):
+    return {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+            "violations": [{"quotaMetric": metric, "quotaId": quota_id}]}
+
+
+@pytest.mark.parametrize("details, expected", [
+    ([_quota_failure("GenerateRequestsPerMinutePerProjectPerModel-FreeTier"), _RETRY_INFO], "rate_limited"),
+    ([_RETRY_INFO], "rate_limited"),
+    ([_quota_failure("GenerateRequestsPerDayPerProjectPerModel-FreeTier")], "rate_limited"),
+    ([_quota_failure("x", metric="generativelanguage.googleapis.com/requests_per_minute")], "rate_limited"),
+    ([_quota_failure("GenerateContentPaidTierInputTokens", metric="paid_tier_input_token_count")], "quota_exceeded"),
+    ([{"@type": "type.googleapis.com/google.rpc.Help", "links": []}], "quota_exceeded"),
+])
+def test_gemini_resource_exhausted_details(details, expected):
+    body = {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "details": details,
+                      "message": "You exceeded your current quota, please check your plan and billing details."}}
+    assert _fail("gemini", "chat", Recorder((429, body))).code == expected
+
+
+@pytest.mark.parametrize("kind", KINDS)
+@pytest.mark.parametrize("status, body", [
+    (400, {"code": "Arrearage", "message": "Access denied, please make sure your account is in good standing.",
+           "request_id": "abc"}),
+    (400, {"type": "error", "error": {"type": "invalid_request_error",
+                                      "message": "Your credit balance is too low to access the Anthropic API."}}),
+    (403, {"error": {"message": "您的账户余额不足"}}),
+    (402, {"error": {"message": "Insufficient Balance"}}),
+    (429, {"error": {"code": "insufficient_quota", "message": "You exceeded your current quota"}}),
+])
+def test_balance_wording_is_quota_exceeded_regardless_of_status(kind, status, body):
+    assert _fail(kind, "chat", Recorder((status, body))).code == "quota_exceeded"
+
+
+def test_openai_official_host_uses_max_completion_tokens():
+    reply = (200, {"choices": [{"message": {"content": "好"}}]})
+    official = Recorder(reply)
+    _adapter("openai_compatible", official, base="https://api.openai.com/v1").chat(
+        "gpt-5", [ChatMessage("user", "hi")], max_tokens=77)
+    assert official.body["max_completion_tokens"] == 77 and "max_tokens" not in official.body
+    other = Recorder(reply)
+    _adapter("openai_compatible", other, base="https://api.deepseek.com/v1").chat(
+        "deepseek-chat", [ChatMessage("user", "hi")], max_tokens=77)
+    assert other.body["max_tokens"] == 77 and "max_completion_tokens" not in other.body
+
+
+@pytest.mark.parametrize("body, reason", [
+    ({"promptFeedback": {"blockReason": "SAFETY"}, "usageMetadata": {"promptTokenCount": 5}}, "SAFETY"),
+    ({"candidates": [], "promptFeedback": {"blockReason": "PROHIBITED_CONTENT"}}, "PROHIBITED_CONTENT"),
+    ({"candidates": [{"finishReason": "SAFETY", "index": 0}]}, "SAFETY"),
+])
+def test_gemini_blocked_content_is_bad_request(body, reason):
+    error = _fail("gemini", "chat", Recorder((200, body)))
+    assert error.code == "bad_request"
+    assert "安全过滤" in error.message and reason in error.message
+
+
+def test_gemini_chat_strips_models_prefix():
+    rec = Recorder((200, {"candidates": [{"content": {"parts": [{"text": "好"}]}}]}))
+    result = _adapter("gemini", rec).chat("models/gemini-2.5-flash", [ChatMessage("user", "hi")])
+    assert str(rec.requests[0].url).endswith("/v1beta/models/gemini-2.5-flash:generateContent")
+    assert result.model == "gemini-2.5-flash"
+
+
+def test_openai_image_message_without_text_omits_text_part():
+    rec = Recorder((200, {"choices": [{"message": {"content": "红色"}}]}))
+    _adapter("openai_compatible", rec).chat("qwen-vl-max", [ChatMessage("user", "", (IMAGE,))])
+    assert rec.body["messages"][0]["content"] == [
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}}]
+
+
+@pytest.mark.parametrize("messages", [
+    [ChatMessage("system", "只有系统提示")],
+    [],
+    [ChatMessage("user", "你好"), ChatMessage("assistant", ""), ChatMessage("user", "再说一次")],
+])
+def test_anthropic_rejects_empty_conversation_without_sending(messages):
+    rec = Recorder((200, {"content": [], "model": "claude-x"}))
+    with pytest.raises(LlmError) as caught:
+        _adapter("anthropic", rec).chat("claude-x", messages)
+    assert caught.value.code == "bad_request" and caught.value.message
+    assert rec.requests == []
+
+
+@pytest.mark.parametrize("kind", KINDS)
+@pytest.mark.parametrize("during", ["list", "chat"])
+def test_invalid_url_is_unreachable(kind, during):
+    rec = Recorder((200, {"data": []}))
+    adapter = _adapter(kind, rec, base="http://[::1")
+    with pytest.raises(LlmError) as caught:
+        adapter.list_models() if during == "list" else adapter.chat("m", [ChatMessage("user", "hi")])
+    assert caught.value.code == "unreachable" and "地址" in caught.value.message
+    assert rec.requests == []
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_redirect_is_not_followed(kind):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx2.Response(302, headers={"Location": "https://evil.example.com/steal"}, text="moved")
+
+    adapter = make_adapter(kind, BASES[kind], SECRET, transport=httpx2.MockTransport(handler))
+    with pytest.raises(LlmError) as caught:
+        adapter.list_models()
+    assert caught.value.code == "provider_error"
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("kind", KINDS)
+@pytest.mark.parametrize("bad_key", ["sk-abc\ndef0123456789", "sk-ａbc0123456789", "sk-abc\t0123456789", ""])
+def test_unusable_key_is_invalid_key_without_leaking(kind, bad_key):
+    rec = Recorder((200, {"data": []}))
+    adapter = make_adapter(kind, BASES[kind], bad_key, transport=httpx2.MockTransport(rec))
+    for call in (adapter.list_models, lambda: adapter.chat("m", [ChatMessage("user", "hi")])):
+        with pytest.raises(LlmError) as caught:
+            call()
+        error = caught.value
+        assert error.code == "invalid_key" and error.detail == ""
+        for text in (error.message, error.detail, str(error), repr(error)):
+            assert "0123456789" not in text
+    assert rec.requests == []
 
 
 # ---------- 密钥不外泄 ----------

@@ -32,6 +32,31 @@ def _parts(message: ChatMessage) -> list[dict]:
     return parts
 
 
+_RATE_WINDOWS = ("perminute", "per_minute", "perday", "per_day")
+
+
+def _is_rate_limit(details: Any) -> bool:
+    """RESOURCE_EXHAUSTED 带 RetryInfo，或 QuotaFailure 指向每分钟、每天的请求配额时，属于限流而不是额度用尽。"""
+    for detail in details if isinstance(details, list) else ():
+        if not isinstance(detail, dict):
+            continue
+        kind = str(detail.get("@type", ""))
+        if kind.endswith("google.rpc.RetryInfo"):
+            return True
+        if kind.endswith("google.rpc.QuotaFailure"):
+            for violation in detail.get("violations") or ():
+                if not isinstance(violation, dict):
+                    continue
+                quota = f"{violation.get('quotaId', '')} {violation.get('quotaMetric', '')}".lower()
+                if any(window in quota for window in _RATE_WINDOWS):
+                    return True
+    return False
+
+
+def _blocked(reason: Any) -> LlmError:
+    return LlmError("bad_request", f"内容被 Gemini 的安全过滤拦截（原因：{reason}），请修改提问内容后再试")
+
+
 class GeminiAdapter(HttpAdapter):
     def _headers(self) -> dict[str, str]:
         return {"x-goog-api-key": self._api_key}
@@ -44,7 +69,7 @@ class GeminiAdapter(HttpAdapter):
             if (status == 400 and "API key not valid" in message) or state in ("PERMISSION_DENIED", "UNAUTHENTICATED"):
                 return http_error("invalid_key", status, body_text, self._api_key)
             if state == "RESOURCE_EXHAUSTED":
-                code = "quota_exceeded" if "quota" in body_text.lower() else "rate_limited"
+                code = "rate_limited" if _is_rate_limit(error.get("details")) else "quota_exceeded"
                 return http_error(code, status, body_text, self._api_key)
             if state == "NOT_FOUND":
                 code = "model_not_found" if during == "chat" else "not_found"
@@ -85,12 +110,20 @@ class GeminiAdapter(HttpAdapter):
         if tools:
             body["tools"] = [{"functionDeclarations": [
                 {"name": t.name, "description": t.description, "parameters": t.parameters} for t in tools]}]
+        model = model.removeprefix("models/")
         data = self._request("POST", f"/models/{quote(model, safe='')}:generateContent", during="chat", body=body)
         return self._parse(lambda d: self._result(d, model), data)
 
     @staticmethod
     def _result(data: dict, requested_model: str) -> ChatResult:
-        content = data["candidates"][0]["content"]
+        candidates = data.get("candidates")
+        block_reason = (data.get("promptFeedback") or {}).get("blockReason")
+        if not candidates and block_reason:
+            raise _blocked(block_reason)
+        candidate = candidates[0]
+        if "content" not in candidate and candidate.get("finishReason"):
+            raise _blocked(candidate["finishReason"])
+        content = candidate["content"]
         texts: list[str] = []
         calls: list[ToolCall] = []
         for part in content.get("parts") or ():  # 输出被截断或拦截时可能没有 parts

@@ -3,6 +3,7 @@
 import json
 from collections.abc import Sequence
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.llm.adapters.base import (
     ChatMessage,
@@ -20,7 +21,7 @@ from app.llm.adapters.base import (
 def _content(message: ChatMessage) -> str | list[dict]:
     if not message.images:
         return message.text
-    parts: list[dict] = [{"type": "text", "text": message.text}]
+    parts: list[dict] = [{"type": "text", "text": message.text}] if message.text else []
     for image in message.images:
         parts.append({"type": "image_url",
                       "image_url": {"url": f"data:{image.mime_type};base64,{image.data_base64}"}})
@@ -39,6 +40,13 @@ def _arguments(raw: Any) -> dict:
     return parsed
 
 
+def _host(url: str) -> str | None:
+    try:
+        return urlsplit(url).hostname
+    except ValueError:  # 地址格式不对时交给发请求那一步报 unreachable
+        return None
+
+
 class OpenAICompatibleAdapter(HttpAdapter):
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._api_key}"}
@@ -49,9 +57,11 @@ class OpenAICompatibleAdapter(HttpAdapter):
 
     def chat(self, model: str, messages: Sequence[ChatMessage], *, tools: Sequence[ToolSpec] = (),
              max_tokens: int = 1024) -> ChatResult:
+        # OpenAI 官方的新模型只接受 max_completion_tokens；其它兼容服务仍用 max_tokens
+        limit_field = "max_completion_tokens" if _host(self.base_url) == "api.openai.com" else "max_tokens"
         body: dict[str, Any] = {
             "model": model,
-            "max_tokens": max_tokens,
+            limit_field: max_tokens,
             "messages": [{"role": m.role, "content": _content(m)} for m in messages],
         }
         if tools:

@@ -75,11 +75,16 @@ class AnthropicAdapter(HttpAdapter):
 
     def chat(self, model: str, messages: Sequence[ChatMessage], *, tools: Sequence[ToolSpec] = (),
              max_tokens: int = 1024) -> ChatResult:
-        system = "\n\n".join(m.text for m in messages if m.role == "system")
+        conversation = [m for m in messages if m.role != "system"]
+        if not conversation:
+            raise LlmError("bad_request", "Claude 需要至少一条用户消息，只有系统提示无法发起对话")
+        if any(not m.text and not m.images for m in conversation):
+            raise LlmError("bad_request", "Claude 不接受空消息：每条消息都需要有文字或图片")
+        system = "\n\n".join(m.text for m in messages if m.role == "system" and m.text)
         body: dict[str, Any] = {
             "model": model,
             "max_tokens": max_tokens,
-            "messages": [{"role": m.role, "content": _content(m)} for m in messages if m.role != "system"],
+            "messages": [{"role": m.role, "content": _content(m)} for m in conversation],
         }
         if system:
             body["system"] = system
