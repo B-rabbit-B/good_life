@@ -9,7 +9,7 @@ from app.auth.models import User
 from app.common.clock import get_today
 from app.db import get_db
 from app.errors import AppError
-from app.fitness import workouts
+from app.fitness import summaries, workouts
 from app.fitness.deps import require_fitness_user
 from app.fitness.library import MET_SOURCE_NOTE, STRENGTH_MET, Exercise, load_library
 from app.fitness.models import Workout
@@ -19,12 +19,16 @@ from app.fitness.schemas import (
     ExerciseDetailOut,
     ExerciseSearchOut,
     ExerciseSummaryOut,
+    ExerciseTrendOut,
     MetOut,
     SetOut,
     StrengthBlockOut,
+    TrendPointOut,
+    WeekSummaryOut,
     WorkoutIn,
     WorkoutOut,
 )
+from app.profile.service import get_or_create_profile
 
 router = APIRouter(prefix="/api/fitness", tags=["fitness"])
 
@@ -178,3 +182,33 @@ def replace_workout(
 def delete_workout(workout_id: uuid.UUID, user: FitnessUser, db: DbSession) -> Response:
     workouts.delete_workout(db, user.id, workout_id)
     return Response(status_code=204)
+
+
+@router.get("/summary/week", response_model=WeekSummaryOut)
+def week_summary(user: FitnessUser, db: DbSession, today: Today, start: date | None = None) -> WeekSummaryOut:
+    start = start or today - timedelta(days=today.weekday())
+    body_weight = get_or_create_profile(db, user.id).weight_kg
+    summary = summaries.week_summary(db, user.id, start, body_weight)
+    return WeekSummaryOut(
+        week_start=summary.week_start, week_end=summary.week_end, workout_count=summary.workout_count,
+        training_days=summary.training_days, total_volume=summary.total_volume,
+        muscle_volumes=summary.muscle_volumes, cardio_minutes=summary.cardio_minutes,
+        energy_low_kcal=summary.energy_low, energy_high_kcal=summary.energy_high,
+        energy_status=summary.energy_status, note=summary.note,
+    )
+
+
+@router.get("/exercises/{exercise_id}/trend", response_model=ExerciseTrendOut)
+def exercise_trend(exercise_id: str, user: FitnessUser, db: DbSession) -> ExerciseTrendOut:
+    exercise, points = summaries.exercise_trend_for(db, user.id, exercise_id)
+    return ExerciseTrendOut(
+        exercise_id=exercise.id,
+        exercise_name=exercise.name,
+        points=[
+            TrendPointOut(
+                day=p.day, max_weight_kg=p.max_weight_kg, total_volume=p.total_volume,
+                total_reps=p.total_reps, sets=p.sets,
+            )
+            for p in points
+        ],
+    )

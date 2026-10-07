@@ -152,3 +152,31 @@ class WorkoutOut(BaseModel):
     cardio: list[CardioOut]
     created_at: dt.datetime
     updated_at: dt.datetime
+
+
+class WeekSummaryOut(BaseModel):
+    week_start: dt.date
+    week_end: dt.date
+    workout_count: int
+    training_days: int
+    total_volume: float
+    muscle_volumes: dict[Muscle, float]
+    cardio_minutes: int
+    energy_low_kcal: int | None
+    energy_high_kcal: int | None
+    energy_status: Literal["ok", "missing_body_weight"]
+    note: str
+
+
+class TrendPointOut(BaseModel):
+    day: dt.date
+    max_weight_kg: float
+    total_volume: float
+    total_reps: int
+    sets: int
+
+
+class ExerciseTrendOut(BaseModel):
+    exercise_id: str
+    exercise_name: str
+    points: list[TrendPointOut]
