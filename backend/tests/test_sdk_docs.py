@@ -56,10 +56,10 @@ def test_usage_guide_names_the_tools_of_the_six_scenarios():
         assert name in guide
 
 
-def test_acceptance_record_has_seven_rows_with_existing_tests_and_empty_user_column():
+def test_acceptance_record_has_seven_rows_with_existing_tests_and_user_acceptance():
     rows = _acceptance_rows()
     assert [row[0] for row in rows] == [str(n) for n in range(1, 8)]
-    assert all(len(row) == 6 and row[5] == "" and row[4] for row in rows)
+    assert all(len(row) == 6 and row[5] == "通过（代验，见“代为验收记录”）" and row[4] for row in rows)
     references = {(match.group(1), match.group(2)) for row in rows
                   for match in re.finditer(r"(test_\w+\.py)::(test_\w+)", row[2])}
     assert references
