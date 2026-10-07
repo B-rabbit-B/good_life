@@ -14,7 +14,6 @@ from app.nutrition.engine import Evaluation, evaluate_food, evaluate_meal
 from app.nutrition.catalog import EXACT_MATCH_TYPES, Food, TagDefinition, load_catalog, round_one
 from app.nutrition.deps import require_nutrition_user
 from app.nutrition.models import MealEntry
-from app.nutrition.needs import needs_for_profile
 from app.nutrition.schemas import (
     SUMMARY_DISCLAIMER,
     FoodDetailOut,
@@ -36,7 +35,6 @@ from app.nutrition.schemas import (
     TagOut,
     nutrients_out,
 )
-from app.profile.service import get_or_create_profile
 
 router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
 
@@ -175,7 +173,7 @@ def get_summary(user: NutritionUser, db: DbSession, today: Today, day: DayQuery 
 
 @router.get("/needs", response_model=NeedsOut)
 def get_needs(user: NutritionUser, db: DbSession, today: Today) -> NeedsOut:
-    return NeedsOut.model_validate(needs_for_profile(get_or_create_profile(db, user.id), today))
+    return NeedsOut.model_validate(needs_for_day(db, user.id, today, today))
 
 
 def _resolve_item(item: MealItemIn) -> tuple[Food, float]:

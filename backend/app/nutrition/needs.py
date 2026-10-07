@@ -21,7 +21,7 @@ ESTIMATE_NOTE = "以上是根据档案估算的大致需求，不是医疗指标
 UNSPECIFIED_SEX_NOTE = "档案没有填写男女，按男女公式的中间值估算。"
 MINOR_NOTE = "未成年人的营养需求与成人不同，请咨询医生或营养师。"
 INSUFFICIENT_NOTE = "档案缺少估算所需的信息，补充后才能估算每日需求。"
-TRAINING_NOTE = "已计入今天训练估算消耗的下限 {kcal} 千卡。"
+TRAINING_NOTE = "已计入当天训练估算消耗的下限 {kcal} 千卡。"
 
 
 @dataclass(frozen=True)
