@@ -35,10 +35,11 @@ def test_delivery_docs_exist_and_contain_no_code_blocks_or_inline_code():
         assert "`" not in content, doc.name
 
 
-def test_acceptance_record_has_seven_rows_with_existing_tests_and_empty_user_acceptance():
+def test_acceptance_record_has_seven_rows_with_existing_tests_and_user_acceptance():
     rows = _acceptance_rows()
     assert [row[0] for row in rows] == [str(n) for n in range(1, 8)]
-    assert all(len(row) == 6 and row[4] and row[5] == "" for row in rows), rows
+    assert all(len(row) == 6 and row[4] for row in rows), rows
+    assert [row[5] for row in rows] == ["通过（代验，见“代为验收记录”）" if n != 2 else "待用户实测" for n in range(1, 8)]
     references = {(match.group(1), match.group(2)) for row in rows
                   for match in re.finditer(r"(test_\w+\.py)::(test_\w+)", row[2])}
     assert references
