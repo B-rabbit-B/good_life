@@ -333,3 +333,38 @@ def test_soybean_and_bean_sprouts_are_legume():
     catalog = load_catalog()
     for food_id in ("cfcd:042109", "cfcd:042202", "cfcd:042205", "cfcd:042206"):
         assert "legume" in catalog.get(food_id).tags, food_id
+
+
+# ---- 第一阶段验收修复：标签的不确定成员 ----
+
+def _tags_with(tag_id, **fields):
+    tags = json.loads((DATA_DIR / "tags.json").read_text("utf-8"))
+    for entry in tags:
+        if entry["id"] == tag_id:
+            entry.update(fields)
+    return tags
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        ({"uncertain": {"ids": ["cfcd:nope"]}}, "不确定成员引用了不存在的食物.*cfcd:nope"),
+        ({"uncertain": {"exclude_ids": ["cfcd:nope2"]}}, "不确定成员引用了不存在的食物.*cfcd:nope2"),
+        ({"uncertain": {"categories": ["补充-没有这类"]}}, "不确定成员引用了不存在的分类.*补充-没有这类"),
+        ({"members": {"categories": ["没有这个大类"]}}, "成员引用了不存在的分类.*没有这个大类"),
+    ],
+)
+def test_tag_member_references_must_exist(monkeypatch, fields, message):
+    with pytest.raises(ValueError, match=message):
+        _load_with(monkeypatch, **{"tags.json": _tags_with("raw_cold", **fields)})
+
+
+def test_uncertain_members_reject_unknown_fields(monkeypatch):
+    with pytest.raises(ValueError, match=r"uncertain\.colour"):
+        _load_with(monkeypatch, **{"tags.json": _tags_with("raw_cold", uncertain={"colour": ["red"]})})
+
+
+def test_uncertain_members_are_not_inherited_by_dishes():
+    catalog = load_catalog()
+    assert "raw_cold" in catalog.get("supplement:cola").uncertain_tags
+    assert all(not food.uncertain_tags for food in catalog.foods.values() if food.kind == "dish")

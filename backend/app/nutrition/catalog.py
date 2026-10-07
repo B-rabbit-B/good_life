@@ -159,6 +159,7 @@ class Food:
     portions: tuple[tuple[str, float], ...] = ()  # （单位, 克），按单位名排序
     default_grams: float = 100.0
     ingredients: tuple[str, ...] = ()  # 菜品配方里的食材编号（按配方顺序，去重）；其他食物为空
+    uncertain_tags: frozenset[str] = frozenset()  # 可能属于也可能不属于的标签（如饮料是否生冷），不含已带的标签
 
 
 def match_names(food: Food) -> tuple[str, ...]:
@@ -199,6 +200,7 @@ class _TagEntry(BaseModel):
     review_status: Literal["reviewed", "draft"]
     rule: _TagRule | None = None
     members: _TagMembers | None = None
+    uncertain: _TagMembers | None = None  # 不确定成员：无法从数据确定是否属于这个标签的食物，不被菜品继承
 
 
 class _NutrientValues(BaseModel):
@@ -377,6 +379,19 @@ def assign_tags(food: Food, entries: list[_TagEntry]) -> frozenset[str]:
     return frozenset(tags)
 
 
+def assign_uncertain_tags(food: Food, entries: list[_TagEntry]) -> frozenset[str]:
+    """食物属于哪些标签的不确定成员；已经带这个标签的食物不算（按已带标签判断）。"""
+    return frozenset(
+        entry.id for entry in entries
+        if entry.uncertain and entry.id not in food.tags and _member_matches(entry.uncertain, food)
+    )
+
+
+def _labelled(food: Food, entries: list[_TagEntry]) -> Food:
+    tagged = replace(food, tags=assign_tags(food, entries))
+    return replace(tagged, uncertain_tags=assign_uncertain_tags(tagged, entries))
+
+
 def _load_cfcd() -> list[Food]:
     foods = []
     with CFCD_FILE.open(encoding="utf-8-sig", newline="") as handle:
@@ -509,7 +524,7 @@ def _with_portions(food: Food, units: dict[str, float]) -> Food:
 
 
 def _check_foods(foods: list[Food], entries: list[_TagEntry]) -> None:
-    """编号唯一；食物带的标签都在 tags.json 中定义；标签成员引用的食物都存在。"""
+    """编号唯一；食物带的标签都在 tags.json 中定义；标签成员与不确定成员引用的食物和分类都存在。"""
     counts = Counter(food.id for food in foods)
     duplicated = sorted(food_id for food_id, count in counts.items() if count > 1)
     if duplicated:
@@ -520,18 +535,25 @@ def _check_foods(foods: list[Food], entries: list[_TagEntry]) -> None:
         if undefined:
             raise ValueError(f"{food.id} 声明了未定义的标签：{undefined}")
     known = set(counts)
+    categories = {food.category for food in foods}
     for entry in entries:
-        if entry.members:
-            unknown = sorted(set(entry.members.ids + entry.members.exclude_ids) - known)
+        for label, members in (("成员", entry.members), ("不确定成员", entry.uncertain)):
+            if members is None:
+                continue
+            unknown = sorted(set(members.ids + members.exclude_ids) - known)
             if unknown:
-                raise ValueError(f"标签 {entry.id} 的成员引用了不存在的食物：{unknown}")
+                raise ValueError(f"标签 {entry.id} 的{label}引用了不存在的食物：{unknown}")
+            missing = sorted(prefix for prefix in members.categories
+                             if not any(category.startswith(prefix) for category in categories))
+            if missing:
+                raise ValueError(f"标签 {entry.id} 的{label}引用了不存在的分类：{missing}")
 
 
 @lru_cache
 def load_catalog() -> Catalog:
     entries = load_tag_entries()
-    base = [replace(food, tags=assign_tags(food, entries)) for food in (*_load_cfcd(), *_load_supplements())]
-    dishes = [replace(dish, tags=assign_tags(dish, entries)) for dish in _load_dishes({f.id: f for f in base})]
+    base = [_labelled(food, entries) for food in (*_load_cfcd(), *_load_supplements())]
+    dishes = [_labelled(dish, entries) for dish in _load_dishes({f.id: f for f in base})]
     foods = [*base, *dishes]
     _check_foods(foods, entries)
     portions = _load_portions({food.id for food in foods})
