@@ -57,6 +57,14 @@ class WorkoutInput:
     cardio: tuple[CardioInput, ...]
 
 
+def peak_intensity(workout: WorkoutInput) -> str:
+    """一次训练的最高强度档：取整次训练与各条目（填了主观强度的组、有氧项）中最高的；整次未填按中等。"""
+    levels = [intensity_from_rpe(workout.rpe)]
+    levels += [intensity_from_rpe(s.rpe) for block in workout.strength for s in block.sets if s.rpe is not None]
+    levels += [intensity_from_rpe(c.rpe) for c in workout.cardio if c.rpe is not None]
+    return max(levels, key=INTENSITY_LEVELS.index)
+
+
 def strength_volume(sets: Iterable[SetInput]) -> float:
     """训练量 = Σ 重量 × 次数；自重动作重量为 0，不计入。"""
     return sum(s.weight_kg * s.reps for s in sets)

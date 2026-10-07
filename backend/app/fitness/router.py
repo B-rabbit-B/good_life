@@ -9,12 +9,14 @@ from app.auth.models import User
 from app.common.clock import get_today
 from app.db import get_db
 from app.errors import AppError
-from app.fitness import summaries, workouts
+from app.fitness import signals, summaries, workouts
+from app.fitness.conflicts import EXERCISE_LIMIT, Conflict, find_conflicts
 from app.fitness.deps import require_fitness_user
 from app.fitness.library import MET_SOURCE_NOTE, STRENGTH_MET, Exercise, load_library
 from app.fitness.models import Workout
 from app.fitness.schemas import (
     CardioOut,
+    ConflictOut,
     CustomExerciseIn,
     ExerciseDetailOut,
     ExerciseSearchOut,
@@ -23,11 +25,13 @@ from app.fitness.schemas import (
     MetOut,
     SetOut,
     StrengthBlockOut,
+    TrainingSignalOut,
     TrendPointOut,
     WeekSummaryOut,
     WorkoutIn,
     WorkoutOut,
 )
+from app.medical.items import get_current_constraints
 from app.profile.service import get_or_create_profile
 
 router = APIRouter(prefix="/api/fitness", tags=["fitness"])
@@ -62,7 +66,14 @@ def _exercise_detail(exercise: Exercise) -> ExerciseDetailOut:
     )
 
 
-def _workout_out(detail: workouts.WorkoutDetail) -> WorkoutOut:
+def _conflict_out(conflict: Conflict) -> ConflictOut:
+    return ConflictOut(
+        item_id=conflict.item_id, content=conflict.content, subject=conflict.subject, level=conflict.level,
+        message=conflict.message, workout_ids=list(conflict.workout_ids),
+    )
+
+
+def _workout_out(detail: workouts.WorkoutDetail, conflicts: tuple[Conflict, ...]) -> WorkoutOut:
     workout = detail.workout
     return WorkoutOut(
         id=workout.id,
@@ -92,13 +103,25 @@ def _workout_out(detail: workouts.WorkoutDetail) -> WorkoutOut:
             )
             for entry in detail.cardio
         ],
+        conflicts=[_conflict_out(c) for c in conflicts],
         created_at=workout.created_at,
         updated_at=workout.updated_at,
     )
 
 
-def _one_workout(db: Session, user: User, workout: Workout) -> WorkoutOut:
-    return _workout_out(workouts.workout_detail(db, user.id, workout))
+def _workouts_out(db: Session, user: User, today: date, found: list[Workout]) -> list[WorkoutOut]:
+    """每条训练各自带上与今天生效的运动限制医嘱的冲突提示（只提示，不阻止记录）。"""
+    details = workouts.workout_details(db, user.id, found)
+    inputs, _ = summaries.workout_inputs(db, user.id, details)
+    constraints = get_current_constraints(db, user.id, today, EXERCISE_LIMIT)
+    return [
+        _workout_out(detail, find_conflicts(constraints, [(detail.workout.id, workout_input)]))
+        for detail, workout_input in zip(details, inputs, strict=True)
+    ]
+
+
+def _one_workout(db: Session, user: User, today: date, workout: Workout) -> WorkoutOut:
+    return _workouts_out(db, user, today, [workout])[0]
 
 
 @router.get("/exercises/search", response_model=ExerciseSearchOut)
@@ -151,7 +174,7 @@ def delete_custom_exercise(exercise_id: str, user: FitnessUser, db: DbSession) -
 
 @router.post("/workouts", status_code=201, response_model=WorkoutOut)
 def create_workout(body: WorkoutIn, user: FitnessUser, db: DbSession, today: Today) -> WorkoutOut:
-    return _one_workout(db, user, workouts.create_workout(db, user.id, body, today))
+    return _one_workout(db, user, today, workouts.create_workout(db, user.id, body, today))
 
 
 @router.get("/workouts", response_model=list[WorkoutOut])
@@ -163,19 +186,19 @@ def list_workouts(
     if start > end or (end - start).days >= MAX_RANGE_DAYS:
         raise AppError(422, "invalid_range", f"日期范围不合法：开始日期不能晚于结束日期，且最多 {MAX_RANGE_DAYS} 天")
     found = workouts.list_workouts(db, user.id, start, end)
-    return [_workout_out(detail) for detail in workouts.workout_details(db, user.id, found)]
+    return _workouts_out(db, user, today, found)
 
 
 @router.get("/workouts/{workout_id}", response_model=WorkoutOut)
-def get_workout(workout_id: uuid.UUID, user: FitnessUser, db: DbSession) -> WorkoutOut:
-    return _one_workout(db, user, workouts.get_workout(db, user.id, workout_id))
+def get_workout(workout_id: uuid.UUID, user: FitnessUser, db: DbSession, today: Today) -> WorkoutOut:
+    return _one_workout(db, user, today, workouts.get_workout(db, user.id, workout_id))
 
 
 @router.put("/workouts/{workout_id}", response_model=WorkoutOut)
 def replace_workout(
     workout_id: uuid.UUID, body: WorkoutIn, user: FitnessUser, db: DbSession, today: Today
 ) -> WorkoutOut:
-    return _one_workout(db, user, workouts.replace_workout(db, user.id, workout_id, body, today))
+    return _one_workout(db, user, today, workouts.replace_workout(db, user.id, workout_id, body, today))
 
 
 @router.delete("/workouts/{workout_id}", status_code=204)
@@ -211,4 +234,16 @@ def exercise_trend(exercise_id: str, user: FitnessUser, db: DbSession) -> Exerci
             )
             for p in points
         ],
+    )
+
+
+@router.get("/signal", response_model=TrainingSignalOut)
+def training_signal(user: FitnessUser, db: DbSession, today: Today) -> TrainingSignalOut:
+    signal = signals.training_signal(db, user.id, today)
+    return TrainingSignalOut(
+        day=signal.day, trained=signal.trained, kinds=list(signal.kinds), intensity=signal.intensity,
+        energy_low=signal.energy_low, energy_high=signal.energy_high, energy_status=signal.energy_status,
+        muscles=list(signal.muscles), workout_count=signal.workout_count,
+        conflicts=[_conflict_out(c) for c in signal.conflicts], notes=list(signal.notes),
+        disclaimer=signal.disclaimer,
     )

@@ -64,7 +64,7 @@ def _resolve_or_snapshot(
         return _snapshot_exercise(exercise_id, name, kind), True
 
 
-def _workout_inputs(
+def workout_inputs(
     db: Session, user_id: uuid.UUID, details: list[workouts.WorkoutDetail]
 ) -> tuple[list[WorkoutInput], list[str]]:
     """转换为 calc 的输入；返回输入与“动作已删除”的说明（按出现顺序、去重）。"""
@@ -99,22 +99,26 @@ def _workout_inputs(
     return inputs, [f"“{name}”是已删除的自定义动作，肌群按全身计算。" for name in deleted_names]
 
 
+def total_energy(
+    inputs: list[WorkoutInput], body_weight_kg: float | None
+) -> tuple[int | None, int | None, str, list[str]]:
+    """各次训练估算区间之和；体重缺失时区间为空并说明。返回（下限、上限、状态、说明句）。"""
+    estimates = [estimate_workout_energy(workout, body_weight_kg) for workout in inputs]
+    if body_weight_kg is None:
+        return None, None, "missing_body_weight", [MISSING_WEIGHT_NOTE]
+    extras = dict.fromkeys(
+        sentence + "。" for e in estimates for sentence in e.note.removeprefix(ESTIMATE_NOTE).split("。") if sentence
+    )
+    return sum(e.low for e in estimates), sum(e.high for e in estimates), "ok", [ESTIMATE_NOTE, *extras]
+
+
 def week_summary(db: Session, user_id: uuid.UUID, week_start: date, body_weight_kg: float | None) -> WeekSummary:
     if week_start.weekday() != 0:
         raise AppError(422, "invalid_week_start", "周汇总的开始日期必须是星期一")
     week_end = week_start + timedelta(days=DAYS_PER_WEEK - 1)
     found = list(reversed(workouts.list_workouts(db, user_id, week_start, week_end)))  # 日期由早到晚
-    inputs, deleted_notes = _workout_inputs(db, user_id, workouts.workout_details(db, user_id, found))
-    estimates = [estimate_workout_energy(workout, body_weight_kg) for workout in inputs]
-    if body_weight_kg is None:
-        low = high = None
-        status, notes = "missing_body_weight", [MISSING_WEIGHT_NOTE]
-    else:
-        low, high = sum(e.low for e in estimates), sum(e.high for e in estimates)
-        extras = dict.fromkeys(
-            sentence + "。" for e in estimates for sentence in e.note.removeprefix(ESTIMATE_NOTE).split("。") if sentence
-        )
-        status, notes = "ok", [ESTIMATE_NOTE, *extras]
+    inputs, deleted_notes = workout_inputs(db, user_id, workouts.workout_details(db, user_id, found))
+    low, high, status, notes = total_energy(inputs, body_weight_kg)
     return WeekSummary(
         week_start=week_start,
         week_end=week_end,

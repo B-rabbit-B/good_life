@@ -142,6 +142,15 @@ class CardioOut(BaseModel):
     rpe: int | None
 
 
+class ConflictOut(BaseModel):
+    item_id: uuid.UUID
+    content: str
+    subject: str
+    level: Literal["conflict", "unverifiable"]
+    message: str
+    workout_ids: list[uuid.UUID]
+
+
 class WorkoutOut(BaseModel):
     id: uuid.UUID
     performed_on: dt.date
@@ -150,6 +159,7 @@ class WorkoutOut(BaseModel):
     note: str | None
     strength: list[StrengthBlockOut]
     cardio: list[CardioOut]
+    conflicts: list[ConflictOut]
     created_at: dt.datetime
     updated_at: dt.datetime
 
@@ -180,3 +190,18 @@ class ExerciseTrendOut(BaseModel):
     exercise_id: str
     exercise_name: str
     points: list[TrendPointOut]
+
+
+class TrainingSignalOut(BaseModel):
+    day: dt.date
+    trained: bool
+    kinds: list[Kind]
+    intensity: Literal["none", "light", "moderate", "vigorous"]
+    energy_low: int | None
+    energy_high: int | None
+    energy_status: Literal["ok", "missing_body_weight", "no_training"]
+    muscles: list[Muscle]
+    workout_count: int
+    conflicts: list[ConflictOut]
+    notes: list[str]
+    disclaimer: str
