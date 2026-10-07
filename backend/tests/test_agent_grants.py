@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from app.agent_grants import service
 from app.db import get_engine, get_sessionmaker
@@ -11,6 +13,7 @@ def test_create_list_and_revoke_grant(client):
     headers = ready_user(client, "alice")
     created = client.post("/api/agent-grants", json={"name": "Claude Desktop", "access": "read"}, headers=headers)
     assert created.status_code == 201
+    assert created.headers["cache-control"] == "no-store"
     body = created.json()
     assert body["token"].startswith("gl_") and len(body["token"]) > 40
     assert "只显示这一次" in body["token_notice"]
@@ -66,3 +69,10 @@ def test_authenticate_grant(client):
         assert service.authenticate_grant(db, token, now + timedelta(days=1, seconds=1)) is None
         service.revoke_grant(db, grant.user_id, grant.id, now)
         assert service.authenticate_grant(db, token, now) is None
+
+
+def test_database_errors_hide_bound_parameters():
+    assert get_engine().hide_parameters is True
+    with pytest.raises(DBAPIError) as caught, get_engine().connect() as conn:
+        conn.execute(text("SELECT token_hash FROM no_such_table WHERE token_hash = :h"), {"h": "secret-hash-value"})
+    assert "secret-hash-value" not in str(caught.value)

@@ -10,6 +10,7 @@ from app.medical.schemas import (
 )
 from app.sdk.params import (
     ConfirmItemParams,
+    ConstraintsParams,
     ContinueItemParams,
     ItemFilterParams,
     ItemIdParams,
@@ -38,8 +39,8 @@ def _get_item(ctx: CallContext, params: ItemIdParams):
     return router.get_item(item_id=params.item_id, user=ctx.user, db=ctx.db)
 
 
-def _get_constraints(ctx: CallContext, params: NoParams):
-    return router.get_constraints(user=ctx.user, db=ctx.db, today=ctx.today, category=None)
+def _get_constraints(ctx: CallContext, params: ConstraintsParams):
+    return router.get_constraints(user=ctx.user, db=ctx.db, today=ctx.today, category=params.category)
 
 
 def _list_reviews(ctx: CallContext, params: NoParams):
@@ -117,8 +118,8 @@ CAPABILITIES: tuple[Capability, ...] = (
         name="medical.get_constraints",
         module="medical",
         level="read",
-        summary="查看今天生效的医嘱约束（生效中与待复核的条目），给饮食、运动建议前应先读取并遵守",
-        input_model=NoParams,
+        summary="查看今天生效的医嘱约束（生效中与待复核的条目），可按类别筛选；给饮食、运动建议前应先读取并遵守",
+        input_model=ConstraintsParams,
         output_type=ConstraintsOut,
         handler=_get_constraints,
     ),

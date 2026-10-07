@@ -32,7 +32,8 @@ def _out(grant: AgentGrant, now: datetime) -> GrantOut:
 
 
 @router.post("", status_code=201, response_model=GrantCreatedOut)
-def create_grant(body: GrantCreate, user: GrantUser, db: DbSession) -> GrantCreatedOut:
+def create_grant(body: GrantCreate, user: GrantUser, db: DbSession, response: Response) -> GrantCreatedOut:
+    response.headers["Cache-Control"] = "no-store"  # 响应里有令牌明文，不得被缓存
     grant, token = service.create_grant(db, user.id, body.name, body.access, body.expires_in_days, service.now())
     return GrantCreatedOut(
         id=grant.id,

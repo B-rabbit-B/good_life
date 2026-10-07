@@ -13,6 +13,9 @@ ReasonSource = Literal["medical", "cycle", "goal", "training", "intake", "prefer
 ReasonEffect = Literal["block", "unverifiable", "caution", "prefer", "info"]
 SUMMARY_DISCLAIMER = "以上汇总与需求都是估算，仅供参考，不构成医疗建议；有医嘱时以医嘱为准。"
 
+# 字段说明：进入接口文档与 SDK 能力清单，智能体按它填写参数。
+FOOD_ID_TEXT = "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造"
+
 
 class NutrientsOut(BaseModel):
     energy_kcal: float | None = None
@@ -82,19 +85,25 @@ class FoodDetailOut(BaseModel):
 class PortionIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    unit: Annotated[str, Field(min_length=1, max_length=8)]
-    count: Annotated[float, Field(allow_inf_nan=False)]
+    unit: Annotated[str, Field(min_length=1, max_length=8)] = Field(
+        description="份量单位，例如 碗、个；必须是这种食物常用份量里的单位（见 get_food 结果的 portions）"
+    )
+    count: Annotated[float, Field(allow_inf_nan=False)] = Field(description="份数，大于 0 且不超过 20，可以是小数")
 
 
 class MealCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    eaten_on: dt.date
-    meal_type: MealType
-    food_id: Annotated[str, Field(min_length=1, max_length=64)]
-    grams: Annotated[float, Field(allow_inf_nan=False)] | None = None
-    portion: PortionIn | None = None
-    note: Annotated[str, Field(max_length=200)] | None = None
+    eaten_on: dt.date = Field(description="吃这项食物的日期，格式 YYYY-MM-DD，不能晚于今天")
+    meal_type: MealType = Field(description="餐次：breakfast 早餐，lunch 午餐，dinner 晚餐，snack 加餐")
+    food_id: Annotated[str, Field(min_length=1, max_length=64)] = Field(description=FOOD_ID_TEXT)
+    grams: Annotated[float, Field(allow_inf_nan=False)] | None = Field(
+        default=None, description="吃了多少克，大于 0 且不超过 5000；与 portion 必须且只能填一项"
+    )
+    portion: PortionIn | None = Field(
+        default=None, description="按常用份量记录（单位加份数）；与 grams 必须且只能填一项"
+    )
+    note: Annotated[str, Field(max_length=200)] | None = Field(default=None, description="备注，最多 200 个字，可不填")
 
 
 class MealUpdate(BaseModel):
@@ -160,9 +169,15 @@ class SummaryOut(BaseModel):
 class MealItemIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    food_id: Annotated[str, Field(min_length=1, max_length=64)]
-    grams: Annotated[float, Field(allow_inf_nan=False)] | None = None
-    portion: PortionIn | None = None
+    food_id: Annotated[str, Field(min_length=1, max_length=64)] = Field(description=FOOD_ID_TEXT)
+    grams: Annotated[float, Field(allow_inf_nan=False)] | None = Field(
+        default=None,
+        description="要评估的克数，大于 0 且不超过 5000；与 portion 最多填一项，都不填时按这种食物的默认份量",
+    )
+    portion: PortionIn | None = Field(
+        default=None,
+        description="按常用份量评估（单位加份数）；与 grams 最多填一项，都不填时按这种食物的默认份量",
+    )
 
     @model_validator(mode="after")
     def at_most_one_amount(self) -> "MealItemIn":
@@ -178,7 +193,9 @@ class EvaluateIn(MealItemIn):
 class EvaluateMealIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    items: Annotated[list[MealItemIn], Field(min_length=1, max_length=20)]
+    items: Annotated[list[MealItemIn], Field(min_length=1, max_length=20)] = Field(
+        description="这一餐里的食物，1 至 20 项，每项一种食物及其分量"
+    )
 
 
 class ReasonOut(BaseModel):

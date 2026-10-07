@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from app.common.clock import get_today
 from app.main import create_app
 from app.medical.items import USER_ONLY_OPERATIONS
+from app.medical.samples import SAMPLE_ORDERS
 from app.sdk import AgentGrantToken, GoodLife, SdkError, UserAccessToken
 from app.sdk.manifest import build_manifest
 from app.sdk.registry import REGISTRY
@@ -183,3 +184,32 @@ def test_param_models_reject_a_user_id_field(client, sdk):
     with pytest.raises(SdkError) as caught:
         sdk.call(token, "medical.list_items", {"user_id": "00000000-0000-0000-0000-000000000000"})
     assert caught.value.kind == "invalid_input"
+
+
+def test_get_constraints_filters_by_category(client, sdk):
+    headers = ready_user(client, "alice")
+    user = UserAccessToken(headers["Authorization"].removeprefix("Bearer "))
+    avoid, require = sdk.call(user, "medical.submit_order", {"text": SAMPLE_ORDERS["short_term"]}).data["items"]
+    for item in (avoid, require):
+        sdk.call(user, "medical.confirm_item", {"item_id": item["id"]})
+    token = _token(client, headers, "read")
+    every = sdk.call(token, "medical.get_constraints").data
+    assert [c["item_id"] for c in every["constraints"]] == [avoid["id"], require["id"]]
+    only = sdk.call(token, "medical.get_constraints", {"category": "diet_require"}).data
+    assert only == client.get("/api/medical/constraints", params={"category": "diet_require"}, headers=headers).json()
+    assert [c["item_id"] for c in only["constraints"]] == [require["id"]]
+    with pytest.raises(SdkError) as caught:
+        sdk.call(token, "medical.get_constraints", {"category": "nope"})
+    assert caught.value.kind == "invalid_input"
+
+
+def test_every_input_field_has_a_description():
+    checked, missing = 0, []
+    for cap in REGISTRY.values():
+        schema = cap.input_model.model_json_schema()
+        for owner, model in [(cap.name, schema), *((f"{cap.name}:{n}", d) for n, d in schema.get("$defs", {}).items())]:
+            for field, prop in model.get("properties", {}).items():
+                checked += 1
+                if not str(prop.get("description", "")).strip():
+                    missing.append(f"{owner}.{field}")
+    assert checked > 50 and missing == []

@@ -14,7 +14,7 @@ from mcp.server.stdio import stdio_server
 
 from app.mcp_server.usage import TOOL_USAGE
 from app.sdk import AgentGrantToken, GoodLife, SdkError
-from app.sdk.client import error_envelope
+from app.sdk.client import SDK_VERSION, error_envelope
 from app.sdk.registry import Capability
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,12 @@ CLIENT_NAME_ENV = "GOODLIFE_CLIENT_NAME"
 
 _LEVEL_TEXT = {"read": "授权级别：只读", "write": "授权级别：写入（需要读写授权）"}
 _IDENTITY_TEXT = "所有工具都代表授权令牌对应的用户，不需要也不接受用户编号。"
+INSTRUCTIONS = (
+    "好生活（good-life）的工具都代表授权令牌对应的那一位用户操作，不需要也不接受用户编号。"
+    "给出任何饮食或运动建议之前，先调用 medical_get_constraints 读取今天生效的医嘱约束并严格遵守。"
+    "医嘱的确认、修改、解除、作废与继续执行只能由用户本人在应用里完成；你最多只能用 medical_propose_resolution 提出解除建议。"
+    "只有用户明确要求记录某件事时才调用写入类工具（记录经期、提交医嘱、记录饮食、记录训练、提出解除建议），不要替用户编造日期或数量。"
+)
 
 
 def tool_name(capability_name: str) -> str:
@@ -53,12 +59,14 @@ def build_server(
     client_name: str = "mcp",
 ) -> Server:
     caps = exposed_capabilities(sdk.capabilities())
+    capability_by_tool = {tool_name(cap.name): cap.name for cap in caps}
+    if len(capability_by_tool) != len(caps):
+        raise ValueError("有能力名转换成工具名后重名")
     tools = [
         types.Tool(name=tool_name(cap.name), description=tool_description(cap),
                    input_schema=cap.input_model.model_json_schema())
         for cap in caps
     ]
-    capability_by_tool = {tool_name(cap.name): cap.name for cap in caps}
 
     async def on_list_tools(ctx: Any, params: types.PaginatedRequestParams | None) -> types.ListToolsResult:
         return types.ListToolsResult(tools=tools)
@@ -80,7 +88,8 @@ def build_server(
             logger.exception("MCP 工具调用出错：%s", str(params.name)[:64])
             return _result(error_envelope(SdkError("internal", "internal_error", "服务内部出错")), is_error=True)
 
-    return Server(SERVER_NAME, on_list_tools=on_list_tools, on_call_tool=on_call_tool)
+    return Server(SERVER_NAME, version=SDK_VERSION, instructions=INSTRUCTIONS, on_list_tools=on_list_tools,
+                  on_call_tool=on_call_tool)
 
 
 def main() -> None:

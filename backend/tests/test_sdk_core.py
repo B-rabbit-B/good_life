@@ -103,6 +103,40 @@ def test_internal_errors_are_wrapped_and_audited(client):
     assert _audits()[-1][:3] == ("profile.boom", "error", "internal_error")
 
 
+def test_unprintable_capability_name_is_still_audited(client, sdk):
+    token = AgentGrantToken(_grant(client, ready_user(client, "alice")))
+    with pytest.raises(SdkError) as caught:
+        sdk.call(token, "a\x00b")
+    assert caught.value.code == "unknown_capability"
+    with pytest.raises(SdkError):
+        sdk.call(token, "\x00\x01")
+    assert [row[:3] for row in _audits()] == [("ab", "error", "unknown_capability"),
+                                              ("unknown", "error", "unknown_capability")]
+
+
+def test_interrupted_call_is_audited_as_error_and_propagates(client):
+    def interrupted(ctx, params):
+        raise KeyboardInterrupt
+    sdk = GoodLife(today=lambda: TODAY, registry=build_registry(
+        [Capability("profile.stop", "profile", "read", "停", NoParams, dict, interrupted)]))
+    token = AgentGrantToken(_grant(client, ready_user(client, "alice")))
+    with pytest.raises(KeyboardInterrupt):
+        sdk.call(token, "profile.stop")
+    assert _audits()[-1][:3] == ("profile.stop", "error", "interrupted")
+
+
+def test_validation_error_inside_a_handler_is_internal(client):
+    def buggy(ctx, params):
+        return NoParams.model_validate({"unexpected": 1})
+    sdk = GoodLife(today=lambda: TODAY, registry=build_registry(
+        [Capability("profile.buggy", "profile", "read", "错", NoParams, dict, buggy)]))
+    token = AgentGrantToken(_grant(client, ready_user(client, "alice")))
+    with pytest.raises(SdkError) as caught:
+        sdk.call(token, "profile.buggy")
+    assert (caught.value.kind, caught.value.code, caught.value.details) == ("internal", "internal_error", None)
+    assert _audits()[-1][:3] == ("profile.buggy", "error", "internal_error")
+
+
 def test_registry_rejects_bad_capabilities():
     good = Capability("profile.a", "profile", "read", "a", NoParams, dict, lambda c, p: {})
     for bad in (Capability("cycle.a", "profile", "read", "a", NoParams, dict, lambda c, p: {}),

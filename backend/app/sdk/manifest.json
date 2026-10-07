@@ -15,6 +15,7 @@
               }
             ],
             "default": null,
+            "description": "要查看的日期，格式 YYYY-MM-DD；不填表示今天",
             "title": "Day"
           }
         },
@@ -420,6 +421,7 @@
               }
             ],
             "default": null,
+            "description": "要查看的日期，格式 YYYY-MM-DD；不填表示今天",
             "title": "Day"
           }
         },
@@ -688,9 +690,11 @@
               }
             ],
             "default": null,
+            "description": "这次经期的结束日期，格式 YYYY-MM-DD，不能早于开始日期、不能晚于今天，单次经期最多 15 天；仍在经期中可不填",
             "title": "End Date"
           },
           "start_date": {
+            "description": "这次经期的开始日期，格式 YYYY-MM-DD，不能晚于今天",
             "format": "date",
             "title": "Start Date",
             "type": "string"
@@ -751,6 +755,7 @@
         "additionalProperties": false,
         "properties": {
           "exercise_id": {
+            "description": "力量动作的编号，取自搜索动作（search_exercises）结果里的 id，不要自己编造",
             "maxLength": 80,
             "minLength": 1,
             "title": "Exercise Id",
@@ -1029,6 +1034,7 @@
               }
             ],
             "default": null,
+            "description": "这一周的开始日期，格式 YYYY-MM-DD，必须是星期一；不填表示本周",
             "title": "Start"
           }
         },
@@ -1156,6 +1162,7 @@
               }
             ],
             "default": null,
+            "description": "结束日期（含当天），格式 YYYY-MM-DD；不填表示今天",
             "title": "End"
           },
           "start": {
@@ -1169,6 +1176,7 @@
               }
             ],
             "default": null,
+            "description": "开始日期，格式 YYYY-MM-DD；不填表示结束日期及之前共 7 天的第一天；不能晚于结束日期，整段最多 366 天",
             "title": "Start"
           }
         },
@@ -1475,15 +1483,18 @@
                   }
                 ],
                 "default": null,
+                "description": "距离，单位千米，0 至 300，可不填",
                 "title": "Distance Km"
               },
               "duration_minutes": {
+                "description": "这项有氧的时长，单位分钟，1 至 600",
                 "maximum": 600,
                 "minimum": 1,
                 "title": "Duration Minutes",
                 "type": "integer"
               },
               "exercise_id": {
+                "description": "有氧动作的编号，取自搜索动作（search_exercises）结果里的 id，必须是有氧动作",
                 "maxLength": 64,
                 "minLength": 1,
                 "title": "Exercise Id",
@@ -1501,6 +1512,7 @@
                   }
                 ],
                 "default": null,
+                "description": "这项有氧的主观强度 RPE，1 至 10 的整数（1 非常轻松，10 竭尽全力），可不填",
                 "title": "Rpe"
               }
             },
@@ -1515,6 +1527,7 @@
             "additionalProperties": false,
             "properties": {
               "reps": {
+                "description": "这一组的次数，1 至 100",
                 "maximum": 100,
                 "minimum": 1,
                 "title": "Reps",
@@ -1532,6 +1545,7 @@
                   }
                 ],
                 "default": null,
+                "description": "这一组之后的休息时间，单位秒，0 至 900，可不填",
                 "title": "Rest Seconds"
               },
               "rpe": {
@@ -1546,9 +1560,11 @@
                   }
                 ],
                 "default": null,
+                "description": "这一组的主观强度 RPE，1 至 10 的整数（1 非常轻松，10 竭尽全力），可不填",
                 "title": "Rpe"
               },
               "weight_kg": {
+                "description": "这一组的重量，单位千克，0 至 500；徒手动作填 0",
                 "maximum": 500,
                 "minimum": 0,
                 "title": "Weight Kg",
@@ -1566,12 +1582,14 @@
             "additionalProperties": false,
             "properties": {
               "exercise_id": {
+                "description": "力量动作的编号，取自搜索动作（search_exercises）结果里的 id，必须是力量动作",
                 "maxLength": 64,
                 "minLength": 1,
                 "title": "Exercise Id",
                 "type": "string"
               },
               "sets": {
+                "description": "按完成顺序排列的每一组，1 至 30 组",
                 "items": {
                   "$ref": "#/$defs/SetIn"
                 },
@@ -1593,6 +1611,7 @@
         "properties": {
           "cardio": {
             "default": [],
+            "description": "有氧项目，按完成顺序排列，最多 30 个；与 strength 至少要填一项",
             "items": {
               "$ref": "#/$defs/CardioItemIn"
             },
@@ -1612,6 +1631,7 @@
               }
             ],
             "default": null,
+            "description": "整次训练的时长，单位分钟，1 至 600，可不填",
             "title": "Duration Minutes"
           },
           "note": {
@@ -1625,9 +1645,11 @@
               }
             ],
             "default": null,
+            "description": "备注，最多 500 个字，可不填",
             "title": "Note"
           },
           "performed_on": {
+            "description": "训练日期，格式 YYYY-MM-DD，不能晚于今天",
             "format": "date",
             "title": "Performed On",
             "type": "string"
@@ -1644,10 +1666,12 @@
               }
             ],
             "default": null,
+            "description": "整次训练的主观强度 RPE，1 至 10 的整数（1 非常轻松，10 竭尽全力），可不填",
             "title": "Rpe"
           },
           "strength": {
             "default": [],
+            "description": "力量动作，按完成顺序排列，最多 30 个；与 cardio 至少要填一项",
             "items": {
               "$ref": "#/$defs/StrengthItemIn"
             },
@@ -1943,6 +1967,7 @@
         "additionalProperties": false,
         "properties": {
           "query": {
+            "description": "要搜索的名称或别名，1 至 50 个字，首尾空格会被去掉",
             "maxLength": 50,
             "minLength": 1,
             "title": "Query",
@@ -2084,6 +2109,7 @@
         "additionalProperties": false,
         "properties": {
           "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
             "format": "uuid",
             "title": "Item Id",
             "type": "string"
@@ -2333,6 +2359,7 @@
               }
             ],
             "default": null,
+            "description": "条目类别；不填表示不修改，不能填 null。类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，exercise_limit 运动限制，other 其他",
             "title": "Category"
           },
           "content": {
@@ -2347,6 +2374,7 @@
               }
             ],
             "default": null,
+            "description": "条目内容，1 至 500 个字；不填表示不修改，不能填 null",
             "title": "Content"
           },
           "end_date": {
@@ -2360,9 +2388,11 @@
               }
             ],
             "default": null,
+            "description": "预计结束日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示长期；不填表示不修改",
             "title": "End Date"
           },
           "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
             "format": "uuid",
             "title": "Item Id",
             "type": "string"
@@ -2378,6 +2408,7 @@
               }
             ],
             "default": null,
+            "description": "复查日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示没有复查日；不填表示不修改",
             "title": "Review Date"
           },
           "start_date": {
@@ -2391,6 +2422,7 @@
               }
             ],
             "default": null,
+            "description": "生效日期，格式 YYYY-MM-DD；不填表示不修改，不能填 null；生效中的条目不能改到今天之后",
             "title": "Start Date"
           },
           "subjects": {
@@ -2409,6 +2441,7 @@
               }
             ],
             "default": null,
+            "description": "涉及的食物或行为，例如 辛辣、酒；每项 1 至 64 个字，最多 30 项；不填表示不修改，不能填 null；确认时至少要有一项",
             "title": "Subjects"
           }
         },
@@ -2650,9 +2683,11 @@
               }
             ],
             "default": null,
+            "description": "新的预计结束日期，格式 YYYY-MM-DD，不能早于生效日期，且至少在今天之后两天（否则仍算到期）；不填表示不设结束日期",
             "title": "End Date"
           },
           "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
             "format": "uuid",
             "title": "Item Id",
             "type": "string"
@@ -2668,6 +2703,7 @@
               }
             ],
             "default": null,
+            "description": "新的复查日期，格式 YYYY-MM-DD，不能早于生效日期，且必须晚于今天；不填表示不设复查日期",
             "title": "Review Date"
           }
         },
@@ -2897,8 +2933,29 @@
     {
       "input_schema": {
         "additionalProperties": false,
-        "properties": {},
-        "title": "NoParams",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "只看某一类约束，不填表示全部类别。类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，exercise_limit 运动限制，other 其他",
+            "title": "Category"
+          }
+        },
+        "title": "ConstraintsParams",
         "type": "object"
       },
       "level": "read",
@@ -3020,13 +3077,14 @@
         "title": "ConstraintsOut",
         "type": "object"
       },
-      "summary": "查看今天生效的医嘱约束（生效中与待复核的条目），给饮食、运动建议前应先读取并遵守"
+      "summary": "查看今天生效的医嘱约束（生效中与待复核的条目），可按类别筛选；给饮食、运动建议前应先读取并遵守"
     },
     {
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
             "format": "uuid",
             "title": "Item Id",
             "type": "string"
@@ -3276,6 +3334,7 @@
               }
             ],
             "default": null,
+            "description": "按类别筛选，不填表示全部类别。类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，exercise_limit 运动限制，other 其他",
             "title": "Category"
           },
           "status": {
@@ -3295,6 +3354,7 @@
               }
             ],
             "default": null,
+            "description": "按状态筛选，不填表示全部状态。状态取值：pending_confirmation 待用户确认，active 生效中，pending_review 待复核，resolved 已解除，voided 已作废",
             "title": "Status"
           }
         },
@@ -3763,11 +3823,13 @@
         "additionalProperties": false,
         "properties": {
           "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
             "format": "uuid",
             "title": "Item Id",
             "type": "string"
           },
           "reason": {
+            "description": "提出解除建议的理由，例如医生复查后允许恢复，1 至 500 个字",
             "maxLength": 500,
             "minLength": 1,
             "title": "Reason",
@@ -4003,6 +4065,7 @@
         "additionalProperties": false,
         "properties": {
           "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
             "format": "uuid",
             "title": "Item Id",
             "type": "string"
@@ -4019,6 +4082,7 @@
               }
             ],
             "default": null,
+            "description": "理由，可不填；填写时 1 至 500 个字",
             "title": "Reason"
           }
         },
@@ -4260,9 +4324,11 @@
               }
             ],
             "default": null,
+            "description": "医嘱开具日期，格式 YYYY-MM-DD，不能晚于今天；不填表示今天",
             "title": "Order Date"
           },
           "text": {
+            "description": "医嘱、病历或复诊单的原文，1 至 5000 个字；照用户给出的原文提交，不要改写或补充",
             "maxLength": 5000,
             "minLength": 1,
             "title": "Text",
@@ -4636,6 +4702,7 @@
               }
             ],
             "default": null,
+            "description": "条目类别；不填表示不修改，不能填 null。类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，exercise_limit 运动限制，other 其他",
             "title": "Category"
           },
           "content": {
@@ -4650,6 +4717,7 @@
               }
             ],
             "default": null,
+            "description": "条目内容，1 至 500 个字；不填表示不修改，不能填 null",
             "title": "Content"
           },
           "end_date": {
@@ -4663,9 +4731,11 @@
               }
             ],
             "default": null,
+            "description": "预计结束日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示长期；不填表示不修改",
             "title": "End Date"
           },
           "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
             "format": "uuid",
             "title": "Item Id",
             "type": "string"
@@ -4681,6 +4751,7 @@
               }
             ],
             "default": null,
+            "description": "复查日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示没有复查日；不填表示不修改",
             "title": "Review Date"
           },
           "start_date": {
@@ -4694,6 +4765,7 @@
               }
             ],
             "default": null,
+            "description": "生效日期，格式 YYYY-MM-DD；不填表示不修改，不能填 null；生效中的条目不能改到今天之后",
             "title": "Start Date"
           },
           "subjects": {
@@ -4712,6 +4784,7 @@
               }
             ],
             "default": null,
+            "description": "涉及的食物或行为，例如 辛辣、酒；每项 1 至 64 个字，最多 30 项；不填表示不修改，不能填 null；确认时至少要有一项",
             "title": "Subjects"
           }
         },
@@ -4943,6 +5016,7 @@
         "additionalProperties": false,
         "properties": {
           "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
             "format": "uuid",
             "title": "Item Id",
             "type": "string"
@@ -4959,6 +5033,7 @@
               }
             ],
             "default": null,
+            "description": "理由，可不填；填写时 1 至 500 个字",
             "title": "Reason"
           }
         },
@@ -5192,10 +5267,12 @@
             "additionalProperties": false,
             "properties": {
               "count": {
+                "description": "份数，大于 0 且不超过 20，可以是小数",
                 "title": "Count",
                 "type": "number"
               },
               "unit": {
+                "description": "份量单位，例如 碗、个；必须是这种食物常用份量里的单位（见 get_food 结果的 portions）",
                 "maxLength": 8,
                 "minLength": 1,
                 "title": "Unit",
@@ -5213,6 +5290,7 @@
         "additionalProperties": false,
         "properties": {
           "food_id": {
+            "description": "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造",
             "maxLength": 64,
             "minLength": 1,
             "title": "Food Id",
@@ -5228,6 +5306,7 @@
               }
             ],
             "default": null,
+            "description": "要评估的克数，大于 0 且不超过 5000；与 portion 最多填一项，都不填时按这种食物的默认份量",
             "title": "Grams"
           },
           "portion": {
@@ -5239,7 +5318,8 @@
                 "type": "null"
               }
             ],
-            "default": null
+            "default": null,
+            "description": "按常用份量评估（单位加份数）；与 grams 最多填一项，都不填时按这种食物的默认份量"
           }
         },
         "required": [
@@ -5472,6 +5552,7 @@
             "additionalProperties": false,
             "properties": {
               "food_id": {
+                "description": "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造",
                 "maxLength": 64,
                 "minLength": 1,
                 "title": "Food Id",
@@ -5487,6 +5568,7 @@
                   }
                 ],
                 "default": null,
+                "description": "要评估的克数，大于 0 且不超过 5000；与 portion 最多填一项，都不填时按这种食物的默认份量",
                 "title": "Grams"
               },
               "portion": {
@@ -5498,7 +5580,8 @@
                     "type": "null"
                   }
                 ],
-                "default": null
+                "default": null,
+                "description": "按常用份量评估（单位加份数）；与 grams 最多填一项，都不填时按这种食物的默认份量"
               }
             },
             "required": [
@@ -5511,10 +5594,12 @@
             "additionalProperties": false,
             "properties": {
               "count": {
+                "description": "份数，大于 0 且不超过 20，可以是小数",
                 "title": "Count",
                 "type": "number"
               },
               "unit": {
+                "description": "份量单位，例如 碗、个；必须是这种食物常用份量里的单位（见 get_food 结果的 portions）",
                 "maxLength": 8,
                 "minLength": 1,
                 "title": "Unit",
@@ -5532,6 +5617,7 @@
         "additionalProperties": false,
         "properties": {
           "items": {
+            "description": "这一餐里的食物，1 至 20 项，每项一种食物及其分量",
             "items": {
               "$ref": "#/$defs/MealItemIn"
             },
@@ -5814,6 +5900,7 @@
               }
             ],
             "default": null,
+            "description": "要查看的日期，格式 YYYY-MM-DD；不填表示今天",
             "title": "Day"
           }
         },
@@ -6157,6 +6244,7 @@
         "additionalProperties": false,
         "properties": {
           "food_id": {
+            "description": "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造",
             "maxLength": 64,
             "minLength": 1,
             "title": "Food Id",
@@ -6437,6 +6525,7 @@
               }
             ],
             "default": null,
+            "description": "要查看的日期，格式 YYYY-MM-DD；不填表示今天",
             "title": "Day"
           }
         },
@@ -6639,10 +6728,12 @@
             "additionalProperties": false,
             "properties": {
               "count": {
+                "description": "份数，大于 0 且不超过 20，可以是小数",
                 "title": "Count",
                 "type": "number"
               },
               "unit": {
+                "description": "份量单位，例如 碗、个；必须是这种食物常用份量里的单位（见 get_food 结果的 portions）",
                 "maxLength": 8,
                 "minLength": 1,
                 "title": "Unit",
@@ -6660,11 +6751,13 @@
         "additionalProperties": false,
         "properties": {
           "eaten_on": {
+            "description": "吃这项食物的日期，格式 YYYY-MM-DD，不能晚于今天",
             "format": "date",
             "title": "Eaten On",
             "type": "string"
           },
           "food_id": {
+            "description": "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造",
             "maxLength": 64,
             "minLength": 1,
             "title": "Food Id",
@@ -6680,9 +6773,11 @@
               }
             ],
             "default": null,
+            "description": "吃了多少克，大于 0 且不超过 5000；与 portion 必须且只能填一项",
             "title": "Grams"
           },
           "meal_type": {
+            "description": "餐次：breakfast 早餐，lunch 午餐，dinner 晚餐，snack 加餐",
             "enum": [
               "breakfast",
               "lunch",
@@ -6703,6 +6798,7 @@
               }
             ],
             "default": null,
+            "description": "备注，最多 200 个字，可不填",
             "title": "Note"
           },
           "portion": {
@@ -6714,7 +6810,8 @@
                 "type": "null"
               }
             ],
-            "default": null
+            "default": null,
+            "description": "按常用份量记录（单位加份数）；与 grams 必须且只能填一项"
           }
         },
         "required": [
@@ -6913,6 +7010,7 @@
         "additionalProperties": false,
         "properties": {
           "query": {
+            "description": "要搜索的名称或别名，1 至 50 个字，首尾空格会被去掉",
             "maxLength": 50,
             "minLength": 1,
             "title": "Query",

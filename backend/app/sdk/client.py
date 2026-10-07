@@ -57,8 +57,9 @@ def error_envelope(err: SdkError) -> dict[str, Any]:
     return {"ok": False, "sdk_version": SDK_VERSION, "error": err.to_dict()}
 
 
-def _clean_client_name(client_name: str) -> str:
-    return "".join(ch for ch in str(client_name) if ch.isprintable())[:64] or "sdk"
+def _printable(value: str, fallback: str) -> str:
+    """写进审计与日志的名字只保留可打印字符、最多 64 个；NUL 等字符会让审计写入失败。"""
+    return "".join(ch for ch in str(value) if ch.isprintable())[:64] or fallback
 
 
 class GoodLife:
@@ -90,6 +91,7 @@ class GoodLife:
         user_id = grant_id = None
         credential_kind = "none"
         error_code: str | None = None
+        succeeded = False
         try:
             caller = authenticate(db, credential, now())
             user_id, grant_id, credential_kind = caller.user.id, caller.grant_id, caller.credential_kind
@@ -106,12 +108,17 @@ class GoodLife:
             require_disclaimer_user(user=caller.user, db=db)
             if cap.module != "profile":
                 _MODULE_GATES[cap.module](caller.user, db, today)
-            parsed = cap.input_model.model_validate(params or {})
+            try:
+                parsed = cap.input_model.model_validate(params or {})
+            except ValidationError as err:
+                raise from_validation_error(err) from None
             actor = "agent" if caller.credential_kind == "agent_grant" else "user"
             raw = cap.handler(CallContext(db, caller.user, today, actor), parsed)
             data = _serialize(cap, raw)
             notices = tuple(cap.notices(data)) if cap.notices is not None else ()
-            return SdkResult(data, notices)
+            result = SdkResult(data, notices)
+            succeeded = True
+            return result
         except SdkError as err:
             error_code = err.code
             db.rollback()
@@ -121,25 +128,22 @@ class GoodLife:
             error_code = converted.code
             db.rollback()
             raise converted from None
-        except ValidationError as err:
-            converted = from_validation_error(err)
-            error_code = converted.code
-            db.rollback()
-            raise converted from None
         except Exception:
             error_code = "internal_error"
             db.rollback()
-            logger.exception("SDK 调用出错：%s", str(capability)[:64])
+            logger.exception("SDK 调用出错：%s", _printable(capability, "unknown"))
             raise SdkError("internal", "internal_error", "服务内部出错") from None
         finally:
             db.close()
+            if not succeeded and error_code is None:
+                error_code = "interrupted"  # KeyboardInterrupt、任务取消等 BaseException
             audit.record_call(
                 user_id=user_id,
                 grant_id=grant_id,
                 credential_kind=credential_kind,
-                client_name=_clean_client_name(client_name),
-                capability=str(capability)[:64],
-                outcome="error" if error_code else "ok",
+                client_name=_printable(client_name, "sdk"),
+                capability=_printable(capability, "unknown"),
+                outcome="ok" if succeeded else "error",
                 error_code=error_code,
                 duration_ms=int((time.perf_counter() - started) * 1000),
             )

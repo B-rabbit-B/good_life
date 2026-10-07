@@ -6,11 +6,13 @@ from pathlib import Path
 
 import pytest
 from mcp.client import Client
+from sqlalchemy import text
 
-from app.mcp_server.server import build_server, exposed_capabilities, tool_name
+from app.db import get_engine
+from app.mcp_server.server import INSTRUCTIONS, build_server, exposed_capabilities, tool_name
 from app.mcp_server.usage import TOOL_USAGE
 from app.sdk import AgentGrantToken, GoodLife
-from app.sdk.registry import REGISTRY
+from app.sdk.registry import REGISTRY, Capability, NoParams, build_registry
 from tests.helpers import ready_user
 
 TODAY = date(2026, 10, 7)
@@ -44,6 +46,23 @@ async def test_tools_listed_without_confirmation_tools():
 
 
 @pytest.mark.anyio
+async def test_server_reports_version_and_instructions():
+    async with Client(_server(None)) as mcp:
+        info, instructions = mcp.server_info, mcp.instructions
+    assert (info.name, info.version) == ("good-life", "1.0")
+    assert instructions == INSTRUCTIONS
+    for phrase in ("medical_get_constraints", "medical_propose_resolution", "用户本人", "明确要求记录"):
+        assert phrase in instructions
+
+
+def test_tool_name_collisions_are_rejected():
+    caps = [Capability(name, "profile", "read", "x", NoParams, dict, lambda c, p: {})
+            for name in ("profile.a_b", "profile.a.b")]
+    with pytest.raises(ValueError):
+        build_server(GoodLife(registry=build_registry(caps)), lambda: None)
+
+
+@pytest.mark.anyio
 async def test_call_without_token_is_a_structured_error():
     async with Client(_server(None)) as mcp:
         result = await mcp.call_tool("profile_get_capabilities", {})
@@ -72,6 +91,17 @@ async def test_dotted_tool_names_never_reach_a_capability(client):
         meal = await mcp.call_tool("nutrition.log_meal", {"meal_type": "lunch"})
     for result in (confirm, meal):
         assert result.is_error and result.structured_content["error"]["code"] == "unknown_capability"
+
+
+@pytest.mark.anyio
+async def test_unprintable_tool_name_is_still_audited(client):
+    headers = ready_user(client, "alice")
+    async with Client(_server(_token(client, headers))) as mcp:
+        result = await mcp.call_tool("a\x00b", {})
+    assert result.is_error and result.structured_content["error"]["code"] == "unknown_capability"
+    with get_engine().connect() as conn:
+        rows = conn.execute(text("SELECT capability, outcome, client_name FROM sdk_call_audits")).all()
+    assert rows == [("ab", "error", "pytest")]
 
 
 @pytest.mark.anyio
