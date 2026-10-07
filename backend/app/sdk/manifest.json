@@ -1,0 +1,7138 @@
+{
+  "capabilities": [
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "要查看的日期，格式 YYYY-MM-DD；不填表示今天",
+            "title": "Day"
+          }
+        },
+        "title": "DayParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "cycle",
+      "name": "cycle.get_phase",
+      "output_schema": {
+        "properties": {
+          "cycle_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle Day"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "days_until_next_period": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Until Next Period"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "flags": {
+            "items": {
+              "enum": [
+                "few_cycles",
+                "irregular",
+                "cycle_out_of_range",
+                "overdue",
+                "long_gap"
+              ],
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "is_predicted": {
+            "title": "Is Predicted",
+            "type": "boolean"
+          },
+          "phase": {
+            "enum": [
+              "menstrual",
+              "follicular",
+              "ovulation",
+              "luteal",
+              "unknown"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_data",
+                  "before_first_record",
+                  "insufficient_data",
+                  "overdue",
+                  "long_gap",
+                  "too_far_ahead",
+                  "pregnant",
+                  "paused"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "day",
+          "phase",
+          "cycle_day",
+          "days_until_next_period",
+          "is_predicted",
+          "reason",
+          "flags",
+          "disclaimer"
+        ],
+        "title": "PhaseOut",
+        "type": "object"
+      },
+      "summary": "判断某一天（默认今天）处于经期周期的哪个阶段，以及距下次经期还有几天"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "cycle",
+      "name": "cycle.get_prediction",
+      "output_schema": {
+        "$defs": {
+          "DateRangeOut": {
+            "properties": {
+              "earliest": {
+                "format": "date",
+                "title": "Earliest",
+                "type": "string"
+              },
+              "latest": {
+                "format": "date",
+                "title": "Latest",
+                "type": "string"
+              }
+            },
+            "required": [
+              "earliest",
+              "latest"
+            ],
+            "title": "DateRangeOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "fertile_window": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DateRangeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flags": {
+            "items": {
+              "enum": [
+                "few_cycles",
+                "irregular",
+                "cycle_out_of_range",
+                "overdue",
+                "long_gap"
+              ],
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "next_period_range": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DateRangeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_period_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Period Start"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "ovulation_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ovulation Day"
+          },
+          "ovulation_range": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DateRangeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "insufficient_data",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "next_period_start",
+          "next_period_range",
+          "ovulation_day",
+          "ovulation_range",
+          "fertile_window",
+          "flags",
+          "notes",
+          "disclaimer"
+        ],
+        "title": "PredictionOut",
+        "type": "object"
+      },
+      "summary": "预测下次经期、排卵日与易孕窗口；记录不足时返回数据不足提示，预测仅供参考"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "cycle",
+      "name": "cycle.get_stats",
+      "output_schema": {
+        "$defs": {
+          "SymptomCountOut": {
+            "properties": {
+              "days": {
+                "title": "Days",
+                "type": "integer"
+              },
+              "symptom": {
+                "title": "Symptom",
+                "type": "string"
+              }
+            },
+            "required": [
+              "symptom",
+              "days"
+            ],
+            "title": "SymptomCountOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "average_pain_on_bleeding_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Pain On Bleeding Days"
+          },
+          "avg_cycle_length": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Cycle Length"
+          },
+          "avg_period_length": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Period Length"
+          },
+          "cycle_count": {
+            "title": "Cycle Count",
+            "type": "integer"
+          },
+          "cycle_length_std": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle Length Std"
+          },
+          "logged_days": {
+            "title": "Logged Days",
+            "type": "integer"
+          },
+          "longest_cycle": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longest Cycle"
+          },
+          "period_count": {
+            "title": "Period Count",
+            "type": "integer"
+          },
+          "recent_cycle_lengths": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Recent Cycle Lengths",
+            "type": "array"
+          },
+          "shortest_cycle": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortest Cycle"
+          },
+          "top_symptoms": {
+            "items": {
+              "$ref": "#/$defs/SymptomCountOut"
+            },
+            "title": "Top Symptoms",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cycle_count",
+          "period_count",
+          "avg_cycle_length",
+          "cycle_length_std",
+          "shortest_cycle",
+          "longest_cycle",
+          "avg_period_length",
+          "recent_cycle_lengths",
+          "logged_days",
+          "top_symptoms",
+          "average_pain_on_bleeding_days"
+        ],
+        "title": "CycleStatsOut",
+        "type": "object"
+      },
+      "summary": "查看经期统计：平均周期长度与波动、最短与最长周期、平均经期天数、近期周期长度和常见症状"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "要查看的日期，格式 YYYY-MM-DD；不填表示今天",
+            "title": "Day"
+          }
+        },
+        "title": "DayParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "cycle",
+      "name": "cycle.get_tips",
+      "output_schema": {
+        "$defs": {
+          "PhaseOut": {
+            "properties": {
+              "cycle_day": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Cycle Day"
+              },
+              "day": {
+                "format": "date",
+                "title": "Day",
+                "type": "string"
+              },
+              "days_until_next_period": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Days Until Next Period"
+              },
+              "disclaimer": {
+                "title": "Disclaimer",
+                "type": "string"
+              },
+              "flags": {
+                "items": {
+                  "enum": [
+                    "few_cycles",
+                    "irregular",
+                    "cycle_out_of_range",
+                    "overdue",
+                    "long_gap"
+                  ],
+                  "type": "string"
+                },
+                "title": "Flags",
+                "type": "array"
+              },
+              "is_predicted": {
+                "title": "Is Predicted",
+                "type": "boolean"
+              },
+              "phase": {
+                "enum": [
+                  "menstrual",
+                  "follicular",
+                  "ovulation",
+                  "luteal",
+                  "unknown"
+                ],
+                "title": "Phase",
+                "type": "string"
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "no_data",
+                      "before_first_record",
+                      "insufficient_data",
+                      "overdue",
+                      "long_gap",
+                      "too_far_ahead",
+                      "pregnant",
+                      "paused"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Reason"
+              }
+            },
+            "required": [
+              "day",
+              "phase",
+              "cycle_day",
+              "days_until_next_period",
+              "is_predicted",
+              "reason",
+              "flags",
+              "disclaimer"
+            ],
+            "title": "PhaseOut",
+            "type": "object"
+          },
+          "TipOut": {
+            "properties": {
+              "basis": {
+                "title": "Basis",
+                "type": "string"
+              },
+              "category": {
+                "enum": [
+                  "nutrition",
+                  "tradition",
+                  "lifestyle"
+                ],
+                "title": "Category",
+                "type": "string"
+              },
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "phase": {
+                "enum": [
+                  "menstrual",
+                  "follicular",
+                  "ovulation",
+                  "luteal",
+                  "any"
+                ],
+                "title": "Phase",
+                "type": "string"
+              },
+              "severity": {
+                "enum": [
+                  "info",
+                  "caution"
+                ],
+                "title": "Severity",
+                "type": "string"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "phase",
+              "category",
+              "severity",
+              "title",
+              "content",
+              "basis"
+            ],
+            "title": "TipOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/$defs/PhaseOut"
+          },
+          "tips": {
+            "items": {
+              "$ref": "#/$defs/TipOut"
+            },
+            "title": "Tips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "phase",
+          "tips",
+          "disclaimer"
+        ],
+        "title": "TipsOut",
+        "type": "object"
+      },
+      "summary": "获取某一天（默认今天）所处经期阶段的饮食、传统调养与生活方式小贴士"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "cycle",
+      "name": "cycle.list_periods",
+      "output_schema": {
+        "$defs": {
+          "PeriodOut": {
+            "properties": {
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "end_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "End Date"
+              },
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "start_date": {
+                "format": "date",
+                "title": "Start Date",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "start_date",
+              "end_date",
+              "created_at"
+            ],
+            "title": "PeriodOut",
+            "type": "object"
+          }
+        },
+        "items": {
+          "$ref": "#/$defs/PeriodOut"
+        },
+        "type": "array"
+      },
+      "summary": "列出用户记录过的全部经期（开始与结束日期），按开始日期从近到远排列"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "这次经期的结束日期，格式 YYYY-MM-DD，不能早于开始日期、不能晚于今天，单次经期最多 15 天；仍在经期中可不填",
+            "title": "End Date"
+          },
+          "start_date": {
+            "description": "这次经期的开始日期，格式 YYYY-MM-DD，不能晚于今天",
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_date"
+        ],
+        "title": "PeriodCreate",
+        "type": "object"
+      },
+      "level": "write",
+      "module": "cycle",
+      "name": "cycle.record_period",
+      "output_schema": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "start_date",
+          "end_date",
+          "created_at"
+        ],
+        "title": "PeriodOut",
+        "type": "object"
+      },
+      "summary": "记录一次经期：开始日期必填，结束日期可留空表示仍在经期中"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "exercise_id": {
+            "description": "力量动作的编号，取自搜索动作（search_exercises）结果里的 id，不要自己编造",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Exercise Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "exercise_id"
+        ],
+        "title": "ExerciseIdParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "fitness",
+      "name": "fitness.get_exercise_trend",
+      "output_schema": {
+        "$defs": {
+          "TrendPointOut": {
+            "properties": {
+              "day": {
+                "format": "date",
+                "title": "Day",
+                "type": "string"
+              },
+              "max_weight_kg": {
+                "title": "Max Weight Kg",
+                "type": "number"
+              },
+              "sets": {
+                "title": "Sets",
+                "type": "integer"
+              },
+              "total_reps": {
+                "title": "Total Reps",
+                "type": "integer"
+              },
+              "total_volume": {
+                "title": "Total Volume",
+                "type": "number"
+              }
+            },
+            "required": [
+              "day",
+              "max_weight_kg",
+              "total_volume",
+              "total_reps",
+              "sets"
+            ],
+            "title": "TrendPointOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "exercise_id": {
+            "title": "Exercise Id",
+            "type": "string"
+          },
+          "exercise_name": {
+            "title": "Exercise Name",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/$defs/TrendPointOut"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "exercise_id",
+          "exercise_name",
+          "points"
+        ],
+        "title": "ExerciseTrendOut",
+        "type": "object"
+      },
+      "summary": "查看某个力量动作按日的进步趋势：最大重量、总训练量、总次数与组数"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "fitness",
+      "name": "fitness.get_training_signal",
+      "output_schema": {
+        "$defs": {
+          "ConflictOut": {
+            "properties": {
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "item_id": {
+                "format": "uuid",
+                "title": "Item Id",
+                "type": "string"
+              },
+              "level": {
+                "enum": [
+                  "conflict",
+                  "unverifiable"
+                ],
+                "title": "Level",
+                "type": "string"
+              },
+              "message": {
+                "title": "Message",
+                "type": "string"
+              },
+              "subject": {
+                "title": "Subject",
+                "type": "string"
+              },
+              "workout_ids": {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "title": "Workout Ids",
+                "type": "array"
+              }
+            },
+            "required": [
+              "item_id",
+              "content",
+              "subject",
+              "level",
+              "message",
+              "workout_ids"
+            ],
+            "title": "ConflictOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "conflicts": {
+            "items": {
+              "$ref": "#/$defs/ConflictOut"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "energy_high": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy High"
+          },
+          "energy_low": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy Low"
+          },
+          "energy_status": {
+            "enum": [
+              "ok",
+              "missing_body_weight",
+              "no_training"
+            ],
+            "title": "Energy Status",
+            "type": "string"
+          },
+          "intensity": {
+            "enum": [
+              "none",
+              "light",
+              "moderate",
+              "vigorous"
+            ],
+            "title": "Intensity",
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "enum": [
+                "strength",
+                "cardio"
+              ],
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "muscles": {
+            "items": {
+              "enum": [
+                "chest",
+                "back",
+                "shoulders",
+                "biceps",
+                "triceps",
+                "quads",
+                "hamstrings",
+                "glutes",
+                "calves",
+                "core",
+                "full_body"
+              ],
+              "type": "string"
+            },
+            "title": "Muscles",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "trained": {
+            "title": "Trained",
+            "type": "boolean"
+          },
+          "workout_count": {
+            "title": "Workout Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "trained",
+          "kinds",
+          "intensity",
+          "energy_low",
+          "energy_high",
+          "energy_status",
+          "muscles",
+          "workout_count",
+          "conflicts",
+          "notes",
+          "disclaimer"
+        ],
+        "title": "TrainingSignalOut",
+        "type": "object"
+      },
+      "summary": "查看用户今天的训练情况：是否训练、强度、练到的肌群、估算消耗与医嘱冲突，供饮食建议参考"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "这一周的开始日期，格式 YYYY-MM-DD，必须是星期一；不填表示本周",
+            "title": "Start"
+          }
+        },
+        "title": "WeekParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "fitness",
+      "name": "fitness.get_week_summary",
+      "output_schema": {
+        "properties": {
+          "cardio_minutes": {
+            "title": "Cardio Minutes",
+            "type": "integer"
+          },
+          "energy_high_kcal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy High Kcal"
+          },
+          "energy_low_kcal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy Low Kcal"
+          },
+          "energy_status": {
+            "enum": [
+              "ok",
+              "missing_body_weight"
+            ],
+            "title": "Energy Status",
+            "type": "string"
+          },
+          "muscle_volumes": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "chest",
+                "back",
+                "shoulders",
+                "biceps",
+                "triceps",
+                "quads",
+                "hamstrings",
+                "glutes",
+                "calves",
+                "core",
+                "full_body"
+              ]
+            },
+            "title": "Muscle Volumes",
+            "type": "object"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "total_volume": {
+            "title": "Total Volume",
+            "type": "number"
+          },
+          "training_days": {
+            "title": "Training Days",
+            "type": "integer"
+          },
+          "week_end": {
+            "format": "date",
+            "title": "Week End",
+            "type": "string"
+          },
+          "week_start": {
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          },
+          "workout_count": {
+            "title": "Workout Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "week_start",
+          "week_end",
+          "workout_count",
+          "training_days",
+          "total_volume",
+          "muscle_volumes",
+          "cardio_minutes",
+          "energy_low_kcal",
+          "energy_high_kcal",
+          "energy_status",
+          "note"
+        ],
+        "title": "WeekSummaryOut",
+        "type": "object"
+      },
+      "summary": "汇总一周（开始日期须为星期一，默认本周）的训练次数、训练天数、训练量、各肌群训练量、有氧分钟数与估算消耗"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "结束日期（含当天），格式 YYYY-MM-DD；不填表示今天",
+            "title": "End"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "开始日期，格式 YYYY-MM-DD；不填表示结束日期及之前共 7 天的第一天；不能晚于结束日期，整段最多 366 天",
+            "title": "Start"
+          }
+        },
+        "title": "RangeParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "fitness",
+      "name": "fitness.list_workouts",
+      "output_schema": {
+        "$defs": {
+          "CardioOut": {
+            "properties": {
+              "distance_km": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Distance Km"
+              },
+              "duration_minutes": {
+                "title": "Duration Minutes",
+                "type": "integer"
+              },
+              "exercise_id": {
+                "title": "Exercise Id",
+                "type": "string"
+              },
+              "exercise_name": {
+                "title": "Exercise Name",
+                "type": "string"
+              },
+              "position": {
+                "title": "Position",
+                "type": "integer"
+              },
+              "rpe": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Rpe"
+              }
+            },
+            "required": [
+              "exercise_id",
+              "exercise_name",
+              "position",
+              "duration_minutes",
+              "distance_km",
+              "rpe"
+            ],
+            "title": "CardioOut",
+            "type": "object"
+          },
+          "ConflictOut": {
+            "properties": {
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "item_id": {
+                "format": "uuid",
+                "title": "Item Id",
+                "type": "string"
+              },
+              "level": {
+                "enum": [
+                  "conflict",
+                  "unverifiable"
+                ],
+                "title": "Level",
+                "type": "string"
+              },
+              "message": {
+                "title": "Message",
+                "type": "string"
+              },
+              "subject": {
+                "title": "Subject",
+                "type": "string"
+              },
+              "workout_ids": {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "title": "Workout Ids",
+                "type": "array"
+              }
+            },
+            "required": [
+              "item_id",
+              "content",
+              "subject",
+              "level",
+              "message",
+              "workout_ids"
+            ],
+            "title": "ConflictOut",
+            "type": "object"
+          },
+          "SetOut": {
+            "properties": {
+              "reps": {
+                "title": "Reps",
+                "type": "integer"
+              },
+              "rest_seconds": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Rest Seconds"
+              },
+              "rpe": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Rpe"
+              },
+              "set_index": {
+                "title": "Set Index",
+                "type": "integer"
+              },
+              "weight_kg": {
+                "title": "Weight Kg",
+                "type": "number"
+              }
+            },
+            "required": [
+              "set_index",
+              "weight_kg",
+              "reps",
+              "rest_seconds",
+              "rpe"
+            ],
+            "title": "SetOut",
+            "type": "object"
+          },
+          "StrengthBlockOut": {
+            "properties": {
+              "exercise_id": {
+                "title": "Exercise Id",
+                "type": "string"
+              },
+              "exercise_name": {
+                "title": "Exercise Name",
+                "type": "string"
+              },
+              "position": {
+                "title": "Position",
+                "type": "integer"
+              },
+              "sets": {
+                "items": {
+                  "$ref": "#/$defs/SetOut"
+                },
+                "title": "Sets",
+                "type": "array"
+              }
+            },
+            "required": [
+              "exercise_id",
+              "exercise_name",
+              "position",
+              "sets"
+            ],
+            "title": "StrengthBlockOut",
+            "type": "object"
+          },
+          "WorkoutOut": {
+            "properties": {
+              "cardio": {
+                "items": {
+                  "$ref": "#/$defs/CardioOut"
+                },
+                "title": "Cardio",
+                "type": "array"
+              },
+              "conflicts": {
+                "items": {
+                  "$ref": "#/$defs/ConflictOut"
+                },
+                "title": "Conflicts",
+                "type": "array"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "duration_minutes": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Duration Minutes"
+              },
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Note"
+              },
+              "performed_on": {
+                "format": "date",
+                "title": "Performed On",
+                "type": "string"
+              },
+              "rpe": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Rpe"
+              },
+              "strength": {
+                "items": {
+                  "$ref": "#/$defs/StrengthBlockOut"
+                },
+                "title": "Strength",
+                "type": "array"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "performed_on",
+              "duration_minutes",
+              "rpe",
+              "note",
+              "strength",
+              "cardio",
+              "conflicts",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "WorkoutOut",
+            "type": "object"
+          }
+        },
+        "items": {
+          "$ref": "#/$defs/WorkoutOut"
+        },
+        "type": "array"
+      },
+      "summary": "列出一段日期内的训练记录（结束日期默认今天，开始日期默认为结束日期及之前共 7 天；开始不能晚于结束，最多 366 天），每条附带与运动限制医嘱的冲突提示"
+    },
+    {
+      "input_schema": {
+        "$defs": {
+          "CardioItemIn": {
+            "additionalProperties": false,
+            "properties": {
+              "distance_km": {
+                "anyOf": [
+                  {
+                    "maximum": 300,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "距离，单位千米，0 至 300，可不填",
+                "title": "Distance Km"
+              },
+              "duration_minutes": {
+                "description": "这项有氧的时长，单位分钟，1 至 600",
+                "maximum": 600,
+                "minimum": 1,
+                "title": "Duration Minutes",
+                "type": "integer"
+              },
+              "exercise_id": {
+                "description": "有氧动作的编号，取自搜索动作（search_exercises）结果里的 id，必须是有氧动作",
+                "maxLength": 64,
+                "minLength": 1,
+                "title": "Exercise Id",
+                "type": "string"
+              },
+              "rpe": {
+                "anyOf": [
+                  {
+                    "maximum": 10,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "这项有氧的主观强度 RPE，1 至 10 的整数（1 非常轻松，10 竭尽全力），可不填",
+                "title": "Rpe"
+              }
+            },
+            "required": [
+              "exercise_id",
+              "duration_minutes"
+            ],
+            "title": "CardioItemIn",
+            "type": "object"
+          },
+          "SetIn": {
+            "additionalProperties": false,
+            "properties": {
+              "reps": {
+                "description": "这一组的次数，1 至 100",
+                "maximum": 100,
+                "minimum": 1,
+                "title": "Reps",
+                "type": "integer"
+              },
+              "rest_seconds": {
+                "anyOf": [
+                  {
+                    "maximum": 900,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "这一组之后的休息时间，单位秒，0 至 900，可不填",
+                "title": "Rest Seconds"
+              },
+              "rpe": {
+                "anyOf": [
+                  {
+                    "maximum": 10,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "这一组的主观强度 RPE，1 至 10 的整数（1 非常轻松，10 竭尽全力），可不填",
+                "title": "Rpe"
+              },
+              "weight_kg": {
+                "description": "这一组的重量，单位千克，0 至 500；徒手动作填 0",
+                "maximum": 500,
+                "minimum": 0,
+                "title": "Weight Kg",
+                "type": "number"
+              }
+            },
+            "required": [
+              "weight_kg",
+              "reps"
+            ],
+            "title": "SetIn",
+            "type": "object"
+          },
+          "StrengthItemIn": {
+            "additionalProperties": false,
+            "properties": {
+              "exercise_id": {
+                "description": "力量动作的编号，取自搜索动作（search_exercises）结果里的 id，必须是力量动作",
+                "maxLength": 64,
+                "minLength": 1,
+                "title": "Exercise Id",
+                "type": "string"
+              },
+              "sets": {
+                "description": "按完成顺序排列的每一组，1 至 30 组",
+                "items": {
+                  "$ref": "#/$defs/SetIn"
+                },
+                "maxItems": 30,
+                "minItems": 1,
+                "title": "Sets",
+                "type": "array"
+              }
+            },
+            "required": [
+              "exercise_id",
+              "sets"
+            ],
+            "title": "StrengthItemIn",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "cardio": {
+            "default": [],
+            "description": "有氧项目，按完成顺序排列，最多 30 个；与 strength 至少要填一项",
+            "items": {
+              "$ref": "#/$defs/CardioItemIn"
+            },
+            "maxItems": 30,
+            "title": "Cardio",
+            "type": "array"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "maximum": 600,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "整次训练的时长，单位分钟，1 至 600，可不填",
+            "title": "Duration Minutes"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "备注，最多 500 个字，可不填",
+            "title": "Note"
+          },
+          "performed_on": {
+            "description": "训练日期，格式 YYYY-MM-DD，不能晚于今天",
+            "format": "date",
+            "title": "Performed On",
+            "type": "string"
+          },
+          "rpe": {
+            "anyOf": [
+              {
+                "maximum": 10,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "整次训练的主观强度 RPE，1 至 10 的整数（1 非常轻松，10 竭尽全力），可不填",
+            "title": "Rpe"
+          },
+          "strength": {
+            "default": [],
+            "description": "力量动作，按完成顺序排列，最多 30 个；与 cardio 至少要填一项",
+            "items": {
+              "$ref": "#/$defs/StrengthItemIn"
+            },
+            "maxItems": 30,
+            "title": "Strength",
+            "type": "array"
+          }
+        },
+        "required": [
+          "performed_on"
+        ],
+        "title": "WorkoutIn",
+        "type": "object"
+      },
+      "level": "write",
+      "module": "fitness",
+      "name": "fitness.log_workout",
+      "output_schema": {
+        "$defs": {
+          "CardioOut": {
+            "properties": {
+              "distance_km": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Distance Km"
+              },
+              "duration_minutes": {
+                "title": "Duration Minutes",
+                "type": "integer"
+              },
+              "exercise_id": {
+                "title": "Exercise Id",
+                "type": "string"
+              },
+              "exercise_name": {
+                "title": "Exercise Name",
+                "type": "string"
+              },
+              "position": {
+                "title": "Position",
+                "type": "integer"
+              },
+              "rpe": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Rpe"
+              }
+            },
+            "required": [
+              "exercise_id",
+              "exercise_name",
+              "position",
+              "duration_minutes",
+              "distance_km",
+              "rpe"
+            ],
+            "title": "CardioOut",
+            "type": "object"
+          },
+          "ConflictOut": {
+            "properties": {
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "item_id": {
+                "format": "uuid",
+                "title": "Item Id",
+                "type": "string"
+              },
+              "level": {
+                "enum": [
+                  "conflict",
+                  "unverifiable"
+                ],
+                "title": "Level",
+                "type": "string"
+              },
+              "message": {
+                "title": "Message",
+                "type": "string"
+              },
+              "subject": {
+                "title": "Subject",
+                "type": "string"
+              },
+              "workout_ids": {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "title": "Workout Ids",
+                "type": "array"
+              }
+            },
+            "required": [
+              "item_id",
+              "content",
+              "subject",
+              "level",
+              "message",
+              "workout_ids"
+            ],
+            "title": "ConflictOut",
+            "type": "object"
+          },
+          "SetOut": {
+            "properties": {
+              "reps": {
+                "title": "Reps",
+                "type": "integer"
+              },
+              "rest_seconds": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Rest Seconds"
+              },
+              "rpe": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Rpe"
+              },
+              "set_index": {
+                "title": "Set Index",
+                "type": "integer"
+              },
+              "weight_kg": {
+                "title": "Weight Kg",
+                "type": "number"
+              }
+            },
+            "required": [
+              "set_index",
+              "weight_kg",
+              "reps",
+              "rest_seconds",
+              "rpe"
+            ],
+            "title": "SetOut",
+            "type": "object"
+          },
+          "StrengthBlockOut": {
+            "properties": {
+              "exercise_id": {
+                "title": "Exercise Id",
+                "type": "string"
+              },
+              "exercise_name": {
+                "title": "Exercise Name",
+                "type": "string"
+              },
+              "position": {
+                "title": "Position",
+                "type": "integer"
+              },
+              "sets": {
+                "items": {
+                  "$ref": "#/$defs/SetOut"
+                },
+                "title": "Sets",
+                "type": "array"
+              }
+            },
+            "required": [
+              "exercise_id",
+              "exercise_name",
+              "position",
+              "sets"
+            ],
+            "title": "StrengthBlockOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "cardio": {
+            "items": {
+              "$ref": "#/$defs/CardioOut"
+            },
+            "title": "Cardio",
+            "type": "array"
+          },
+          "conflicts": {
+            "items": {
+              "$ref": "#/$defs/ConflictOut"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "performed_on": {
+            "format": "date",
+            "title": "Performed On",
+            "type": "string"
+          },
+          "rpe": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rpe"
+          },
+          "strength": {
+            "items": {
+              "$ref": "#/$defs/StrengthBlockOut"
+            },
+            "title": "Strength",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "performed_on",
+          "duration_minutes",
+          "rpe",
+          "note",
+          "strength",
+          "cardio",
+          "conflicts",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkoutOut",
+        "type": "object"
+      },
+      "summary": "记录一次训练：日期、时长、主观强度、力量动作的每组重量与次数、有氧动作的时长与距离；与运动限制医嘱冲突时只提示不阻止"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "description": "要搜索的名称或别名，1 至 50 个字，首尾空格会被去掉",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "QueryParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "fitness",
+      "name": "fitness.search_exercises",
+      "output_schema": {
+        "$defs": {
+          "ExerciseSummaryOut": {
+            "properties": {
+              "custom": {
+                "title": "Custom",
+                "type": "boolean"
+              },
+              "equipment": {
+                "enum": [
+                  "barbell",
+                  "dumbbell",
+                  "machine",
+                  "cable",
+                  "bodyweight",
+                  "kettlebell",
+                  "band",
+                  "none",
+                  "other"
+                ],
+                "title": "Equipment",
+                "type": "string"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "strength",
+                  "cardio"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "match": {
+                "enum": [
+                  "exact_name",
+                  "exact_alias",
+                  "prefix",
+                  "contains",
+                  "query_contains"
+                ],
+                "title": "Match",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "primary_muscles": {
+                "items": {
+                  "enum": [
+                    "chest",
+                    "back",
+                    "shoulders",
+                    "biceps",
+                    "triceps",
+                    "quads",
+                    "hamstrings",
+                    "glutes",
+                    "calves",
+                    "core",
+                    "full_body"
+                  ],
+                  "type": "string"
+                },
+                "title": "Primary Muscles",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "primary_muscles",
+              "equipment",
+              "custom",
+              "match"
+            ],
+            "title": "ExerciseSummaryOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "exact": {
+            "title": "Exact",
+            "type": "boolean"
+          },
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/$defs/ExerciseSummaryOut"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query",
+          "found",
+          "exact",
+          "results",
+          "message"
+        ],
+        "title": "ExerciseSearchOut",
+        "type": "object"
+      },
+      "summary": "按名称或别名搜索动作库（含用户自定义动作），返回候选动作及其编号；没有完全一致的结果时需与用户确认是哪一个"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id"
+        ],
+        "title": "ItemIdParams",
+        "type": "object"
+      },
+      "level": "user_confirmed",
+      "module": "medical",
+      "name": "medical.cancel_resolution_proposal",
+      "output_schema": {
+        "properties": {
+          "category": {
+            "enum": [
+              "diet_avoid",
+              "diet_require",
+              "medication_diet",
+              "exercise_limit",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "low_confidence": {
+            "readOnly": true,
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "resolution_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Proposed At"
+          },
+          "resolution_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Reason"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "source_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Excerpt"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_confirmation",
+              "active",
+              "pending_review",
+              "resolved",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "category",
+          "status",
+          "origin",
+          "confidence",
+          "content",
+          "subjects",
+          "source_excerpt",
+          "start_date",
+          "end_date",
+          "review_date",
+          "missing_fields",
+          "notes",
+          "resolution_proposed_at",
+          "resolution_reason",
+          "confirmed_at",
+          "closed_at",
+          "created_at",
+          "updated_at",
+          "low_confidence"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "summary": "用户本人撤回一条医嘱条目上待处理的解除建议"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "条目类别；不填表示不修改，不能填 null。类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，exercise_limit 运动限制，other 其他",
+            "title": "Category"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "条目内容，1 至 500 个字；不填表示不修改，不能填 null",
+            "title": "Content"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "预计结束日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示长期；不填表示不修改",
+            "title": "End Date"
+          },
+          "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "复查日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示没有复查日；不填表示不修改",
+            "title": "Review Date"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "生效日期，格式 YYYY-MM-DD；不填表示不修改，不能填 null；生效中的条目不能改到今天之后",
+            "title": "Start Date"
+          },
+          "subjects": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "涉及的食物或行为，例如 辛辣、酒；每项 1 至 64 个字，最多 30 项；不填表示不修改，不能填 null；确认时至少要有一项",
+            "title": "Subjects"
+          }
+        },
+        "required": [
+          "item_id"
+        ],
+        "title": "ConfirmItemParams",
+        "type": "object"
+      },
+      "level": "user_confirmed",
+      "module": "medical",
+      "name": "medical.confirm_item",
+      "output_schema": {
+        "properties": {
+          "category": {
+            "enum": [
+              "diet_avoid",
+              "diet_require",
+              "medication_diet",
+              "exercise_limit",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "low_confidence": {
+            "readOnly": true,
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "resolution_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Proposed At"
+          },
+          "resolution_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Reason"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "source_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Excerpt"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_confirmation",
+              "active",
+              "pending_review",
+              "resolved",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "category",
+          "status",
+          "origin",
+          "confidence",
+          "content",
+          "subjects",
+          "source_excerpt",
+          "start_date",
+          "end_date",
+          "review_date",
+          "missing_fields",
+          "notes",
+          "resolution_proposed_at",
+          "resolution_reason",
+          "confirmed_at",
+          "closed_at",
+          "created_at",
+          "updated_at",
+          "low_confidence"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "summary": "用户本人确认一条待确认的医嘱条目（可同时修正内容），确认后成为生效的约束"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "新的预计结束日期，格式 YYYY-MM-DD，不能早于生效日期，且至少在今天之后两天（否则仍算到期）；不填表示不设结束日期",
+            "title": "End Date"
+          },
+          "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "新的复查日期，格式 YYYY-MM-DD，不能早于生效日期，且必须晚于今天；不填表示不设复查日期",
+            "title": "Review Date"
+          }
+        },
+        "required": [
+          "item_id"
+        ],
+        "title": "ContinueItemParams",
+        "type": "object"
+      },
+      "level": "user_confirmed",
+      "module": "medical",
+      "name": "medical.continue_item",
+      "output_schema": {
+        "properties": {
+          "category": {
+            "enum": [
+              "diet_avoid",
+              "diet_require",
+              "medication_diet",
+              "exercise_limit",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "low_confidence": {
+            "readOnly": true,
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "resolution_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Proposed At"
+          },
+          "resolution_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Reason"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "source_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Excerpt"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_confirmation",
+              "active",
+              "pending_review",
+              "resolved",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "category",
+          "status",
+          "origin",
+          "confidence",
+          "content",
+          "subjects",
+          "source_excerpt",
+          "start_date",
+          "end_date",
+          "review_date",
+          "missing_fields",
+          "notes",
+          "resolution_proposed_at",
+          "resolution_reason",
+          "confirmed_at",
+          "closed_at",
+          "created_at",
+          "updated_at",
+          "low_confidence"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "summary": "用户本人复核后让一条待复核的医嘱条目继续生效，并设定更晚的结束日期或复查日期"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "只看某一类约束，不填表示全部类别。类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，exercise_limit 运动限制，other 其他",
+            "title": "Category"
+          }
+        },
+        "title": "ConstraintsParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "medical",
+      "name": "medical.get_constraints",
+      "output_schema": {
+        "$defs": {
+          "ConstraintOut": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "title": "Category",
+                "type": "string"
+              },
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "end_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "End Date"
+              },
+              "item_id": {
+                "format": "uuid",
+                "title": "Item Id",
+                "type": "string"
+              },
+              "needs_review": {
+                "title": "Needs Review",
+                "type": "boolean"
+              },
+              "resolution_proposed": {
+                "title": "Resolution Proposed",
+                "type": "boolean"
+              },
+              "review_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Review Date"
+              },
+              "start_date": {
+                "format": "date",
+                "title": "Start Date",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "pending_confirmation",
+                  "active",
+                  "pending_review",
+                  "resolved",
+                  "voided"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "subjects": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Subjects",
+                "type": "array"
+              }
+            },
+            "required": [
+              "item_id",
+              "category",
+              "content",
+              "subjects",
+              "start_date",
+              "end_date",
+              "review_date",
+              "status",
+              "needs_review",
+              "resolution_proposed"
+            ],
+            "title": "ConstraintOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "constraints": {
+            "items": {
+              "$ref": "#/$defs/ConstraintOut"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "reminder": {
+            "title": "Reminder",
+            "type": "string"
+          }
+        },
+        "required": [
+          "constraints",
+          "reminder"
+        ],
+        "title": "ConstraintsOut",
+        "type": "object"
+      },
+      "summary": "查看今天生效的医嘱约束（生效中与待复核的条目），可按类别筛选；给饮食、运动建议前应先读取并遵守"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id"
+        ],
+        "title": "ItemIdParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "medical",
+      "name": "medical.get_item",
+      "output_schema": {
+        "properties": {
+          "category": {
+            "enum": [
+              "diet_avoid",
+              "diet_require",
+              "medication_diet",
+              "exercise_limit",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "low_confidence": {
+            "readOnly": true,
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "resolution_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Proposed At"
+          },
+          "resolution_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Reason"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "source_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Excerpt"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_confirmation",
+              "active",
+              "pending_review",
+              "resolved",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "category",
+          "status",
+          "origin",
+          "confidence",
+          "content",
+          "subjects",
+          "source_excerpt",
+          "start_date",
+          "end_date",
+          "review_date",
+          "missing_fields",
+          "notes",
+          "resolution_proposed_at",
+          "resolution_reason",
+          "confirmed_at",
+          "closed_at",
+          "created_at",
+          "updated_at",
+          "low_confidence"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "summary": "按编号查看一条医嘱条目的详情"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "按类别筛选，不填表示全部类别。类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，exercise_limit 运动限制，other 其他",
+            "title": "Category"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pending_confirmation",
+                  "active",
+                  "pending_review",
+                  "resolved",
+                  "voided"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "按状态筛选，不填表示全部状态。状态取值：pending_confirmation 待用户确认，active 生效中，pending_review 待复核，resolved 已解除，voided 已作废",
+            "title": "Status"
+          }
+        },
+        "title": "ItemFilterParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "medical",
+      "name": "medical.list_items",
+      "output_schema": {
+        "$defs": {
+          "ItemOut": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "title": "Category",
+                "type": "string"
+              },
+              "closed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Closed At"
+              },
+              "confidence": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Confidence"
+              },
+              "confirmed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Confirmed At"
+              },
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "end_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "End Date"
+              },
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "low_confidence": {
+                "readOnly": true,
+                "title": "Low Confidence",
+                "type": "boolean"
+              },
+              "missing_fields": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Missing Fields",
+                "type": "array"
+              },
+              "notes": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Notes",
+                "type": "array"
+              },
+              "order_id": {
+                "format": "uuid",
+                "title": "Order Id",
+                "type": "string"
+              },
+              "origin": {
+                "enum": [
+                  "extracted",
+                  "manual"
+                ],
+                "title": "Origin",
+                "type": "string"
+              },
+              "resolution_proposed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resolution Proposed At"
+              },
+              "resolution_reason": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resolution Reason"
+              },
+              "review_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Review Date"
+              },
+              "source_excerpt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Source Excerpt"
+              },
+              "start_date": {
+                "format": "date",
+                "title": "Start Date",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "pending_confirmation",
+                  "active",
+                  "pending_review",
+                  "resolved",
+                  "voided"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "subjects": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Subjects",
+                "type": "array"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "order_id",
+              "category",
+              "status",
+              "origin",
+              "confidence",
+              "content",
+              "subjects",
+              "source_excerpt",
+              "start_date",
+              "end_date",
+              "review_date",
+              "missing_fields",
+              "notes",
+              "resolution_proposed_at",
+              "resolution_reason",
+              "confirmed_at",
+              "closed_at",
+              "created_at",
+              "updated_at",
+              "low_confidence"
+            ],
+            "title": "ItemOut",
+            "type": "object"
+          }
+        },
+        "items": {
+          "$ref": "#/$defs/ItemOut"
+        },
+        "type": "array"
+      },
+      "summary": "列出用户的医嘱条目，可按状态和类别筛选"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "medical",
+      "name": "medical.list_reviews",
+      "output_schema": {
+        "$defs": {
+          "ItemOut": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "title": "Category",
+                "type": "string"
+              },
+              "closed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Closed At"
+              },
+              "confidence": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Confidence"
+              },
+              "confirmed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Confirmed At"
+              },
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "end_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "End Date"
+              },
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "low_confidence": {
+                "readOnly": true,
+                "title": "Low Confidence",
+                "type": "boolean"
+              },
+              "missing_fields": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Missing Fields",
+                "type": "array"
+              },
+              "notes": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Notes",
+                "type": "array"
+              },
+              "order_id": {
+                "format": "uuid",
+                "title": "Order Id",
+                "type": "string"
+              },
+              "origin": {
+                "enum": [
+                  "extracted",
+                  "manual"
+                ],
+                "title": "Origin",
+                "type": "string"
+              },
+              "resolution_proposed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resolution Proposed At"
+              },
+              "resolution_reason": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resolution Reason"
+              },
+              "review_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Review Date"
+              },
+              "source_excerpt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Source Excerpt"
+              },
+              "start_date": {
+                "format": "date",
+                "title": "Start Date",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "pending_confirmation",
+                  "active",
+                  "pending_review",
+                  "resolved",
+                  "voided"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "subjects": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Subjects",
+                "type": "array"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "order_id",
+              "category",
+              "status",
+              "origin",
+              "confidence",
+              "content",
+              "subjects",
+              "source_excerpt",
+              "start_date",
+              "end_date",
+              "review_date",
+              "missing_fields",
+              "notes",
+              "resolution_proposed_at",
+              "resolution_reason",
+              "confirmed_at",
+              "closed_at",
+              "created_at",
+              "updated_at",
+              "low_confidence"
+            ],
+            "title": "ItemOut",
+            "type": "object"
+          }
+        },
+        "items": {
+          "$ref": "#/$defs/ItemOut"
+        },
+        "type": "array"
+      },
+      "summary": "列出需要用户处理的医嘱条目：到期待复核的，以及有待处理解除建议的"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "reason": {
+            "description": "提出解除建议的理由，例如医生复查后允许恢复，1 至 500 个字",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "title": "ProposalParams",
+        "type": "object"
+      },
+      "level": "write",
+      "module": "medical",
+      "name": "medical.propose_resolution",
+      "output_schema": {
+        "properties": {
+          "category": {
+            "enum": [
+              "diet_avoid",
+              "diet_require",
+              "medication_diet",
+              "exercise_limit",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "low_confidence": {
+            "readOnly": true,
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "resolution_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Proposed At"
+          },
+          "resolution_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Reason"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "source_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Excerpt"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_confirmation",
+              "active",
+              "pending_review",
+              "resolved",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "category",
+          "status",
+          "origin",
+          "confidence",
+          "content",
+          "subjects",
+          "source_excerpt",
+          "start_date",
+          "end_date",
+          "review_date",
+          "missing_fields",
+          "notes",
+          "resolution_proposed_at",
+          "resolution_reason",
+          "confirmed_at",
+          "closed_at",
+          "created_at",
+          "updated_at",
+          "low_confidence"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "summary": "对生效中或待复核的医嘱条目提出解除建议并说明理由；只是建议，约束保持不变，解除与否由用户本人确认"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "理由，可不填；填写时 1 至 500 个字",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "item_id"
+        ],
+        "title": "ResolveItemParams",
+        "type": "object"
+      },
+      "level": "user_confirmed",
+      "module": "medical",
+      "name": "medical.resolve_item",
+      "output_schema": {
+        "properties": {
+          "category": {
+            "enum": [
+              "diet_avoid",
+              "diet_require",
+              "medication_diet",
+              "exercise_limit",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "low_confidence": {
+            "readOnly": true,
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "resolution_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Proposed At"
+          },
+          "resolution_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Reason"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "source_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Excerpt"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_confirmation",
+              "active",
+              "pending_review",
+              "resolved",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "category",
+          "status",
+          "origin",
+          "confidence",
+          "content",
+          "subjects",
+          "source_excerpt",
+          "start_date",
+          "end_date",
+          "review_date",
+          "missing_fields",
+          "notes",
+          "resolution_proposed_at",
+          "resolution_reason",
+          "confirmed_at",
+          "closed_at",
+          "created_at",
+          "updated_at",
+          "low_confidence"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "summary": "用户本人解除一条生效中或待复核的医嘱条目，解除后不再作为约束"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "order_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "医嘱开具日期，格式 YYYY-MM-DD，不能晚于今天；不填表示今天",
+            "title": "Order Date"
+          },
+          "text": {
+            "description": "医嘱、病历或复诊单的原文，1 至 5000 个字；照用户给出的原文提交，不要改写或补充",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "OrderCreate",
+        "type": "object"
+      },
+      "level": "write",
+      "module": "medical",
+      "name": "medical.submit_order",
+      "output_schema": {
+        "$defs": {
+          "EvidenceOut": {
+            "properties": {
+              "content_type": {
+                "title": "Content Type",
+                "type": "string"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "size_bytes": {
+                "title": "Size Bytes",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "filename",
+              "content_type",
+              "size_bytes",
+              "created_at"
+            ],
+            "title": "EvidenceOut",
+            "type": "object"
+          },
+          "IgnoredOut": {
+            "properties": {
+              "reason": {
+                "title": "Reason",
+                "type": "string"
+              },
+              "text": {
+                "title": "Text",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "reason"
+            ],
+            "title": "IgnoredOut",
+            "type": "object"
+          },
+          "ItemOut": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "title": "Category",
+                "type": "string"
+              },
+              "closed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Closed At"
+              },
+              "confidence": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Confidence"
+              },
+              "confirmed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Confirmed At"
+              },
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "end_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "End Date"
+              },
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "low_confidence": {
+                "readOnly": true,
+                "title": "Low Confidence",
+                "type": "boolean"
+              },
+              "missing_fields": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Missing Fields",
+                "type": "array"
+              },
+              "notes": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Notes",
+                "type": "array"
+              },
+              "order_id": {
+                "format": "uuid",
+                "title": "Order Id",
+                "type": "string"
+              },
+              "origin": {
+                "enum": [
+                  "extracted",
+                  "manual"
+                ],
+                "title": "Origin",
+                "type": "string"
+              },
+              "resolution_proposed_at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resolution Proposed At"
+              },
+              "resolution_reason": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Resolution Reason"
+              },
+              "review_date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Review Date"
+              },
+              "source_excerpt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Source Excerpt"
+              },
+              "start_date": {
+                "format": "date",
+                "title": "Start Date",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "pending_confirmation",
+                  "active",
+                  "pending_review",
+                  "resolved",
+                  "voided"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "subjects": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Subjects",
+                "type": "array"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "order_id",
+              "category",
+              "status",
+              "origin",
+              "confidence",
+              "content",
+              "subjects",
+              "source_excerpt",
+              "start_date",
+              "end_date",
+              "review_date",
+              "missing_fields",
+              "notes",
+              "resolution_proposed_at",
+              "resolution_reason",
+              "confirmed_at",
+              "closed_at",
+              "created_at",
+              "updated_at",
+              "low_confidence"
+            ],
+            "title": "ItemOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/$defs/EvidenceOut"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "extractor": {
+            "title": "Extractor",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ignored": {
+            "items": {
+              "$ref": "#/$defs/IgnoredOut"
+            },
+            "title": "Ignored",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/$defs/ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "source_text": {
+            "title": "Source Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_date",
+          "source_text",
+          "extractor",
+          "created_at",
+          "ignored",
+          "notes",
+          "items",
+          "evidence"
+        ],
+        "title": "OrderOut",
+        "type": "object"
+      },
+      "summary": "提交一段医嘱原文，系统从中提取条目；提取出的条目只是待用户本人确认的状态，确认之前不会成为生效的约束"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "diet_avoid",
+                  "diet_require",
+                  "medication_diet",
+                  "exercise_limit",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "条目类别；不填表示不修改，不能填 null。类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，exercise_limit 运动限制，other 其他",
+            "title": "Category"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "条目内容，1 至 500 个字；不填表示不修改，不能填 null",
+            "title": "Content"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "预计结束日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示长期；不填表示不修改",
+            "title": "End Date"
+          },
+          "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "复查日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示没有复查日；不填表示不修改",
+            "title": "Review Date"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "生效日期，格式 YYYY-MM-DD；不填表示不修改，不能填 null；生效中的条目不能改到今天之后",
+            "title": "Start Date"
+          },
+          "subjects": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "涉及的食物或行为，例如 辛辣、酒；每项 1 至 64 个字，最多 30 项；不填表示不修改，不能填 null；确认时至少要有一项",
+            "title": "Subjects"
+          }
+        },
+        "required": [
+          "item_id"
+        ],
+        "title": "UpdateItemParams",
+        "type": "object"
+      },
+      "level": "user_confirmed",
+      "module": "medical",
+      "name": "medical.update_item",
+      "output_schema": {
+        "properties": {
+          "category": {
+            "enum": [
+              "diet_avoid",
+              "diet_require",
+              "medication_diet",
+              "exercise_limit",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "low_confidence": {
+            "readOnly": true,
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "resolution_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Proposed At"
+          },
+          "resolution_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Reason"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "source_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Excerpt"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_confirmation",
+              "active",
+              "pending_review",
+              "resolved",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "category",
+          "status",
+          "origin",
+          "confidence",
+          "content",
+          "subjects",
+          "source_excerpt",
+          "start_date",
+          "end_date",
+          "review_date",
+          "missing_fields",
+          "notes",
+          "resolution_proposed_at",
+          "resolution_reason",
+          "confirmed_at",
+          "closed_at",
+          "created_at",
+          "updated_at",
+          "low_confidence"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "summary": "用户本人修改一条医嘱条目的类别、内容、对象或日期"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "description": "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，或今天的约束（get_constraints）结果里的 item_id",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "理由，可不填；填写时 1 至 500 个字",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "item_id"
+        ],
+        "title": "VoidItemParams",
+        "type": "object"
+      },
+      "level": "user_confirmed",
+      "module": "medical",
+      "name": "medical.void_item",
+      "output_schema": {
+        "properties": {
+          "category": {
+            "enum": [
+              "diet_avoid",
+              "diet_require",
+              "medication_diet",
+              "exercise_limit",
+              "other"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "low_confidence": {
+            "readOnly": true,
+            "title": "Low Confidence",
+            "type": "boolean"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Fields",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "resolution_proposed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Proposed At"
+          },
+          "resolution_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Reason"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "source_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Excerpt"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_confirmation",
+              "active",
+              "pending_review",
+              "resolved",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "category",
+          "status",
+          "origin",
+          "confidence",
+          "content",
+          "subjects",
+          "source_excerpt",
+          "start_date",
+          "end_date",
+          "review_date",
+          "missing_fields",
+          "notes",
+          "resolution_proposed_at",
+          "resolution_reason",
+          "confirmed_at",
+          "closed_at",
+          "created_at",
+          "updated_at",
+          "low_confidence"
+        ],
+        "title": "ItemOut",
+        "type": "object"
+      },
+      "summary": "用户本人作废一条医嘱条目（例如提取有误），作废后不再作为约束"
+    },
+    {
+      "input_schema": {
+        "$defs": {
+          "PortionIn": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "description": "份数，大于 0 且不超过 20，可以是小数",
+                "title": "Count",
+                "type": "number"
+              },
+              "unit": {
+                "description": "份量单位，例如 碗、个；必须是这种食物常用份量里的单位（见 get_food 结果的 portions）",
+                "maxLength": 8,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              }
+            },
+            "required": [
+              "unit",
+              "count"
+            ],
+            "title": "PortionIn",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "food_id": {
+            "description": "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Food Id",
+            "type": "string"
+          },
+          "grams": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "要评估的克数，大于 0 且不超过 5000；与 portion 最多填一项，都不填时按这种食物的默认份量",
+            "title": "Grams"
+          },
+          "portion": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PortionIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "按常用份量评估（单位加份数）；与 grams 最多填一项，都不填时按这种食物的默认份量"
+          }
+        },
+        "required": [
+          "food_id"
+        ],
+        "title": "EvaluateIn",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "nutrition",
+      "name": "nutrition.evaluate_food",
+      "output_schema": {
+        "$defs": {
+          "NutrientsOut": {
+            "properties": {
+              "calcium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Calcium Mg"
+              },
+              "carbohydrate_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Carbohydrate G"
+              },
+              "energy_kcal": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Energy Kcal"
+              },
+              "fat_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fat G"
+              },
+              "fiber_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fiber G"
+              },
+              "iron_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Iron Mg"
+              },
+              "protein_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Protein G"
+              },
+              "sodium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sodium Mg"
+              }
+            },
+            "title": "NutrientsOut",
+            "type": "object"
+          },
+          "ReasonOut": {
+            "properties": {
+              "code": {
+                "title": "Code",
+                "type": "string"
+              },
+              "effect": {
+                "enum": [
+                  "block",
+                  "unverifiable",
+                  "caution",
+                  "prefer",
+                  "info"
+                ],
+                "title": "Effect",
+                "type": "string"
+              },
+              "message": {
+                "title": "Message",
+                "type": "string"
+              },
+              "ref": {
+                "title": "Ref",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "medical",
+                  "cycle",
+                  "goal",
+                  "training",
+                  "intake",
+                  "preference"
+                ],
+                "title": "Source",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "effect",
+              "code",
+              "message",
+              "ref"
+            ],
+            "title": "ReasonOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "conclusion": {
+            "enum": [
+              "suitable",
+              "caution",
+              "not_recommended"
+            ],
+            "title": "Conclusion",
+            "type": "string"
+          },
+          "data_source": {
+            "title": "Data Source",
+            "type": "string"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "food_id": {
+            "title": "Food Id",
+            "type": "string"
+          },
+          "food_name": {
+            "title": "Food Name",
+            "type": "string"
+          },
+          "grams": {
+            "title": "Grams",
+            "type": "number"
+          },
+          "nutrients": {
+            "$ref": "#/$defs/NutrientsOut"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/$defs/ReasonOut"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "tradeoff": {
+            "title": "Tradeoff",
+            "type": "string"
+          }
+        },
+        "required": [
+          "food_id",
+          "food_name",
+          "grams",
+          "nutrients",
+          "conclusion",
+          "reasons",
+          "tradeoff",
+          "data_source",
+          "disclaimer"
+        ],
+        "title": "EvaluationOut",
+        "type": "object"
+      },
+      "summary": "结合医嘱约束、经期阶段、目标、训练与今日摄入等，评估用户今天吃某种食物（不填分量时按默认份量）是否合适并说明理由"
+    },
+    {
+      "input_schema": {
+        "$defs": {
+          "MealItemIn": {
+            "additionalProperties": false,
+            "properties": {
+              "food_id": {
+                "description": "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造",
+                "maxLength": 64,
+                "minLength": 1,
+                "title": "Food Id",
+                "type": "string"
+              },
+              "grams": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "要评估的克数，大于 0 且不超过 5000；与 portion 最多填一项，都不填时按这种食物的默认份量",
+                "title": "Grams"
+              },
+              "portion": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PortionIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "按常用份量评估（单位加份数）；与 grams 最多填一项，都不填时按这种食物的默认份量"
+              }
+            },
+            "required": [
+              "food_id"
+            ],
+            "title": "MealItemIn",
+            "type": "object"
+          },
+          "PortionIn": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "description": "份数，大于 0 且不超过 20，可以是小数",
+                "title": "Count",
+                "type": "number"
+              },
+              "unit": {
+                "description": "份量单位，例如 碗、个；必须是这种食物常用份量里的单位（见 get_food 结果的 portions）",
+                "maxLength": 8,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              }
+            },
+            "required": [
+              "unit",
+              "count"
+            ],
+            "title": "PortionIn",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "这一餐里的食物，1 至 20 项，每项一种食物及其分量",
+            "items": {
+              "$ref": "#/$defs/MealItemIn"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EvaluateMealIn",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "nutrition",
+      "name": "nutrition.evaluate_meal",
+      "output_schema": {
+        "$defs": {
+          "EvaluationOut": {
+            "properties": {
+              "conclusion": {
+                "enum": [
+                  "suitable",
+                  "caution",
+                  "not_recommended"
+                ],
+                "title": "Conclusion",
+                "type": "string"
+              },
+              "data_source": {
+                "title": "Data Source",
+                "type": "string"
+              },
+              "disclaimer": {
+                "title": "Disclaimer",
+                "type": "string"
+              },
+              "food_id": {
+                "title": "Food Id",
+                "type": "string"
+              },
+              "food_name": {
+                "title": "Food Name",
+                "type": "string"
+              },
+              "grams": {
+                "title": "Grams",
+                "type": "number"
+              },
+              "nutrients": {
+                "$ref": "#/$defs/NutrientsOut"
+              },
+              "reasons": {
+                "items": {
+                  "$ref": "#/$defs/ReasonOut"
+                },
+                "title": "Reasons",
+                "type": "array"
+              },
+              "tradeoff": {
+                "title": "Tradeoff",
+                "type": "string"
+              }
+            },
+            "required": [
+              "food_id",
+              "food_name",
+              "grams",
+              "nutrients",
+              "conclusion",
+              "reasons",
+              "tradeoff",
+              "data_source",
+              "disclaimer"
+            ],
+            "title": "EvaluationOut",
+            "type": "object"
+          },
+          "NutrientsOut": {
+            "properties": {
+              "calcium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Calcium Mg"
+              },
+              "carbohydrate_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Carbohydrate G"
+              },
+              "energy_kcal": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Energy Kcal"
+              },
+              "fat_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fat G"
+              },
+              "fiber_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fiber G"
+              },
+              "iron_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Iron Mg"
+              },
+              "protein_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Protein G"
+              },
+              "sodium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sodium Mg"
+              }
+            },
+            "title": "NutrientsOut",
+            "type": "object"
+          },
+          "ReasonOut": {
+            "properties": {
+              "code": {
+                "title": "Code",
+                "type": "string"
+              },
+              "effect": {
+                "enum": [
+                  "block",
+                  "unverifiable",
+                  "caution",
+                  "prefer",
+                  "info"
+                ],
+                "title": "Effect",
+                "type": "string"
+              },
+              "message": {
+                "title": "Message",
+                "type": "string"
+              },
+              "ref": {
+                "title": "Ref",
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "medical",
+                  "cycle",
+                  "goal",
+                  "training",
+                  "intake",
+                  "preference"
+                ],
+                "title": "Source",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "effect",
+              "code",
+              "message",
+              "ref"
+            ],
+            "title": "ReasonOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "conclusion": {
+            "enum": [
+              "suitable",
+              "caution",
+              "not_recommended"
+            ],
+            "title": "Conclusion",
+            "type": "string"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/$defs/EvaluationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "$ref": "#/$defs/NutrientsOut"
+          }
+        },
+        "required": [
+          "items",
+          "conclusion",
+          "total",
+          "disclaimer"
+        ],
+        "title": "MealEvaluationOut",
+        "type": "object"
+      },
+      "summary": "结合医嘱约束、经期阶段、目标、训练与今日摄入等，评估一餐中的多种食物是否合适，给出逐项与整体结论"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "要查看的日期，格式 YYYY-MM-DD；不填表示今天",
+            "title": "Day"
+          }
+        },
+        "title": "DayParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "nutrition",
+      "name": "nutrition.get_daily_summary",
+      "output_schema": {
+        "$defs": {
+          "NeedsOut": {
+            "properties": {
+              "carbohydrate_g_high": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Carbohydrate G High"
+              },
+              "carbohydrate_g_low": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Carbohydrate G Low"
+              },
+              "energy_kcal": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Energy Kcal"
+              },
+              "energy_kcal_high": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Energy Kcal High"
+              },
+              "energy_kcal_low": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Energy Kcal Low"
+              },
+              "fat_g_high": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Fat G High"
+              },
+              "fat_g_low": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Fat G Low"
+              },
+              "fiber_g_high": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Fiber G High"
+              },
+              "fiber_g_low": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Fiber G Low"
+              },
+              "missing_fields": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Missing Fields",
+                "type": "array"
+              },
+              "notes": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Notes",
+                "type": "array"
+              },
+              "protein_g": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Protein G"
+              },
+              "sodium_mg_max": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Sodium Mg Max"
+              },
+              "status": {
+                "enum": [
+                  "ok",
+                  "insufficient_profile"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "missing_fields",
+              "energy_kcal",
+              "energy_kcal_low",
+              "energy_kcal_high",
+              "protein_g",
+              "fat_g_low",
+              "fat_g_high",
+              "carbohydrate_g_low",
+              "carbohydrate_g_high",
+              "fiber_g_low",
+              "fiber_g_high",
+              "sodium_mg_max",
+              "notes"
+            ],
+            "title": "NeedsOut",
+            "type": "object"
+          },
+          "NutrientsOut": {
+            "properties": {
+              "calcium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Calcium Mg"
+              },
+              "carbohydrate_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Carbohydrate G"
+              },
+              "energy_kcal": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Energy Kcal"
+              },
+              "fat_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fat G"
+              },
+              "fiber_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fiber G"
+              },
+              "iron_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Iron Mg"
+              },
+              "protein_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Protein G"
+              },
+              "sodium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sodium Mg"
+              }
+            },
+            "title": "NutrientsOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "incomplete_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Incomplete Fields",
+            "type": "array"
+          },
+          "meals": {
+            "additionalProperties": {
+              "$ref": "#/$defs/NutrientsOut"
+            },
+            "title": "Meals",
+            "type": "object"
+          },
+          "needs": {
+            "$ref": "#/$defs/NeedsOut"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "total": {
+            "$ref": "#/$defs/NutrientsOut"
+          }
+        },
+        "required": [
+          "date",
+          "meals",
+          "total",
+          "incomplete_fields",
+          "needs",
+          "remaining",
+          "disclaimer"
+        ],
+        "title": "SummaryOut",
+        "type": "object"
+      },
+      "summary": "汇总某一天（默认今天）各餐与全天的营养摄入，并对照估算的每日需求给出剩余量；档案不完整时无法估算需求"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "food_id": {
+            "description": "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Food Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "food_id"
+        ],
+        "title": "FoodIdParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "nutrition",
+      "name": "nutrition.get_food",
+      "output_schema": {
+        "$defs": {
+          "NutrientsOut": {
+            "properties": {
+              "calcium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Calcium Mg"
+              },
+              "carbohydrate_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Carbohydrate G"
+              },
+              "energy_kcal": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Energy Kcal"
+              },
+              "fat_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fat G"
+              },
+              "fiber_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fiber G"
+              },
+              "iron_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Iron Mg"
+              },
+              "protein_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Protein G"
+              },
+              "sodium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sodium Mg"
+              }
+            },
+            "title": "NutrientsOut",
+            "type": "object"
+          },
+          "PortionOut": {
+            "properties": {
+              "grams": {
+                "title": "Grams",
+                "type": "number"
+              },
+              "unit": {
+                "title": "Unit",
+                "type": "string"
+              }
+            },
+            "required": [
+              "unit",
+              "grams"
+            ],
+            "title": "PortionOut",
+            "type": "object"
+          },
+          "SourceOut": {
+            "properties": {
+              "dataset": {
+                "title": "Dataset",
+                "type": "string"
+              },
+              "license_status": {
+                "title": "License Status",
+                "type": "string"
+              },
+              "note": {
+                "title": "Note",
+                "type": "string"
+              },
+              "reference": {
+                "title": "Reference",
+                "type": "string"
+              }
+            },
+            "required": [
+              "dataset",
+              "reference",
+              "license_status",
+              "note"
+            ],
+            "title": "SourceOut",
+            "type": "object"
+          },
+          "TagOut": {
+            "properties": {
+              "basis": {
+                "title": "Basis",
+                "type": "string"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "kind": {
+                "title": "Kind",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "review_status": {
+                "title": "Review Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "basis",
+              "review_status"
+            ],
+            "title": "TagOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "default_grams": {
+            "title": "Default Grams",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nutrients_per_100g": {
+            "$ref": "#/$defs/NutrientsOut"
+          },
+          "portions": {
+            "items": {
+              "$ref": "#/$defs/PortionOut"
+            },
+            "title": "Portions",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/$defs/SourceOut"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/$defs/TagOut"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "aliases",
+          "category",
+          "kind",
+          "nutrients_per_100g",
+          "tags",
+          "portions",
+          "default_grams",
+          "source"
+        ],
+        "title": "FoodDetailOut",
+        "type": "object"
+      },
+      "summary": "按编号查看一种食物的详情：每 100 克营养素、标签、常用份量与数据来源"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "要查看的日期，格式 YYYY-MM-DD；不填表示今天",
+            "title": "Day"
+          }
+        },
+        "title": "DayParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "nutrition",
+      "name": "nutrition.list_meals",
+      "output_schema": {
+        "$defs": {
+          "MealOut": {
+            "properties": {
+              "created_at": {
+                "format": "date-time",
+                "title": "Created At",
+                "type": "string"
+              },
+              "eaten_on": {
+                "format": "date",
+                "title": "Eaten On",
+                "type": "string"
+              },
+              "food_id": {
+                "title": "Food Id",
+                "type": "string"
+              },
+              "food_name": {
+                "title": "Food Name",
+                "type": "string"
+              },
+              "grams": {
+                "title": "Grams",
+                "type": "number"
+              },
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "meal_type": {
+                "enum": [
+                  "breakfast",
+                  "lunch",
+                  "dinner",
+                  "snack"
+                ],
+                "title": "Meal Type",
+                "type": "string"
+              },
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Note"
+              },
+              "nutrients": {
+                "$ref": "#/$defs/NutrientsOut"
+              },
+              "updated_at": {
+                "format": "date-time",
+                "title": "Updated At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "eaten_on",
+              "meal_type",
+              "food_id",
+              "food_name",
+              "grams",
+              "nutrients",
+              "note",
+              "created_at",
+              "updated_at"
+            ],
+            "title": "MealOut",
+            "type": "object"
+          },
+          "NutrientsOut": {
+            "properties": {
+              "calcium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Calcium Mg"
+              },
+              "carbohydrate_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Carbohydrate G"
+              },
+              "energy_kcal": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Energy Kcal"
+              },
+              "fat_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fat G"
+              },
+              "fiber_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fiber G"
+              },
+              "iron_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Iron Mg"
+              },
+              "protein_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Protein G"
+              },
+              "sodium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sodium Mg"
+              }
+            },
+            "title": "NutrientsOut",
+            "type": "object"
+          }
+        },
+        "items": {
+          "$ref": "#/$defs/MealOut"
+        },
+        "type": "array"
+      },
+      "summary": "列出某一天（默认今天）记录的全部饮食及各项营养素"
+    },
+    {
+      "input_schema": {
+        "$defs": {
+          "PortionIn": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "description": "份数，大于 0 且不超过 20，可以是小数",
+                "title": "Count",
+                "type": "number"
+              },
+              "unit": {
+                "description": "份量单位，例如 碗、个；必须是这种食物常用份量里的单位（见 get_food 结果的 portions）",
+                "maxLength": 8,
+                "minLength": 1,
+                "title": "Unit",
+                "type": "string"
+              }
+            },
+            "required": [
+              "unit",
+              "count"
+            ],
+            "title": "PortionIn",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "eaten_on": {
+            "description": "吃这项食物的日期，格式 YYYY-MM-DD，不能晚于今天",
+            "format": "date",
+            "title": "Eaten On",
+            "type": "string"
+          },
+          "food_id": {
+            "description": "食物编号，取自搜索食物（search_foods）结果里的 id，不要自己编造",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Food Id",
+            "type": "string"
+          },
+          "grams": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "吃了多少克，大于 0 且不超过 5000；与 portion 必须且只能填一项",
+            "title": "Grams"
+          },
+          "meal_type": {
+            "description": "餐次：breakfast 早餐，lunch 午餐，dinner 晚餐，snack 加餐",
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner",
+              "snack"
+            ],
+            "title": "Meal Type",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "备注，最多 200 个字，可不填",
+            "title": "Note"
+          },
+          "portion": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PortionIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "按常用份量记录（单位加份数）；与 grams 必须且只能填一项"
+          }
+        },
+        "required": [
+          "eaten_on",
+          "meal_type",
+          "food_id"
+        ],
+        "title": "MealCreate",
+        "type": "object"
+      },
+      "level": "write",
+      "module": "nutrition",
+      "name": "nutrition.log_meal",
+      "output_schema": {
+        "$defs": {
+          "NutrientsOut": {
+            "properties": {
+              "calcium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Calcium Mg"
+              },
+              "carbohydrate_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Carbohydrate G"
+              },
+              "energy_kcal": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Energy Kcal"
+              },
+              "fat_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fat G"
+              },
+              "fiber_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Fiber G"
+              },
+              "iron_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Iron Mg"
+              },
+              "protein_g": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Protein G"
+              },
+              "sodium_mg": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sodium Mg"
+              }
+            },
+            "title": "NutrientsOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "eaten_on": {
+            "format": "date",
+            "title": "Eaten On",
+            "type": "string"
+          },
+          "food_id": {
+            "title": "Food Id",
+            "type": "string"
+          },
+          "food_name": {
+            "title": "Food Name",
+            "type": "string"
+          },
+          "grams": {
+            "title": "Grams",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "meal_type": {
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner",
+              "snack"
+            ],
+            "title": "Meal Type",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "nutrients": {
+            "$ref": "#/$defs/NutrientsOut"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "eaten_on",
+          "meal_type",
+          "food_id",
+          "food_name",
+          "grams",
+          "nutrients",
+          "note",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MealOut",
+        "type": "object"
+      },
+      "summary": "记录用户吃过的一项食物：日期、餐次、食物编号，克数与份量必须且只能填一项"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "description": "要搜索的名称或别名，1 至 50 个字，首尾空格会被去掉",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "QueryParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "nutrition",
+      "name": "nutrition.search_foods",
+      "output_schema": {
+        "$defs": {
+          "FoodSummaryOut": {
+            "properties": {
+              "aliases": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Aliases",
+                "type": "array"
+              },
+              "category": {
+                "title": "Category",
+                "type": "string"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "kind": {
+                "title": "Kind",
+                "type": "string"
+              },
+              "match": {
+                "enum": [
+                  "exact_name",
+                  "common_name",
+                  "exact_alias",
+                  "prefix",
+                  "contains",
+                  "query_contains"
+                ],
+                "title": "Match",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "aliases",
+              "category",
+              "kind",
+              "match"
+            ],
+            "title": "FoodSummaryOut",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "exact": {
+            "title": "Exact",
+            "type": "boolean"
+          },
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/$defs/FoodSummaryOut"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query",
+          "found",
+          "exact",
+          "results",
+          "message"
+        ],
+        "title": "SearchOut",
+        "type": "object"
+      },
+      "summary": "按名称或别名搜索食物库，返回候选食物及其编号；没有完全一致的结果时需与用户确认是哪一种"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "profile",
+      "name": "profile.get_capabilities",
+      "output_schema": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "type": "object"
+      },
+      "summary": "查看当前用户开放了哪些业务模块（经期、医嘱、饮食、健身）"
+    }
+  ],
+  "sdk_version": "1.0"
+}

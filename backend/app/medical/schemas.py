@@ -12,12 +12,29 @@ Subject = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, 
 Content = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
+# 字段说明：进入接口文档与 SDK 能力清单，智能体按它填写参数。
+CATEGORY_TEXT = (
+    "类别取值：diet_avoid 饮食禁忌，diet_require 饮食要求，medication_diet 用药期间的饮食禁忌，"
+    "exercise_limit 运动限制，other 其他"
+)
+STATUS_TEXT = (
+    "状态取值：pending_confirmation 待用户确认，active 生效中，pending_review 待复核，resolved 已解除，voided 已作废"
+)
+ITEM_ID_TEXT = (
+    "医嘱条目编号（UUID），取自列出医嘱条目（list_items）或待处理列表（list_reviews）结果里的 id，"
+    "或今天的约束（get_constraints）结果里的 item_id"
+)
+
 
 class OrderCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
-    order_date: date | None = None
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)] = Field(
+        description="医嘱、病历或复诊单的原文，1 至 5000 个字；照用户给出的原文提交，不要改写或补充"
+    )
+    order_date: date | None = Field(
+        default=None, description="医嘱开具日期，格式 YYYY-MM-DD，不能晚于今天；不填表示今天"
+    )
 
 
 class ManualItemCreate(BaseModel):
@@ -34,12 +51,24 @@ class ManualItemCreate(BaseModel):
 class ItemUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    category: Category | None = None
-    content: Content | None = None
-    subjects: list[Subject] | None = Field(default=None, max_length=30)
-    start_date: date | None = None
-    end_date: date | None = None
-    review_date: date | None = None
+    category: Category | None = Field(default=None, description=f"条目类别；不填表示不修改，不能填 null。{CATEGORY_TEXT}")
+    content: Content | None = Field(
+        default=None, description="条目内容，1 至 500 个字；不填表示不修改，不能填 null"
+    )
+    subjects: list[Subject] | None = Field(
+        default=None,
+        max_length=30,
+        description="涉及的食物或行为，例如 辛辣、酒；每项 1 至 64 个字，最多 30 项；不填表示不修改，不能填 null；确认时至少要有一项",
+    )
+    start_date: date | None = Field(
+        default=None, description="生效日期，格式 YYYY-MM-DD；不填表示不修改，不能填 null；生效中的条目不能改到今天之后"
+    )
+    end_date: date | None = Field(
+        default=None, description="预计结束日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示长期；不填表示不修改"
+    )
+    review_date: date | None = Field(
+        default=None, description="复查日期，格式 YYYY-MM-DD，不能早于生效日期；填 null 表示没有复查日；不填表示不修改"
+    )
 
     @field_validator("category", "content", "subjects", "start_date")
     @classmethod
@@ -52,20 +81,25 @@ class ItemUpdate(BaseModel):
 class ReasonBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    reason: Reason | None = None
+    reason: Reason | None = Field(default=None, description="理由，可不填；填写时 1 至 500 个字")
 
 
 class ProposalBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    reason: Reason
+    reason: Reason = Field(description="提出解除建议的理由，例如医生复查后允许恢复，1 至 500 个字")
 
 
 class ContinueBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    end_date: date | None = None
-    review_date: date | None = None
+    end_date: date | None = Field(
+        default=None,
+        description="新的预计结束日期，格式 YYYY-MM-DD，不能早于生效日期，且至少在今天之后两天（否则仍算到期）；不填表示不设结束日期",
+    )
+    review_date: date | None = Field(
+        default=None, description="新的复查日期，格式 YYYY-MM-DD，不能早于生效日期，且必须晚于今天；不填表示不设复查日期"
+    )
 
 
 class ItemOut(BaseModel):

@@ -16,6 +16,9 @@ Rpe = Annotated[int, Field(ge=1, le=10)]
 ExerciseId = Annotated[str, Field(min_length=1, max_length=64)]
 Met = Annotated[float, Field(gt=0, le=30, allow_inf_nan=False)]
 
+# 字段说明：进入接口文档与 SDK 能力清单，智能体按它填写参数。
+RPE_TEXT = "主观强度 RPE，1 至 10 的整数（1 非常轻松，10 竭尽全力）"
+
 
 class MetOut(BaseModel):
     light: float
@@ -85,37 +88,55 @@ class CustomExerciseIn(BaseModel):
 class SetIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    weight_kg: Annotated[float, Field(ge=0, le=500, allow_inf_nan=False)]
-    reps: Annotated[int, Field(ge=1, le=100)]
-    rest_seconds: Annotated[int, Field(ge=0, le=900)] | None = None
-    rpe: Rpe | None = None
+    weight_kg: Annotated[float, Field(ge=0, le=500, allow_inf_nan=False)] = Field(
+        description="这一组的重量，单位千克，0 至 500；徒手动作填 0"
+    )
+    reps: Annotated[int, Field(ge=1, le=100)] = Field(description="这一组的次数，1 至 100")
+    rest_seconds: Annotated[int, Field(ge=0, le=900)] | None = Field(
+        default=None, description="这一组之后的休息时间，单位秒，0 至 900，可不填"
+    )
+    rpe: Rpe | None = Field(default=None, description=f"这一组的{RPE_TEXT}，可不填")
 
 
 class StrengthItemIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    exercise_id: ExerciseId
-    sets: Annotated[list[SetIn], Field(min_length=1, max_length=30)]
+    exercise_id: ExerciseId = Field(
+        description="力量动作的编号，取自搜索动作（search_exercises）结果里的 id，必须是力量动作"
+    )
+    sets: Annotated[list[SetIn], Field(min_length=1, max_length=30)] = Field(
+        description="按完成顺序排列的每一组，1 至 30 组"
+    )
 
 
 class CardioItemIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    exercise_id: ExerciseId
-    duration_minutes: Annotated[int, Field(ge=1, le=600)]
-    distance_km: Annotated[float, Field(ge=0, le=300, allow_inf_nan=False)] | None = None
-    rpe: Rpe | None = None
+    exercise_id: ExerciseId = Field(
+        description="有氧动作的编号，取自搜索动作（search_exercises）结果里的 id，必须是有氧动作"
+    )
+    duration_minutes: Annotated[int, Field(ge=1, le=600)] = Field(description="这项有氧的时长，单位分钟，1 至 600")
+    distance_km: Annotated[float, Field(ge=0, le=300, allow_inf_nan=False)] | None = Field(
+        default=None, description="距离，单位千米，0 至 300，可不填"
+    )
+    rpe: Rpe | None = Field(default=None, description=f"这项有氧的{RPE_TEXT}，可不填")
 
 
 class WorkoutIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    performed_on: dt.date
-    duration_minutes: Annotated[int, Field(ge=1, le=600)] | None = None
-    rpe: Rpe | None = None
-    note: Annotated[str, Field(max_length=500)] | None = None
-    strength: Annotated[list[StrengthItemIn], Field(max_length=30)] = []
-    cardio: Annotated[list[CardioItemIn], Field(max_length=30)] = []
+    performed_on: dt.date = Field(description="训练日期，格式 YYYY-MM-DD，不能晚于今天")
+    duration_minutes: Annotated[int, Field(ge=1, le=600)] | None = Field(
+        default=None, description="整次训练的时长，单位分钟，1 至 600，可不填"
+    )
+    rpe: Rpe | None = Field(default=None, description=f"整次训练的{RPE_TEXT}，可不填")
+    note: Annotated[str, Field(max_length=500)] | None = Field(default=None, description="备注，最多 500 个字，可不填")
+    strength: Annotated[list[StrengthItemIn], Field(max_length=30)] = Field(
+        default=[], description="力量动作，按完成顺序排列，最多 30 个；与 cardio 至少要填一项"
+    )
+    cardio: Annotated[list[CardioItemIn], Field(max_length=30)] = Field(
+        default=[], description="有氧项目，按完成顺序排列，最多 30 个；与 strength 至少要填一项"
+    )
 
 
 class SetOut(BaseModel):

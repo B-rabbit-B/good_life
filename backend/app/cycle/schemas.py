@@ -23,8 +23,11 @@ PhaseReason = Literal[
 class PeriodCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    start_date: date
-    end_date: date | None = None
+    start_date: date = Field(description="这次经期的开始日期，格式 YYYY-MM-DD，不能晚于今天")
+    end_date: date | None = Field(
+        default=None,
+        description="这次经期的结束日期，格式 YYYY-MM-DD，不能早于开始日期、不能晚于今天，单次经期最多 15 天；仍在经期中可不填",
+    )
 
 
 class PeriodUpdate(BaseModel):
