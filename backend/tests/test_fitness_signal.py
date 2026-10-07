@@ -121,3 +121,48 @@ def test_workouts_without_limits_have_empty_conflicts(client):
 
 def test_signal_requires_login(client):
     assert client.get("/api/fitness/signal").status_code == 401
+
+
+def test_unverifiable_item_reaches_workout_response_and_signal(client):
+    headers = ready_user(client, "alice", {"weight_kg": 70})
+    item_id = _confirmed_limit(client, headers, "两周内避免提重物及剧烈运动。")
+    unrated_run = {"performed_on": "2026-10-07",
+                   "cardio": [{"exercise_id": _ex(client, headers, "跑步"), "duration_minutes": 20}]}
+    workout = client.post("/api/fitness/workouts", json=unrated_run, headers=headers).json()
+    assert [(c["item_id"], c["subject"], c["level"]) for c in workout["conflicts"]] == [
+        (item_id, "剧烈运动", "unverifiable")]
+    assert "未填写主观强度" in workout["conflicts"][0]["message"]
+    assert "请自行核对" in workout["conflicts"][0]["message"]
+    signal = client.get("/api/fitness/signal", headers=headers).json()
+    assert signal["conflicts"] == workout["conflicts"]
+
+
+def test_deleted_custom_exercise_is_unverifiable_through_the_api(client):
+    headers = ready_user(client, "alice", {"weight_kg": 70})
+    custom = client.post("/api/fitness/exercises", headers=headers, json={
+        "name": "战绳", "kind": "cardio", "primary_muscles": ["full_body"], "equipment": "other",
+        "met_light": 3, "met_moderate": 5, "met_vigorous": 7,
+    }).json()
+    _confirmed_limit(client, headers, "两周内避免提重物及剧烈运动。")
+    body = {"performed_on": "2026-10-07", "rpe": 5,
+            "cardio": [{"exercise_id": custom["id"], "duration_minutes": 10}]}
+    workout = client.post("/api/fitness/workouts", json=body, headers=headers).json()
+    assert [(c["subject"], c["level"]) for c in workout["conflicts"]] == [("剧烈运动", "unverifiable")]
+    assert client.delete(f"/api/fitness/exercises/custom/{custom['id']}", headers=headers).status_code == 204
+    again = client.get(f"/api/fitness/workouts/{workout['id']}", headers=headers).json()
+    assert [(c["subject"], c["level"]) for c in again["conflicts"]] == [("剧烈运动", "unverifiable")]
+
+
+def test_pending_review_order_message_mentions_review(client):
+    headers = ready_user(client, "alice", {"weight_kg": 70})
+    client.app.dependency_overrides[get_today] = lambda: date(2026, 9, 20)
+    order = client.post(
+        "/api/medical/orders", json={"text": "两周内避免提重物及剧烈运动。", "order_date": "2026-09-20"}, headers=headers
+    ).json()
+    item = order["items"][0]
+    assert client.post(f"/api/medical/items/{item['id']}/confirm", headers=headers).status_code == 200
+    client.app.dependency_overrides[get_today] = lambda: TODAY
+    workout = client.post("/api/fitness/workouts", json=_bench_body(client, headers, rpe=6), headers=headers).json()
+    assert [c["subject"] for c in workout["conflicts"]] == ["提重物"]
+    assert "这条医嘱正在待复核" in workout["conflicts"][0]["message"]
+    assert client.get("/api/medical/reviews", headers=headers).json()[0]["id"] == item["id"]

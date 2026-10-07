@@ -8,7 +8,8 @@ from pydantic import ValidationError
 
 from app.fitness.calc import CardioInput, SetInput, StrengthInput, WorkoutInput
 from app.fitness.conflicts import _no_duplicate_keys, _TermsFile, find_conflicts, load_terms
-from app.fitness.library import load_library
+from app.fitness.library import Exercise, load_library
+from app.fitness.summaries import _snapshot_exercise
 from app.medical.items import Constraint
 
 DAY = date(2026, 10, 7)
@@ -119,7 +120,8 @@ def test_workout_ids_list_the_workouts_that_conflict():
     heavy, light = uuid.uuid4(), uuid.uuid4()
     found = find_conflicts(
         [POST_OP],
-        [(heavy, _workout(strength=[_strength("卧推", 60)])), (light, _workout(strength=[_strength("卧推", 0)]))],
+        [(heavy, _workout(strength=[_strength("卧推", 60)], rpe=5)),
+         (light, _workout(strength=[_strength("俯卧撑", 0)], rpe=5))],
     )
     assert [c.workout_ids for c in found] == [(heavy,)]
 
@@ -157,3 +159,86 @@ def test_vocabulary_rejects_duplicate_keys_and_unknown_traits():
         json.loads('{"terms": {"跑": {"match": "any"}, "跑": {"match": "any"}}}', object_pairs_hook=_no_duplicate_keys)
     with pytest.raises(ValidationError):
         _TermsFile.model_validate({"terms": {"飞": {"match": "traits", "traits": ["flying"]}}})
+
+
+def _custom(name, kind="cardio", traits=(), equipment="other"):
+    met = (3.0, 5.0, 7.0) if kind == "cardio" else None
+    return Exercise(f"custom:{name}", name, (), kind, ("full_body",), equipment, tuple(traits), met, True)
+
+
+def _levels(conflicts):
+    return [(c.subject, c.level) for c in conflicts]
+
+
+def test_custom_exercise_without_the_trait_is_unverifiable_under_running_limit():
+    limit = _constraint("避免跑步", ["跑步"])
+    workout = _workout(cardio=[CardioInput(_custom("夜跑"), 30, None, 5)], rpe=5)
+    found = _run([limit], workout)
+    assert _levels(found) == [("跑步", "unverifiable")]
+    assert "自定义动作「夜跑」未标注相关特征" in found[0].message
+    assert "请自行核对" in found[0].message
+    tagged = _workout(cardio=[CardioInput(_custom("夜跑", traits=["running"]), 30, None, 5)], rpe=5)
+    assert _levels(_run([limit], tagged)) == [("跑步", "conflict")]
+
+
+def test_deleted_custom_snapshot_counts_as_custom():
+    snapshot = _snapshot_exercise("custom:gone", "已删动作", "cardio")
+    assert snapshot.custom
+    found = _run([_constraint("避免跑步", ["跑步"])], _workout(cardio=[CardioInput(snapshot, 20, None, 5)], rpe=5))
+    assert _levels(found) == [("跑步", "unverifiable")]
+
+
+def test_custom_exercise_without_high_impact_is_unverifiable_under_vigorous_limit():
+    limit = _constraint("避免剧烈运动", ["剧烈运动"])
+    workout = _workout(cardio=[CardioInput(_custom("战绳"), 10, None, 5)], rpe=5)
+    assert _levels(_run([limit], workout)) == [("剧烈运动", "unverifiable")]
+
+
+def test_weight_bearing_is_a_conflict_with_a_loaded_set_otherwise_unverifiable():
+    limit = _constraint("避免负重", ["负重"])
+    loaded = _run([limit], _workout(strength=[_strength("卧推", 40)], rpe=5))
+    assert _levels(loaded) == [("负重", "conflict")]
+    running = _run([limit], _workout(cardio=[_cardio("跑步")], rpe=5))
+    assert _levels(running) == [("负重", "unverifiable")]
+    assert "患肢负重" in running[0].message
+
+
+def test_weight_bearing_vocabulary_rule_is_distinct_from_loaded():
+    terms = load_terms()
+    assert terms["负重"].match == "weight_bearing"
+    assert all(terms[t].match == "loaded" for t in ("提重物", "重物", "举重", "搬重物"))
+
+
+def test_unrated_workout_is_unverifiable_under_vigorous_limit():
+    limit = _constraint("避免剧烈运动", ["剧烈运动"])
+    found = _run([limit], _workout(cardio=[_cardio("跑步")]))
+    assert _levels(found) == [("剧烈运动", "unverifiable")]
+    assert "未填写主观强度" in found[0].message
+    assert _run([limit], _workout(cardio=[_cardio("跑步")], rpe=5)) == ()
+    assert _run([limit], _workout(cardio=[_cardio("跑步", rpe=5)])) == ()
+
+
+def test_zero_weight_on_equipment_exercise_is_unverifiable_under_loaded_limit():
+    limit = _constraint("避免提重物", ["提重物"])
+    found = _run([limit], _workout(strength=[_strength("杠铃卧推", 0)], rpe=5))
+    assert _levels(found) == [("提重物", "unverifiable")]
+    assert "未填写重量" in found[0].message
+    assert _run([limit], _workout(strength=[_strength("俯卧撑", 0)], rpe=5)) == ()
+
+
+def test_conflict_and_unverifiable_can_coexist_with_stable_order():
+    limit = _constraint("避免提重物", ["提重物"])
+    heavy, unfilled = uuid.uuid4(), uuid.uuid4()
+    workouts = [
+        (heavy, _workout(strength=[_strength("杠铃卧推", 60)], rpe=5)),
+        (unfilled, _workout(strength=[_strength("杠铃卧推", 0)], rpe=5)),
+    ]
+    found = find_conflicts([limit], workouts)
+    assert [(c.level, c.workout_ids) for c in found] == [("conflict", (heavy,)), ("unverifiable", (unfilled,))]
+    assert find_conflicts([limit], workouts[::-1]) == found
+
+
+def test_subject_is_stripped_in_messages():
+    found = _run([_constraint("避免提重物", [" 提重物 "])], _workout(strength=[_strength("卧推", 60)], rpe=5))
+    assert found[0].subject == "提重物"
+    assert "涉及「提重物」" in found[0].message
