@@ -25,6 +25,7 @@ class CallContext:
     db: Session
     user: User
     today: date
+    actor: str  # agent（智能体授权令牌）或 user（用户登录令牌），写入业务事件的来源
 
 
 @dataclass(frozen=True)

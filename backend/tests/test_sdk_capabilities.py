@@ -3,6 +3,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from app.common.clock import get_today
 from app.main import create_app
@@ -120,3 +121,65 @@ def test_module_gate_and_notices(client, sdk):
 def test_manifest_snapshot_is_current():
     expected = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert build_manifest(REGISTRY) == expected, "能力清单有变化：确认向后兼容后运行 python -m app.sdk.manifest 更新快照"
+
+
+def _events(client, headers, item_id):
+    return client.get(f"/api/medical/items/{item_id}/events", headers=headers).json()
+
+
+def test_propose_resolution_records_the_actor(client, sdk):
+    headers = ready_user(client, "alice")
+    token = _token(client, headers)
+    user = UserAccessToken(headers["Authorization"].removeprefix("Bearer "))
+    [item] = sdk.call(token, "medical.submit_order", {"text": "一周内忌食辛辣。"}).data["items"]
+    sdk.call(user, "medical.confirm_item", {"item_id": item["id"]})
+    sdk.call(token, "medical.propose_resolution", {"item_id": item["id"], "reason": "医生说可以恢复"})
+    assert [e["source"] for e in _events(client, headers, item["id"]) if e["action"] == "resolution_proposed"] == [
+        "agent"]
+    sdk.call(user, "medical.cancel_resolution_proposal", {"item_id": item["id"]})
+    sdk.call(user, "medical.propose_resolution", {"item_id": item["id"], "reason": "复查正常"})
+    assert [e["source"] for e in _events(client, headers, item["id"]) if e["action"] == "resolution_proposed"] == [
+        "agent", "user"]
+
+
+def test_phase_notice_without_any_period(client, sdk):
+    token = _token(client, ready_user(client, "dana", {"gender": "female"}))
+    result = sdk.call(token, "cycle.get_phase")
+    assert result.data["reason"] == "no_data"
+    assert [n.kind for n in result.notices] == ["insufficient_data"] and "还没有经期记录" in result.notices[0].message
+
+
+def test_fitness_notices_when_body_weight_is_missing(client, sdk):
+    for username, profile, expected in (("erin", {"gender": "female"}, ["insufficient_data"]),
+                                        ("fay", PROFILE, [])):
+        token = _token(client, ready_user(client, username, profile))
+        bench = sdk.call(token, "fitness.search_exercises", {"query": "卧推"}).data["results"][0]["id"]
+        sdk.call(token, "fitness.log_workout", {"performed_on": "2026-10-07", "strength": [
+            {"exercise_id": bench, "sets": [{"weight_kg": 40, "reps": 10}]}]})
+        for name in ("fitness.get_training_signal", "fitness.get_week_summary"):
+            result = sdk.call(token, name)
+            assert [n.kind for n in result.notices] == expected, (username, name)
+            if expected:
+                assert result.notices[0].message == "档案里没有体重，无法估算训练消耗"
+
+
+def test_update_item_with_user_token_changes_only_sent_fields(client, sdk):
+    headers = ready_user(client, "alice")
+    user = UserAccessToken(headers["Authorization"].removeprefix("Bearer "))
+    [item] = sdk.call(user, "medical.submit_order", {"text": "一周内忌食辛辣。"}).data["items"]
+    updated = sdk.call(user, "medical.update_item", {"item_id": item["id"], "content": "一周内不吃辣"}).data
+    assert updated["content"] == "一周内不吃辣"
+    unchanged = ("category", "subjects", "start_date", "end_date", "review_date", "status")
+    assert {k: updated[k] for k in unchanged} == {k: item[k] for k in unchanged}
+    assert client.get(f"/api/medical/items/{item['id']}", headers=headers).json() == updated
+
+
+def test_param_models_reject_a_user_id_field(client, sdk):
+    for cap in REGISTRY.values():
+        with pytest.raises(ValidationError) as caught:
+            cap.input_model.model_validate({"user_id": "00000000-0000-0000-0000-000000000000"})
+        assert ("user_id",) in [e["loc"] for e in caught.value.errors() if e["type"] == "extra_forbidden"], cap.name
+    token = _token(client, ready_user(client, "alice"))
+    with pytest.raises(SdkError) as caught:
+        sdk.call(token, "medical.list_items", {"user_id": "00000000-0000-0000-0000-000000000000"})
+    assert caught.value.kind == "invalid_input"

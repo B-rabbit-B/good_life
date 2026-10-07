@@ -4,6 +4,7 @@ from app.sdk.params import DayParams
 from app.sdk.registry import CallContext, Capability, NoParams, Notice
 
 INSUFFICIENT_DATA = Notice("insufficient_data", "经期记录还不够，暂时无法预测或判断阶段；可以请用户补充最近几次经期")
+NO_DATA = Notice("insufficient_data", "还没有经期记录，暂时无法判断阶段；可以请用户补充最近几次经期")
 
 
 def _prediction_notices(data: dict) -> list[Notice]:
@@ -11,6 +12,8 @@ def _prediction_notices(data: dict) -> list[Notice]:
 
 
 def _phase_notices(data: dict) -> list[Notice]:
+    if data["reason"] == "no_data":
+        return [NO_DATA]
     return [INSUFFICIENT_DATA] if data["reason"] == "insufficient_data" else []
 
 

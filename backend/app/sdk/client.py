@@ -107,7 +107,8 @@ class GoodLife:
             if cap.module != "profile":
                 _MODULE_GATES[cap.module](caller.user, db, today)
             parsed = cap.input_model.model_validate(params or {})
-            raw = cap.handler(CallContext(db, caller.user, today), parsed)
+            actor = "agent" if caller.credential_kind == "agent_grant" else "user"
+            raw = cap.handler(CallContext(db, caller.user, today, actor), parsed)
             data = _serialize(cap, raw)
             notices = tuple(cap.notices(data)) if cap.notices is not None else ()
             return SdkResult(data, notices)

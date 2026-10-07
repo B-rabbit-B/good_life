@@ -7,7 +7,7 @@ def _get_capabilities(ctx: CallContext, params: NoParams) -> dict[str, bool]:
     return compute_capabilities(get_or_create_profile(ctx.db, ctx.user.id))
 
 
-CAPABILITIES = [
+CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         name="profile.get_capabilities",
         module="profile",
@@ -17,4 +17,4 @@ CAPABILITIES = [
         output_type=dict[str, bool],
         handler=_get_capabilities,
     ),
-]
+)

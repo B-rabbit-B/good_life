@@ -1,4 +1,4 @@
-from app.medical import router
+from app.medical import items, router
 from app.medical.schemas import (
     ConstraintsOut,
     ContinueBody,
@@ -6,7 +6,6 @@ from app.medical.schemas import (
     ItemUpdate,
     OrderCreate,
     OrderOut,
-    ProposalBody,
     ReasonBody,
 )
 from app.sdk.params import (
@@ -48,9 +47,8 @@ def _list_reviews(ctx: CallContext, params: NoParams):
 
 
 def _propose_resolution(ctx: CallContext, params: ProposalParams):
-    return router.propose_resolution(
-        item_id=params.item_id, body=ProposalBody(reason=params.reason), user=ctx.user, db=ctx.db
-    )
+    # 不经接口函数：接口把事件来源固定为 user，这里按凭证记为 agent 或 user。
+    return items.propose_resolution(ctx.db, ctx.user.id, params.item_id, params.reason, ctx.actor)
 
 
 def _confirm_item(ctx: CallContext, params: ConfirmItemParams):
