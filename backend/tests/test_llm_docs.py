@@ -101,3 +101,22 @@ def test_selection_doc_cites_the_litellm_incident_in_words():
     for word in ("LiteLLM", "1.82.7", "1.82.8", "PyPI", "2026 年 3 月 24 日", "Cherry Studio", "LobeHub"):
         assert word in doc, word
     assert "http://" not in doc and "https://" not in doc  # 不放链接
+
+
+def test_docs_record_residual_url_risks():
+    for name in ("模型服务数据说明.md", "验收记录.md"):
+        doc = _read(name)
+        for word in ("DNS 重绑定", "再解析一次", "HTTPS_PROXY", "HTTP_PROXY", "证书"):
+            assert word in doc, (name, word)
+
+
+def test_live_record_says_only_model_items_are_skipped_and_row_5_uses_an_inner_bad_character():
+    live = _read("实测记录.md")
+    assert "只跳过对话、工具调用、看图三项" in live and "三项故意的错误仍会运行" in live
+    manual = _acceptance_rows()[4][3]
+    assert "全角" in manual and "带空格或换行" not in manual
+
+
+def test_acceptance_record_no_longer_says_httpx2_is_a_dev_dependency():
+    record = _read("验收记录.md")
+    assert "开发依赖" not in record and "httpx2 已登记为正式依赖" in record
