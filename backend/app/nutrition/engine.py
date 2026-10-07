@@ -1,4 +1,4 @@
-"""约束融合引擎：把医嘱（硬约束）、经期阶段、健身目标、当日摄入与个人偏好（软约束）合成对一个食物的判断。
+"""约束融合引擎：把医嘱（硬约束）、经期阶段、健身目标、当天训练、当日摄入与个人偏好（软约束）合成对一个食物的判断。
 
 纯函数且确定：不读数据库、时间或随机数；输出的依据去重后按固定规则排序，结果都是不可变数据类。
 """
@@ -24,9 +24,10 @@ SUITABLE = "suitable"
 CAUTION = "caution"
 NOT_RECOMMENDED = "not_recommended"
 CONCLUSION_ORDER = (SUITABLE, CAUTION, NOT_RECOMMENDED)
-SOURCE_ORDER = ("medical", "cycle", "goal", "intake", "preference")
+SOURCE_ORDER = ("medical", "cycle", "goal", "training", "intake", "preference")
 EFFECT_ORDER = ("block", "unverifiable", "caution", "prefer", "info")
-SOURCE_NAMES = {"medical": "医嘱", "cycle": "经期提示", "goal": "健身目标", "intake": "当日摄入", "preference": "个人偏好"}
+SOURCE_NAMES = {"medical": "医嘱", "cycle": "经期提示", "goal": "健身目标", "training": "训练", "intake": "当日摄入",
+                "preference": "个人偏好"}
 DISCLAIMER = "以上判断基于规则与营养数据，仅供参考，不构成医疗建议；有医嘱时以医嘱为准。"
 PENDING_REVIEW_NOTE = "这条医嘱正在待复核，确认解除之前仍按原要求执行。"
 NEEDS_UNKNOWN_MESSAGE = "档案信息不完整，无法估算今天的剩余额度"
@@ -34,6 +35,12 @@ AVOID_CATEGORIES = ("diet_avoid", "medication_diet")
 REQUIRE_CATEGORY = "diet_require"
 PHASE_NAMES = {"menstrual": "月经期", "follicular": "卵泡期", "ovulation": "排卵期", "luteal": "黄体期"}
 GOAL_NAMES = {"lose_fat": "减脂", "gain_muscle": "增肌", "maintain": "维持"}
+TRAINING_KIND_NAMES = {"strength": "力量训练", "cardio": "有氧训练"}  # 键的顺序即消息里的顺序
+TRAINING_INTENSITY_NAMES = {"light": "轻度", "moderate": "中等", "vigorous": "高强度"}
+MODERATE_OR_ABOVE = ("moderate", "vigorous")
+TRAINING_CONFLICT_SUFFIX = "饮食判断不受影响，请留意运动安排。"
+TRAINING_BONUS_MESSAGE = "今天的能量额度已计入训练估算消耗的下限 {kcal} 千卡。"
+TRAINING_BONUS_LIMIT_NOTE = "（已计入训练估算消耗的下限 {kcal} 千卡）"
 LICENSE_NAMES = {LICENSE_PERSONAL_STUDY: "仅供个人学习", LICENSE_SELF_ESTIMATE: "手动估算，未核对"}
 SUBJECT_PREFIXES = ("食用", "饮用", "吃", "喝")  # 说法开头的动词，"吃鸡肉"按"鸡肉"判断
 
@@ -48,6 +55,26 @@ class HardConstraint:
 
 
 @dataclass(frozen=True)
+class TrainingConflict:
+    item_id: str
+    content: str
+    subject: str
+    level: str  # conflict / unverifiable
+    message: str
+
+
+@dataclass(frozen=True)
+class TrainingContext:
+    """当天的训练信号（由上下文从健身模块转换而来，引擎不依赖健身模块）。"""
+
+    trained: bool
+    kinds: tuple[str, ...]  # strength / cardio
+    intensity: str  # none / light / moderate / vigorous
+    energy_low: int | None
+    conflicts: tuple[TrainingConflict, ...] = ()
+
+
+@dataclass(frozen=True)
 class EvaluationContext:
     constraints: tuple[HardConstraint, ...] = ()
     cycle_phase: str | None = None
@@ -56,6 +83,7 @@ class EvaluationContext:
     day_totals: Nutrients = Nutrients()
     food_avoidances: tuple[str, ...] = ()
     diet_preferences: tuple[str, ...] = ()
+    training: TrainingContext | None = None
 
 
 @dataclass(frozen=True)
@@ -297,22 +325,67 @@ def _goal_reasons(food: Food, goal: str | None, catalog: Catalog) -> list[Reason
     return reasons
 
 
-def _intake_reasons(portion: Nutrients, day_totals: Nutrients, needs: Needs | None) -> list[Reason]:
+def _training_bonus(context: EvaluationContext) -> int:
+    """上下文已计入需求的训练消耗下限（千卡）；需求无法估算、休息日或没有估算时为 0。
+
+    上下文按同一个 energy_low 调整需求，这里不再取整，保证说明的数与实际加上的数一致。
+    """
+    training = context.training
+    if training is None or not training.trained or context.needs is None or context.needs.status != "ok":
+        return 0
+    return max(training.energy_low or 0, 0)
+
+
+def _training_reasons(food: Food, training: TrainingContext | None, bonus: int, catalog: Catalog) -> list[Reason]:
+    """今天有训练时按训练规则给正面依据；计入了训练消耗时说明加了多少；每条训练与医嘱的冲突作为提示。
+
+    说明与冲突都是 info，不改变结论；休息日不产生依据。
+    """
+    if training is None or not training.trained:
+        return []
+    rules = load_soft_rules().training
+    groups = []
+    if "strength" in training.kinds:
+        groups.append(("strength", rules.strength))
+    if training.intensity in MODERATE_OR_ABOVE:
+        groups.append(("intensity_moderate_or_above", rules.intensity_moderate_or_above))
+    kinds = "、".join(name for kind, name in TRAINING_KIND_NAMES.items() if kind in training.kinds)
+    intensity = TRAINING_INTENSITY_NAMES.get(training.intensity, training.intensity)
+    reasons = []
+    for group, group_rules in groups:
+        for rule in group_rules:
+            tags = food.tags & set(rule.tags)
+            if tags:
+                message = (f"训练提示（今天有{kinds}，强度{intensity}）：{rule.message}"
+                           f"（这个食物：{_tag_names(tags, catalog)}）。")
+                reasons.append(Reason("training", rule.effect, "training_rule", message, group))
+    for conflict in training.conflicts:
+        text = conflict.message if conflict.message.endswith("。") else f"{conflict.message}。"
+        reasons.append(Reason("training", "info", f"training_{conflict.level}", text + TRAINING_CONFLICT_SUFFIX,
+                              conflict.item_id))
+    if bonus:
+        reasons.append(Reason("training", "info", "training_energy_bonus", TRAINING_BONUS_MESSAGE.format(kcal=bonus),
+                              "needs"))
+    return reasons
+
+
+def _intake_reasons(portion: Nutrients, day_totals: Nutrients, needs: Needs | None, bonus: int = 0) -> list[Reason]:
     if needs is None or needs.status != "ok":
         return [Reason("intake", "info", "needs_unknown", NEEDS_UNKNOWN_MESSAGE, "needs")]
     total = day_totals.plus(portion)
     checks = (
-        ("energy_kcal", needs.energy_kcal_high, "能量", "千卡", "energy_over_limit", "估算的每日能量上限"),
-        ("sodium_mg", needs.sodium_mg_max, "钠", "毫克", "sodium_over_limit", "每日钠的建议上限"),
+        ("energy_kcal", needs.energy_kcal_high, "能量", "千卡", "energy_over_limit", "估算的每日能量上限",
+         TRAINING_BONUS_LIMIT_NOTE.format(kcal=bonus) if bonus else ""),
+        ("sodium_mg", needs.sodium_mg_max, "钠", "毫克", "sodium_over_limit", "每日钠的建议上限", ""),
     )
     reasons = []
-    for field, limit, label, unit, code, limit_name in checks:
+    for field, limit, label, unit, code, limit_name, limit_note in checks:
         value = getattr(total, field)
         if limit is None or value is None or value <= limit:
             continue
         message = (f"今天已摄入{label}约 {_fmt(getattr(day_totals, field) or 0)} {unit}，"
                    f"加上这份约 {_fmt(getattr(portion, field) or 0)} {unit}，合计约 {_fmt(value)} {unit}，"
-                   f"超过{limit_name} {limit} {unit}。")
+                   f"超过{limit_name} {limit} {unit}{limit_note}。")
         reasons.append(Reason("intake", "caution", code, message, field))
     return reasons
 
@@ -390,7 +463,9 @@ def evaluate_food(food: Food, grams: float, context: EvaluationContext, catalog:
     reasons = [reason for constraint in context.constraints for reason in _medical_reasons(food, constraint, catalog)]
     reasons += _cycle_reasons(food, context.cycle_phase, catalog)
     reasons += _goal_reasons(food, context.goal, catalog)
-    reasons += _intake_reasons(portion, context.day_totals, context.needs)
+    bonus = _training_bonus(context)
+    reasons += _training_reasons(food, context.training, bonus, catalog)
+    reasons += _intake_reasons(portion, context.day_totals, context.needs, bonus)
     reasons += _preference_reasons(food, context, catalog)
     ordered = tuple(sorted(set(reasons), key=_sort_key))
     return Evaluation(

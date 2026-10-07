@@ -9,7 +9,7 @@ from app.nutrition.catalog import NUTRIENT_FIELDS, Nutrients, round_one
 MealType = Literal["breakfast", "lunch", "dinner", "snack"]
 MatchType = Literal["exact_name", "common_name", "exact_alias", "prefix", "contains", "query_contains"]
 Conclusion = Literal["suitable", "caution", "not_recommended"]
-ReasonSource = Literal["medical", "cycle", "goal", "intake", "preference"]
+ReasonSource = Literal["medical", "cycle", "goal", "training", "intake", "preference"]
 ReasonEffect = Literal["block", "unverifiable", "caution", "prefer", "info"]
 SUMMARY_DISCLAIMER = "以上汇总与需求都是估算，仅供参考，不构成医疗建议；有医嘱时以医嘱为准。"
 

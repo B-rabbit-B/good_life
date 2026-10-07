@@ -1,6 +1,6 @@
 """约束引擎用到的两份规则数据：说法词汇表（vocabulary.json）与软规则（soft_rules.json）。
 
-词汇表把医嘱与档案里的说法对应到食物标签；软规则按经期阶段与健身目标给出谨慎或推荐的标签。
+词汇表把医嘱与档案里的说法对应到食物标签；软规则按经期阶段、健身目标与当天训练给出谨慎或推荐的标签。
 两份数据加载时都做校验：引用的标签必须在 tags.json 中定义，提示编号、阶段名与目标名必须存在。
 """
 
@@ -97,11 +97,21 @@ class GoalRule(BaseModel):
     message: str = Field(min_length=1)
 
 
+class TrainingRules(BaseModel):
+    """训练日规则：strength 在今天有力量训练时生效，intensity_moderate_or_above 在今天最高强度为中等及以上时生效。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    strength: tuple[GoalRule, ...] = ()
+    intensity_moderate_or_above: tuple[GoalRule, ...] = ()
+
+
 class SoftRules(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     cycle: dict[str, tuple[CycleRule, ...]]
     goals: dict[str, tuple[GoalRule, ...]]
+    training: TrainingRules = TrainingRules()
 
 
 class _VocabularyFile(BaseModel):
@@ -155,6 +165,9 @@ def parse_soft_rules(raw: Any) -> SoftRules:
             raise ValueError(f"软规则中的目标 {goal} 不是档案的目标取值")
         for rule in goal_rules:
             _check_tags(f"目标软规则 {goal}", rule.tags, defined)
+    for group, training_rules in rules.training:
+        for rule in training_rules:
+            _check_tags(f"训练软规则 {group}", rule.tags, defined)
     return rules
 
 

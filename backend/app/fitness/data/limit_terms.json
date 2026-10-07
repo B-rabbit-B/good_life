@@ -1,0 +1,30 @@
+{
+  "terms": {
+    "运动": {"match": "any"},
+    "锻炼": {"match": "any"},
+    "健身": {"match": "any"},
+    "体育锻炼": {"match": "any"},
+    "剧烈运动": {"match": "intensity", "min": "vigorous"},
+    "剧烈活动": {"match": "intensity", "min": "vigorous"},
+    "高强度运动": {"match": "intensity", "min": "vigorous"},
+    "高强度训练": {"match": "intensity", "min": "vigorous"},
+    "剧烈": {"match": "intensity", "min": "vigorous"},
+    "提重物": {"match": "loaded"},
+    "重物": {"match": "loaded"},
+    "负重": {"match": "weight_bearing"},
+    "举重": {"match": "loaded"},
+    "搬重物": {"match": "loaded"},
+    "跑步": {"match": "traits", "traits": ["running"]},
+    "跑": {"match": "traits", "traits": ["running"]},
+    "长跑": {"match": "traits", "traits": ["running"]},
+    "游泳": {"match": "traits", "traits": ["swimming"]},
+    "弯腰": {"match": "traits", "traits": ["bending"]},
+    "跳跃": {"match": "traits", "traits": ["jumping"]},
+    "跳": {"match": "traits", "traits": ["jumping"]},
+    "骑车": {"match": "traits", "traits": ["cycling"]},
+    "骑行": {"match": "traits", "traits": ["cycling"]},
+    "久坐": {"not_applicable": true},
+    "久站": {"not_applicable": true},
+    "卧床": {"match": "bed_rest"}
+  }
+}

@@ -28,5 +28,13 @@
     "gain_muscle": [
       {"tags": ["high_protein"], "effect": "prefer", "message": "增肌期间保证蛋白质摄入"}
     ]
+  },
+  "training": {
+    "strength": [
+      {"tags": ["high_protein"], "effect": "prefer", "message": "力量训练日保证优质蛋白，有助于肌肉恢复"}
+    ],
+    "intensity_moderate_or_above": [
+      {"tags": ["fast_carb"], "effect": "prefer", "message": "训练日可以在训练前后适当安排快碳，帮助补充糖原"}
+    ]
   }
 }

@@ -83,3 +83,12 @@ def test_every_nutrition_route_requires_nutrition_user():
     assert len(routes) >= 9
     missing = [ctx.path for ctx in routes if require_nutrition_user not in _dependency_calls(ctx.dependant)]
     assert missing == []
+
+
+def test_every_fitness_route_requires_fitness_user():
+    from app.fitness.deps import require_fitness_user
+
+    routes = [ctx for ctx in _api_routes(create_app()) if ctx.path.startswith("/api/fitness/")]
+    assert len(routes) >= 10
+    missing = [ctx.path for ctx in routes if require_fitness_user not in _dependency_calls(ctx.dependant)]
+    assert missing == []
