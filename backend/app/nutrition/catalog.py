@@ -16,7 +16,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -173,6 +173,9 @@ class SearchHit:
     match: str
 
 
+NonEmpty = Annotated[str, Field(min_length=1)]
+
+
 class _TagRule(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -185,8 +188,8 @@ class _TagMembers(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ids: list[str] = []
-    name_contains: list[str] = []
-    categories: list[str] = []
+    name_contains: list[NonEmpty] = []  # 空字样会匹配所有名称、空分类会匹配所有分类，一律拒绝
+    categories: list[NonEmpty] = []
     exclude_ids: list[str] = []
 
 

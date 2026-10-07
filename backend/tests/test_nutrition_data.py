@@ -359,6 +359,17 @@ def test_tag_member_references_must_exist(monkeypatch, fields, message):
         _load_with(monkeypatch, **{"tags.json": _tags_with("raw_cold", **fields)})
 
 
+@pytest.mark.parametrize("fields", [
+    {"members": {"categories": [""]}},
+    {"members": {"name_contains": ["凉拌", ""]}},
+    {"uncertain": {"categories": [""]}},
+    {"uncertain": {"name_contains": [""]}},
+])
+def test_tag_member_patterns_reject_empty_strings(monkeypatch, fields):
+    with pytest.raises(ValueError, match="at least 1 character"):
+        _load_with(monkeypatch, **{"tags.json": _tags_with("raw_cold", **fields)})
+
+
 def test_uncertain_members_reject_unknown_fields(monkeypatch):
     with pytest.raises(ValueError, match=r"uncertain\.colour"):
         _load_with(monkeypatch, **{"tags.json": _tags_with("raw_cold", uncertain={"colour": ["red"]})})

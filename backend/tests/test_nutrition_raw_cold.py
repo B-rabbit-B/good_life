@@ -24,6 +24,8 @@ NEEDS = Needs(status="ok", energy_kcal=1800, energy_kcal_low=1600, energy_kcal_h
               sodium_mg_max=2000)
 FRUIT_CATEGORY = "水果类及其制品"
 DRINK_CATEGORIES = ("补充-饮料", "补充-酒类", "补充-饮品", "乳类及其制品-液态乳", "乳类及其制品-酸奶")
+SOY_DRINKS = {"cfcd:031402": "豆奶", "cfcd:031403": "豆汁（生）", "cfcd:031404": "酸豆奶", "cfcd:031405": "豆浆",
+              "cfcd:031406": "豆浆（甜）"}  # 归在干豆类大豆小类里的饮品，按编号列为不确定成员；豆浆粉、豆奶粉不算
 RAW_COLD_MEMBERS = {"supplement:ice_cream", "dish:cucumber_salad", "dish:century_egg_tofu"}  # 与本次修复前相同
 # 按名称里的明确字样（干、罐头、糖水、饼、蜜枣）认定为加工或晒干的水果制品，逐个核对过
 PROCESSED_FRUITS = {
@@ -82,7 +84,7 @@ def test_processed_fruit_is_not_blocked_as_raw_cold(food_id):
 
 DRINKS = ["supplement:cola", "supplement:orange_juice", "supplement:milk_tea", "supplement:coffee", "supplement:latte",
           "supplement:tea", "supplement:beer", "supplement:baijiu", "supplement:red_wine", "supplement:water",
-          "cfcd:101101x", "cfcd:103001x"]  # 最后两个是纯牛奶（代表值）、酸奶（代表值）
+          "cfcd:101101x", "cfcd:103001x", *SOY_DRINKS]  # cfcd:101101x、cfcd:103001x 是纯牛奶（代表值）、酸奶（代表值）
 
 
 @pytest.mark.parametrize("food_id", DRINKS)
@@ -95,11 +97,26 @@ def test_drinks_are_unverifiable_under_raw_cold_order(food_id):
 
 
 @pytest.mark.parametrize("subject", ["生冷", "冷饮", "冰"])
-@pytest.mark.parametrize("food_id", ["supplement:cola", "supplement:beer", "cfcd:101101x"])
+@pytest.mark.parametrize("food_id", DRINKS)
 def test_drinks_are_unverifiable_under_every_raw_cold_term(subject, food_id):
     result = _evaluate(food_id, constraints=(HardConstraint("m1", "diet_avoid", f"忌{subject}", (subject,)),))
-    assert [(r.effect, r.code) for r in _medical(result)] == [("unverifiable", "avoid_unverifiable")]
+    [reason] = _medical(result)
+    assert (reason.effect, reason.code) == ("unverifiable", "avoid_unverifiable")
+    assert reason.message == f"无法自动判断这个食物是否属于医嘱「忌{subject}」中的「{subject}」，请自行核对或咨询医生。"
     assert result.conclusion == CAUTION
+
+
+def test_profile_avoidance_of_raw_cold_cautions_fresh_fruit_but_not_uncertain_drinks():
+    for food_id in ("cfcd:066201x", "cfcd:061101x", "cfcd:065033"):
+        result = _evaluate(food_id, food_avoidances=("生冷",))
+        assert result.conclusion == CAUTION
+        [reason] = result.reasons
+        assert (reason.source, reason.effect, reason.code, reason.ref) == (
+            "preference", "caution", "avoidance_match", "生冷")
+        assert "新鲜水果" in reason.message
+    for food_id in DRINKS:
+        assert _evaluate(food_id, food_avoidances=("生冷",)).reasons == (), food_id
+    assert _evaluate("cfcd:063107", food_avoidances=("生冷",)).reasons == ()  # 葡萄干
 
 
 @pytest.mark.parametrize("subject", ["冷饮", "冰"])
@@ -161,11 +178,14 @@ def test_processed_fruit_exclusions_are_exactly_the_reviewed_list():
         assert "fresh_fruit" in catalog.get(food_id).tags, food_id
 
 
-def test_only_drink_categories_are_uncertain_raw_cold():
-    foods = load_catalog().foods.values()
+def test_only_drink_categories_and_soy_drinks_are_uncertain_raw_cold():
+    catalog = load_catalog()
+    foods = catalog.foods.values()
     uncertain = {food.id for food in foods if "raw_cold" in food.uncertain_tags}
     drinks = {food.id for food in foods if food.category in DRINK_CATEGORIES}
     assert {food.category for food in foods if food.id in drinks} == set(DRINK_CATEGORIES)
+    assert {food_id: catalog.get(food_id).name for food_id in SOY_DRINKS} == SOY_DRINKS
+    drinks |= set(SOY_DRINKS)
     assert uncertain == drinks
     assert all("raw_cold" not in load_catalog().get(food_id).tags for food_id in drinks)
 
