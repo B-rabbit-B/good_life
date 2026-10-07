@@ -1,6 +1,6 @@
 # good-life
 
-个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件）。此外还完成了步骤 04（营养与饮食约束引擎：营养库与检索、饮食记录与每日汇总、需求估算、融合医嘱、经期、目标与当日摄入的饮食判断）。随后完成了步骤 05（健身模块：内置动作库与自定义动作、训练记录、周汇总与动作趋势、能量消耗估算、训练信号与饮食联动、运动限制冲突提示）。步骤 01 至 05 均已验收通过。
+个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件）。此外还完成了步骤 04（营养与饮食约束引擎：营养库与检索、饮食记录与每日汇总、需求估算、融合医嘱、经期、目标与当日摄入的饮食判断）。随后完成了步骤 05（健身模块：内置动作库与自定义动作、训练记录、周汇总与动作趋势、能量消耗估算、训练信号与饮食联动、运动限制冲突提示）。随后完成了步骤 06（SDK 与 MCP：进程内 SDK 封装前面各模块的能力，用户可签发只读或读写的智能体授权，再通过本地 MCP 服务让任何支持 MCP 的客户端调用，医嘱确认与解除不暴露给模型，每次调用留审计）。步骤 01 至 05 均已验收通过，步骤 06 待验收。
 
 定位声明：只提供生活方式建议，不做医疗诊断，不替代医生。
 
@@ -68,7 +68,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 uv run alembic upgrade head
 ```
 
-该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）以及 `custom_exercises`、`workouts`、`strength_sets`、`cardio_entries`（步骤 05 健身模块）共十六张表。营养库与内置动作库都不入数据库，随程序从数据文件加载。
+该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）以及 `custom_exercises`、`workouts`、`strength_sets`、`cardio_entries`（步骤 05 健身模块）以及 `agent_grants`、`sdk_call_audits`（步骤 06 的智能体授权与调用审计）共十八张表。营养库与内置动作库都不入数据库，随程序从数据文件加载。
 
 ## 6. 运行测试
 
@@ -266,3 +266,54 @@ uv run python -m app.fitness.demo
 训练日期与“今天”有关，接口文档页面无法调整“今天”，休息日与不同日期的对比请用自动化测试核对（见验收记录）。
 
 完整的表结构、口径、联动规则、接口、演示样例与验收记录见 `docs/05-交付物/`。
+
+## 14. SDK 与 MCP 演示
+
+步骤 06 把前面各模块的能力整理成一份进程内 SDK（共 32 项能力，其中 6 项需要用户本人确认，只有用户登录令牌能调用），再用一个本地 MCP 服务把其中 26 项暴露成工具。医嘱的确认、修改、解除、作废、继续生效、撤回解除建议这 6 个动作不是 MCP 工具，模型只能提出解除建议。授权令牌只代表“你允许这个客户端读取或写入”，吊销后下一次调用立即失效。
+
+先确认开发库已建到最新版本（包含 `agent_grants` 与 `sdk_call_audits` 两张表），都在 `backend` 目录下执行：
+
+```powershell
+uv run alembic upgrade head
+```
+
+### 如何创建授权
+
+1. 启动后端服务（第 7 节），在 http://localhost:8000/docs 注册、登录、确认免责声明，并 Authorize（第 8 节）。想演示经期，用 `PATCH /api/profile` 把 `gender` 设为 `female`；想看到饮食需求估算，把出生年份、身高、体重、活动水平填全。
+2. `POST /api/agent-grants`：`name` 写客户端名（例如 `MCP Inspector`），`access` 选 `read`（只读）或 `read_write`（读写，走完下面的场景需要它），`expires_in_days` 默认 90（1 到 365）。
+3. 响应里以 `gl_` 开头的 `token` 就是授权令牌，**只显示这一次**，请立即保存；遗失了只能吊销后重新创建。数据库里只存它的哈希。
+4. 同一个分组里还有：`GET /api/agent-grants` 看授权与最近使用时间，`DELETE /api/agent-grants/{grant_id}` 吊销（立即生效），`GET /api/agent-grants/audit` 看自己的调用审计（`limit` 1 到 200，默认 50）。授权令牌不能调用这些接口。
+
+### 如何启动 MCP 服务
+
+MCP 服务由客户端按配置在本机启动（通过标准输入输出通信，不监听端口），手工启动只用来排查问题，在 `backend` 目录下执行：
+
+```powershell
+$env:GOODLIFE_AGENT_TOKEN = "gl_你的令牌"
+uv run python -m app.mcp_server
+```
+
+它会安静地等待客户端的消息，看不到输出是正常的，按 Ctrl+C 退出。可选的 `GOODLIFE_CLIENT_NAME` 是写进审计的客户端名（默认 `mcp`）。数据库地址与密钥读取 `backend/.env`（或客户端配置里设置的同名环境变量），数据库必须在运行；后端服务不需要在运行。令牌只在服务启动时读取，但每次调用都重新核对，所以吊销立即生效、更换令牌要重新连接；不设令牌服务也能启动，只是每次调用都返回未认证。
+
+### 如何用 MCP Inspector 试用
+
+需要 Node.js。在任意目录执行：
+
+```powershell
+npx @modelcontextprotocol/inspector
+```
+
+在打开的页面里：传输方式选 STDIO；Command 填 uv 的完整路径（`Get-Command uv` 可以查到）；Arguments 填 `--directory 后端目录的完整路径 run python -m app.mcp_server`；Environment Variables 添加 `GOODLIFE_AGENT_TOKEN`（值为令牌），可选 `GOODLIFE_CLIENT_NAME`。点 Connect，在 Tools 页签点 List Tools，应看到 26 个工具，选中一个填参数后 Run Tool。Inspector 的界面会随版本变化，以其官方说明为准。Claude Desktop 的配置同理，详见《接入使用说明》。
+
+### 六个场景
+
+1. 记录经期：`cycle_record_period`（开始日期必填，结束日期可不填）。
+2. 查询预测：`cycle_get_prediction`；记录太少时结果照常返回，同时附“数据不足”的提示。
+3. 录入医嘱待确认：`medical_submit_order`，原文例如“一周内忌食辛辣，禁酒。”；返回的条目是待确认，`medical_get_constraints` 里没有它。到接口文档页面用登录令牌调 `POST /api/medical/items/{item_id}/confirm` 确认后才生效；之后可以用 `medical_propose_resolution` 提出解除建议，条目仍然生效。工具列表里找不到任何确认或解除医嘱的工具。
+4. 记录一餐：`nutrition_search_foods` 搜 `米饭` 取食物编号，再 `nutrition_log_meal`（午餐 `lunch`、克数 150）。
+5. 评估食物：`nutrition_evaluate_food`；确认了忌辛辣的医嘱后评估麻婆豆腐，应得到“不建议”并指出是哪条医嘱。
+6. 记录训练：`fitness_search_exercises` 搜 `卧推` 取动作编号，再 `fitness_log_workout`（三组：60 千克 10 次、60 千克 8 次、65 千克 6 次），然后 `fitness_get_week_summary`，总训练量 1470。
+
+再创建一个只读授权连接，调用任何写入类工具都得到 `write_not_granted`；不设令牌连接得到 `missing_credential`。最后回到接口文档页面看 `GET /api/agent-grants/audit`，每次调用（含被拒绝的）都有一行，里面没有医嘱原文、备注或令牌。
+
+完整的能力清单、工具清单、授权设计、接入步骤、审计说明与验收记录见 `docs/06-交付物/`。

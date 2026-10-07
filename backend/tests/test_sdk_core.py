@@ -154,3 +154,18 @@ def test_audit_endpoint_limit_bounds(client):
     for bad in (0, 201):
         assert client.get(f"/api/agent-grants/audit?limit={bad}", headers=headers).status_code == 422
     assert client.get("/api/agent-grants/audit?limit=200", headers=headers).status_code == 200
+
+
+def test_audit_rows_never_hold_params_results_or_tokens(client, sdk):
+    headers = ready_user(client, "alice")
+    token = _grant(client, headers)
+    sdk.call(AgentGrantToken(token), "medical.submit_order", {"text": "一周内忌食辛辣，禁酒。"}, client_name="pytest")
+    with pytest.raises(SdkError):
+        sdk.call(AgentGrantToken(token), "medical.confirm_item", {"item_id": "00000000-0000-0000-0000-000000000000"})
+    with get_engine().connect() as conn:
+        columns = {row[0] for row in conn.execute(text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'sdk_call_audits'"))}
+        dump = repr(conn.execute(text("SELECT * FROM sdk_call_audits")).all())
+    assert columns == {"id", "user_id", "grant_id", "credential_kind", "client_name", "capability", "outcome",
+                       "error_code", "duration_ms", "created_at"}
+    assert "辛辣" not in dump and "禁酒" not in dump and token not in dump
