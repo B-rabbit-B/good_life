@@ -143,6 +143,7 @@ class ConnectionReportOut(BaseModel):
 class FetchModelsOut(BaseModel):
     added: int
     total: int
+    skipped: int
     models: list[ModelOut]
 
 

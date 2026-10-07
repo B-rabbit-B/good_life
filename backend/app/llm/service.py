@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import func, select
@@ -285,40 +285,64 @@ def _app_error(exc: LlmError, during: str) -> AppError:
 class FetchResult:
     added: int  # 本次新增的模型数
     total: int  # 服务这次返回的模型数
+    skipped: int  # 超出上限或编号过长而没有收录的模型数
     models: list[LlmModel]  # 该服务下现有的全部模型（含手动添加的）
 
 
 MAX_MODEL_ID_CHARS = 200
+MAX_FETCHED_MODELS = 500
+
+
+@dataclass(frozen=True)
+class _Target:
+    """调用服务所需的全部字段；先读出来再结束数据库事务，调用服务期间不占着事务。"""
+
+    kind: str
+    base_url: str
+    api_key: str = field(repr=False)  # 不出现在 repr、日志与异常信息里
+
+
+def _target(db: Session, provider: LlmProvider) -> _Target:
+    """读取地址与密钥（只有这里访问延迟加载的密钥列），结束只读事务，再校验地址（域名解析也是网络操作）。"""
+    kind, base_url, api_key = provider.kind, provider.base_url, provider.api_key
+    db.commit()
+    # 出站前再查一次地址，防止域名解析结果在保存后变成内网
+    return _Target(kind=kind, base_url=_check_url(base_url), api_key=api_key)
 
 
 def fetch_models(
     db: Session, user_id: uuid.UUID, provider_id: uuid.UUID, factory: AdapterFactory
 ) -> FetchResult:
-    """拉取模型列表并新增 source=fetched 的模型；已有模型（含手动添加的）与能力标注不动，列表里消失的模型也不删。"""
+    """拉取模型列表并新增 source=fetched 的模型；已有模型（含手动添加的）与能力标注不动，列表里消失的模型也不删。
+
+    每次最多收录排序后的前 500 个模型，其余计入 skipped。
+    """
     provider = get_provider(db, user_id, provider_id)
-    base_url = _check_url(provider.base_url)  # 出站前再查一次，防止域名解析结果在保存后变成内网
+    provider_pk = provider.id
+    target = _target(db, provider)
     try:
-        listed = factory(provider.kind, base_url, provider.api_key).list_models()
+        listed = factory(target.kind, target.base_url, target.api_key).list_models()
     except LlmError as exc:
         raise _app_error(exc, "list") from None
+    eligible = [item for item in listed if 0 < len(item.model_id) <= MAX_MODEL_ID_CHARS][:MAX_FETCHED_MODELS]
     rows = [
         {
             "id": uuid.uuid4(),
             "user_id": user_id,
-            "provider_id": provider.id,
+            "provider_id": provider_pk,
             "model_id": item.model_id,
             "display_name": item.display_name[:200] if item.display_name else None,
             "source": "fetched",
         }
-        for item in listed
-        if 0 < len(item.model_id) <= MAX_MODEL_ID_CHARS
+        for item in eligible
     ]
     added = 0
     if rows:
         insert = pg_insert(LlmModel).values(rows).on_conflict_do_nothing(constraint="uq_llm_models_provider_model")
         added = len(db.execute(insert.returning(LlmModel.id)).all())
     db.commit()
-    return FetchResult(added=added, total=len(listed), models=list_models(db, user_id, provider.id))
+    return FetchResult(added=added, total=len(listed), skipped=len(listed) - len(eligible),
+                       models=list_models(db, user_id, provider_pk))
 
 
 @dataclass(frozen=True)
@@ -334,7 +358,7 @@ class ConnectionReport:
     ok: bool
     message: str
     listing: StepReport
-    chat: StepReport | None  # 没有给模型编号，或拉取时就连不上服务时，不做对话测试
+    chat: StepReport | None  # 没有给模型编号，或拉取失败的原因不是 404 时，不做对话测试
     models_found: int | None
     sample_models: list[str]
 
@@ -354,11 +378,18 @@ _CONCLUSIONS = {
     "bad_request": "bad_request",
     "provider_error": "provider_error",
 }
+# 结论 → 接口错误码；对话一步决定结论时，对话步骤的 code 与结论一致
+_CONCLUSION_CODES = {
+    "invalid_key": "llm_invalid_key",
+    "bad_url": "llm_bad_url",
+    "model_unavailable": "llm_model_unavailable",
+    "quota_exceeded": "llm_quota_exceeded",
+    "rate_limited": "llm_rate_limited",
+    "timeout": "llm_timeout",
+    "bad_request": "llm_bad_request",
+    "provider_error": "llm_provider_error",
+}
 _MISSING = ("not_found", "model_not_found")
-
-
-def _from_error(exc: LlmError, during: str) -> tuple[str, str]:
-    return _CONCLUSIONS[exc.code], _describe(exc, during)[2]
 
 
 def _model_unavailable(model_id: str, exc: LlmError) -> tuple[str, str]:
@@ -367,70 +398,65 @@ def _model_unavailable(model_id: str, exc: LlmError) -> tuple[str, str]:
     return "model_unavailable", _with_detail(text, exc)
 
 
-def _judge(
-    list_error: LlmError | None, chat_error: LlmError | None, model_id: str | None, chat_ran: bool, count: int
-) -> tuple[str, str]:
-    """按“关键决策”里的判定表给出结论与说明。
+def _judge_chat(list_error: LlmError | None, chat_error: LlmError, model_id: str) -> tuple[str, str]:
+    """对话失败时的结论（此时拉取要么成功，要么是 404）。
 
     Claude 在路径写错时对话也报 not_found_error（归为模型不存在），单看对话的错误码分不清是地址错还是模型错，
     所以“地址错误”要求两步都失败且 HTTP 状态都是 404：列表 404（not_found）加对话 404（not_found 或 model_not_found）。
     """
-    if list_error is None:
-        if not chat_ran:
-            return "ok", f"连接正常，拉取到 {count} 个模型。建议再选一个模型测试对话，确认模型确实可以使用。"
-        if chat_error is None:
-            return "ok", f"连接正常：拉取到 {count} 个模型，模型 {model_id} 对话成功。"
-        if chat_error.code in _MISSING:  # 列表拉得到，说明地址与密钥没问题；对话说不存在或 404 就是模型不可用
-            return _model_unavailable(model_id, chat_error)
-        return _from_error(chat_error, "chat")
-    if not chat_ran:
-        if list_error.code == "not_found":
-            return "bad_url", _with_detail(
-                "拉取模型列表返回 404：可能是服务地址写错了（例如少了或多了 /v1），也可能这个服务不支持拉取模型列表。"
-                "请核对服务地址，或填一个模型编号再测一次对话来确认。", list_error)
-        return _from_error(list_error, "list")
-    if chat_error is None:
-        return "ok_listing_unsupported", (
-            f"模型 {model_id} 对话成功，但该服务不支持拉取模型列表（或当前密钥无权拉取），请手动添加模型编号。")
     if chat_error.code in _MISSING:
-        if list_error.status == 404 and chat_error.status == 404:
+        if list_error is not None and list_error.status == 404 and chat_error.status == 404:
             return "bad_url", _with_detail(
                 "拉取模型列表和对话都返回 404，多半是服务地址写错了（例如少了或多了 /v1），请对照服务商文档核对地址；"
                 "如果地址确认无误，再检查模型编号是否正确。", chat_error)
+        # 列表拉得到（或列表只是不支持），对话说模型不存在或 404，就是模型不可用
         return _model_unavailable(model_id, chat_error)
-    return _from_error(chat_error, "chat")
-
-
-def _failed_step(exc: LlmError, during: str) -> StepReport:
-    _status, code, message = _describe(exc, during)
-    return StepReport(ok=False, code=code, message=message)
+    return _CONCLUSIONS[chat_error.code], _describe(chat_error, "chat")[2]
 
 
 def _run_test(adapter: Adapter, model_id: str | None) -> ConnectionReport:
-    """步骤一拉取模型列表；步骤二（给了模型编号时）发一次最小对话。拉取时就连不上服务的，不再白等一次对话。"""
+    """步骤一拉取模型列表；步骤二（给了模型编号时）发一次最小对话，再按“关键决策”里的判定表给出结论。
+
+    拉取失败的原因不是 404（密钥、额度、限流、超时、不可达等）时，结论跟随拉取的错误，不再做对话；
+    只有拉取 404 时才靠对话区分“不支持拉取列表”（对话成功）与“地址错误”（对话也 404）。
+    """
     listed = []
     list_error = chat_error = None
     try:
         listed = adapter.list_models()
     except LlmError as exc:
         list_error = exc
-    chat_ran = model_id is not None and not (list_error is not None and list_error.code in ("unreachable", "timeout"))
+    chat_ran = model_id is not None and (list_error is None or list_error.code == "not_found")
     if chat_ran:
         try:
             adapter.chat(model_id, [ChatMessage("user", TEST_PROMPT)], max_tokens=TEST_MAX_TOKENS)
         except LlmError as exc:
             chat_error = exc
-    conclusion, message = _judge(list_error, chat_error, model_id, chat_ran, len(listed))
+
     if list_error is None:
         listing = StepReport(ok=True, code=None, message=f"拉取到 {len(listed)} 个模型")
     else:
-        listing = _failed_step(list_error, "list")
+        _status, code, text = _describe(list_error, "list")
+        listing = StepReport(ok=False, code=code, message=text)
     chat = None
-    if chat_ran:
-        if chat_error is None:
-            chat = StepReport(ok=True, code=None, message=f"模型 {model_id} 对话成功")
+    if chat_error is not None:
+        conclusion, message = _judge_chat(list_error, chat_error, model_id)
+        chat = StepReport(ok=False, code=_CONCLUSION_CODES[conclusion], message=message)
+    elif chat_ran:
+        chat = StepReport(ok=True, code=None, message=f"模型 {model_id} 对话成功")
+        if list_error is None:
+            conclusion, message = "ok", f"连接正常：拉取到 {len(listed)} 个模型，模型 {model_id} 对话成功。"
         else:
-            chat = _failed_step(chat_error, "chat")
+            conclusion, message = "ok_listing_unsupported", (
+                f"模型 {model_id} 对话成功，但该服务不支持拉取模型列表，请手动添加模型编号。")
+    elif list_error is None:
+        conclusion, message = "ok", f"连接正常，拉取到 {len(listed)} 个模型。建议再选一个模型测试对话，确认模型确实可以使用。"
+    elif list_error.code == "not_found":
+        conclusion, message = "bad_url", _with_detail(
+            "拉取模型列表返回 404：可能是服务地址写错了（例如少了或多了 /v1），也可能这个服务不支持拉取模型列表。"
+            "请核对服务地址，或填一个模型编号再测一次对话来确认。", list_error)
+    else:
+        conclusion, message = _CONCLUSIONS[list_error.code], listing.message
     return ConnectionReport(
         conclusion=conclusion,
         ok=conclusion in _OK_CONCLUSIONS,
@@ -442,19 +468,18 @@ def _run_test(adapter: Adapter, model_id: str | None) -> ConnectionReport:
     )
 
 
-def test_connection(
+def check_connection(
     kind: str, base_url: str, api_key: str, model_id: str | None, factory: AdapterFactory
 ) -> ConnectionReport:
     """测试还没保存的服务；地址不合格时直接抛 llm_invalid_url，不发任何请求。"""
     return _run_test(factory(kind, _check_url(base_url), api_key), model_id)
 
 
-def test_saved_provider(
+def check_saved_provider(
     db: Session, user_id: uuid.UUID, provider_id: uuid.UUID, model_id: str | None, factory: AdapterFactory
 ) -> ConnectionReport:
-    provider = get_provider(db, user_id, provider_id)
-    base_url = _check_url(provider.base_url)
-    return _run_test(factory(provider.kind, base_url, provider.api_key), model_id)
+    target = _target(db, get_provider(db, user_id, provider_id))
+    return _run_test(factory(target.kind, target.base_url, target.api_key), model_id)
 
 
 @dataclass(frozen=True)
@@ -463,6 +488,27 @@ class CompletionResult:
     provider_name: str
     model_pk: uuid.UUID
     model_id: str
+
+
+MAX_IMAGES_PER_REQUEST = 8
+MAX_IMAGE_BYTES_PER_REQUEST = 20 * 1024 * 1024
+
+
+def _decoded_size(data_base64: str) -> int:
+    """合法 base64 解码后的字节数（不必真的解码）。"""
+    return len(data_base64) * 3 // 4 - data_base64[-2:].count("=")
+
+
+def _check_images(messages: Sequence[ChatMessage]) -> None:
+    """只有用户消息可以带图片（适配器不会静默丢图）；一次最多 8 张、解码后合计不超过 20 MB。"""
+    if any(m.images and m.role != "user" for m in messages):
+        raise AppError(422, "llm_invalid_images", "只有用户消息可以附带图片，系统消息与助手消息不能带图片，请调整后再试。")
+    images = [image for m in messages for image in m.images]
+    if len(images) > MAX_IMAGES_PER_REQUEST:
+        raise AppError(422, "llm_invalid_images",
+                       f"一次最多发送 {MAX_IMAGES_PER_REQUEST} 张图片，这次有 {len(images)} 张，请减少图片后再试。")
+    if sum(_decoded_size(image.data_base64) for image in images) > MAX_IMAGE_BYTES_PER_REQUEST:
+        raise AppError(422, "llm_invalid_images", "这次发送的图片合计超过 20 MB，请压缩图片或减少图片数量后再试。")
 
 
 def complete(
@@ -475,8 +521,12 @@ def complete(
     max_tokens: int = 1024,
     factory: AdapterFactory,
 ) -> CompletionResult:
-    """统一调用入口：按用途找到分配的模型，调用前再查一遍能力，最后才读取密钥并调用服务。"""
+    """统一调用入口：按用途找到分配的模型，调用前再查一遍能力，最后才读取密钥并调用服务。
+
+    调用服务前会提交（结束）当前数据库事务，调用服务期间不占着事务；调用方不要在此之前留着未提交的修改。
+    """
     _check_purpose(purpose)
+    _check_images(messages)
     query = (
         owned_by(LlmAssignment, user_id)
         .add_columns(LlmModel, LlmProvider)
@@ -503,10 +553,11 @@ def complete(
         raise AppError(422, "llm_model_not_chat",
                        f"当前模型 {model.model_id} 被标明不是对话模型（例如向量、语音、绘图模型），不能用于“{label}”。"
                        "请到设置页换一个对话模型，或在模型上手动标注“支持对话”。")
-    base_url = _check_url(provider.base_url)
-    adapter = factory(provider.kind, base_url, provider.api_key)  # 只有到这一步才读取（解密）密钥
+    model_pk, model_id, provider_name = model.id, model.model_id, provider.name
+    target = _target(db, provider)  # 只有到这一步才读取（解密）密钥
     try:
-        result = adapter.chat(model.model_id, messages, tools=tools, max_tokens=max_tokens)
+        result = factory(target.kind, target.base_url, target.api_key).chat(
+            model_id, messages, tools=tools, max_tokens=max_tokens)
     except LlmError as exc:
         raise _app_error(exc, "chat") from None
-    return CompletionResult(result=result, provider_name=provider.name, model_pk=model.id, model_id=model.model_id)
+    return CompletionResult(result=result, provider_name=provider_name, model_pk=model_pk, model_id=model_id)

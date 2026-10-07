@@ -10,7 +10,7 @@ from sqlalchemy import event, inspect, select
 
 from app.auth.models import User
 from app.config import get_settings
-from app.db import get_engine, get_sessionmaker
+from app.db import get_db, get_engine, get_sessionmaker
 from app.errors import AppError
 from app.llm import service
 from app.llm.adapters import make_adapter
@@ -41,9 +41,12 @@ class FakeLlm:
         self.list_reply = None
         self.chat_reply = None
         self.requests: list[httpx2.Request] = []
+        self.sessions: list = []  # 接口用到的数据库会话，用来检查调用服务时没有占着事务
+        self.in_transaction: list[bool] = []
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.requests.append(request)
+        self.in_transaction.append(any(session.in_transaction() for session in self.sessions))
         path = request.url.path
         if request.method == "GET" and path.endswith("/models"):
             reply = self.list_reply or (200, {"object": "list", "data": [{"id": m} for m in self.models]})
@@ -74,8 +77,19 @@ def fake(client):
     def factory(kind, base_url, api_key):
         return make_adapter(kind, base_url, api_key, transport=httpx2.MockTransport(fake))
 
+    def tracked_db():
+        session = get_sessionmaker()()
+        fake.sessions.append(session)
+        try:
+            yield session
+        finally:
+            session.close()
+
     client.app.dependency_overrides[service.get_adapter_factory] = lambda: factory
-    return fake
+    client.app.dependency_overrides[get_db] = tracked_db
+    yield fake
+    # 每个用例结束时都检查：假服务收到请求的那一刻，没有任何数据库会话开着事务
+    assert fake.in_transaction == [False] * len(fake.requests)
 
 
 def _provider(client, headers, name="我的DeepSeek", kind="openai_compatible", url=BASE):
@@ -126,7 +140,7 @@ def test_fetch_models_adds_new_and_keeps_manual(client, fake):
     fetched = client.post(f"/api/llm/providers/{provider['id']}/fetch-models", headers=headers)
     assert fetched.status_code == 200, fetched.text
     body = fetched.json()
-    assert (body["added"], body["total"]) == (2, 3)
+    assert (body["added"], body["total"], body["skipped"]) == (2, 3, 0)
     assert [m["model_id"] for m in body["models"]] == ["deepseek-chat", "qwen-plus", "qwen-vl-max"]
     kept = body["models"][0]
     assert (kept["id"], kept["source"], kept["overrides"]["vision"]) == (manual["id"], "manual", True)
@@ -177,6 +191,9 @@ def test_connection_test_conclusions(client, fake, name, kind, list_reply, chat_
     assert report["conclusion"] == conclusion, (name, report)
     assert report["ok"] is False
     assert report["listing"]["ok"] is False or report["chat"]["ok"] is False
+    if report["chat"] is not None:  # 对话一步决定结论时，对话步骤的 code 与说明都与结论一致
+        assert report["chat"]["code"] == f"llm_{conclusion}"
+        assert report["chat"]["message"] == report["message"]
     assert report["message"] and any("一" <= ch <= "鿿" for ch in report["message"])
 
 
@@ -208,8 +225,48 @@ def test_connection_test_six_failures_are_distinct(client, fake):
     assert "密钥" in reports[0]["message"] and "地址" in reports[1]["message"]
     assert "404" in reports[2]["message"] and "nope" in reports[3]["message"]
     assert "额度" in reports[4]["message"] and "超时" in reports[5]["message"]
-    # 不可达、超时时不再白等一次对话
-    assert reports[1]["chat"] is None and reports[5]["chat"] is None
+    # 拉取失败且不是 404（密钥、不可达、超时）时结论跟随拉取，不再白等一次对话
+    assert [r["chat"] is None for r in reports] == [True, True, False, False, False, True]
+
+
+@pytest.mark.parametrize("list_reply, conclusion", [
+    ((401, {"error": {"message": "Invalid API key"}}), "invalid_key"),
+    ((402, {"error": {"message": "Insufficient Balance"}}), "quota_exceeded"),
+    ((429, {"error": {"message": "Rate limit reached"}}), "rate_limited"),
+    (httpx2.ReadTimeout("slow"), "timeout"),
+    ((500, "boom"), "provider_error"),
+])
+def test_connection_test_follows_listing_error_unless_404(client, fake, list_reply, conclusion):
+    headers = ready_user(client, "alice")
+    fake.list_reply = list_reply
+    fake.chat_reply = (404, {"error": {"message": "The model `nope` does not exist"}})
+    report = _test_unsaved(client, headers, model_id="nope")
+    assert (report["conclusion"], report["chat"]) == (conclusion, None)
+    assert report["listing"]["code"] == f"llm_{conclusion}" and report["message"] == report["listing"]["message"]
+    assert fake.chat_bodies == []
+
+
+def test_connection_test_step_codes_match_conclusion(client, fake):
+    headers = ready_user(client, "alice")
+    fake.chat_reply = (404, "Cannot POST /v1/chat/completions")  # 列表正常、对话路径 404 → 模型不可用
+    report = _test_unsaved(client, headers, model_id="nope")
+    assert report["conclusion"] == "model_unavailable"
+    assert report["chat"] == {"ok": False, "code": "llm_model_unavailable", "message": report["message"]}
+
+    fake.list_reply = (404, "Cannot GET /v1/models")
+    fake.chat_reply = (404, {"error": {"message": "The model `nope` does not exist"}})  # 两步都 404 → 地址错误
+    report = _test_unsaved(client, headers, model_id="nope")
+    assert report["conclusion"] == "bad_url"
+    assert report["chat"] == {"ok": False, "code": "llm_bad_url", "message": report["message"]}
+    assert report["listing"]["code"] == "llm_listing_unsupported_or_bad_url"
+
+    fake.chat_reply = (400, {"error": {"message": "The model `nope` does not exist"}})  # 列表 404、对话 400 → 模型不可用
+    report = _test_unsaved(client, headers, model_id="nope")
+    assert report["conclusion"] == "model_unavailable" and report["chat"]["code"] == "llm_model_unavailable"
+
+    fake.chat_reply = (401, {"error": {"message": "Invalid API key"}})  # 列表 404、对话密钥错误 → 跟随对话
+    report = _test_unsaved(client, headers, model_id="nope")
+    assert report["conclusion"] == "invalid_key" and report["chat"]["code"] == "llm_invalid_key"
 
 
 def test_connection_test_listing_unsupported_but_chat_ok(client, fake):
@@ -237,6 +294,15 @@ def test_connection_test_without_model_suggests_chat(client, fake):
 
     full = _test_unsaved(client, headers, model_id="model-03")
     assert (full["conclusion"], full["listing"]["ok"], full["chat"]["ok"]) == ("ok", True, True)
+
+
+def test_connection_test_validation_error_does_not_echo_key(client, fake):
+    headers = ready_user(client, "alice")
+    long_url = f"https://api.example.com/{SECRET}" + "x" * 300
+    response = client.post("/api/llm/providers/test", headers=headers,
+                           json={"kind": "openai_compatible", "base_url": long_url, "api_key": SECRET})
+    assert (response.status_code, response.json()["error"]["code"]) == (422, "validation_error")
+    assert SECRET not in response.text and fake.requests == []
 
 
 def test_connection_test_rejects_bad_url_before_calling(client, fake):
@@ -339,6 +405,7 @@ def test_complete_refuses_tools_when_model_lacks_them(client, fake):
     factory = lambda kind, url, key: make_adapter(kind, url, key, transport=httpx2.MockTransport(fake))
     tool = ToolSpec("lookup", "查一下", {"type": "object", "properties": {}})
     with get_sessionmaker()() as db:
+        fake.sessions.append(db)
         user_id = db.scalar(select(User.id).where(User.username == "alice"))
         with pytest.raises(AppError) as caught:
             service.complete(db, user_id, "chat", [ChatMessage("user", "你好")], tools=(tool,), factory=factory)
@@ -373,6 +440,9 @@ def test_chat_maps_provider_errors(client, fake, reply, status, code):
 
 def test_llm_error_table_covers_every_adapter_code():
     assert set(service.LLM_ERRORS) == set(ADAPTER_ERROR_CODES)
+    assert set(service._NEXT_STEPS) == set(ADAPTER_ERROR_CODES)
+    assert all("请" in step for step in service._NEXT_STEPS.values())
+    assert SECRET not in repr(service._Target("openai_compatible", BASE, SECRET))
     assert service.LLM_ERRORS["invalid_key"] == (400, "llm_invalid_key")
     assert service.LLM_ERRORS["quota_exceeded"] == (402, "llm_quota_exceeded")
     assert all(code.startswith("llm_") for _status, code in service.LLM_ERRORS.values())
@@ -412,6 +482,42 @@ def test_chat_request_validation(client, fake):
     assert ok.status_code == 200, ok.text[:300]
 
 
+def test_chat_image_totals_and_roles(client, fake):
+    headers = ready_user(client, "alice")
+    model = _add_model(client, headers, _provider(client, headers), "qwen-vl-max")
+    _assign(client, headers, "vision", model)
+    image = lambda data: {"mime_type": "image/png", "data_base64": data}
+    user = lambda *datas: {"role": "user", "text": "看图", "images": [image(d) for d in datas]}
+    post = lambda messages: client.post("/api/llm/chat", json={"purpose": "vision", "messages": messages},
+                                        headers=headers)
+
+    nine = post([user(PNG, PNG, PNG), user(PNG, PNG, PNG), user(PNG, PNG, PNG)])
+    assert (nine.status_code, nine.json()["error"]["code"]) == (422, "llm_invalid_images")
+    assert "8 张" in nine.json()["error"]["message"]
+    big = base64.b64encode(b"\x00" * (4 * 1024 * 1024 + 512 * 1024)).decode()  # 4.5 MB，单张合格
+    heavy = post([user(big, big, big), user(big, big)])
+    assert (heavy.status_code, heavy.json()["error"]["code"]) == (422, "llm_invalid_images")
+    assert "20 MB" in heavy.json()["error"]["message"]
+    for role in ("assistant", "system"):
+        wrong = post([{"role": role, "text": "", "images": [image(PNG)]}, user()])
+        assert (wrong.status_code, wrong.json()["error"]["code"]) == (422, "llm_invalid_images")
+        assert "用户消息" in wrong.json()["error"]["message"]
+    assert fake.requests == []
+
+    eight = post([user(PNG, PNG, PNG, PNG), user(PNG, PNG, PNG, PNG)])
+    assert eight.status_code == 200, eight.text[:300]
+    assert post([user(big, big, big, big)]).status_code == 200  # 合计 18 MB，未超
+
+
+def test_fetch_models_caps_at_500(client, fake):
+    headers = ready_user(client, "alice")
+    provider = _provider(client, headers)
+    fake.models = [f"m-{index:03d}" for index in range(600)] + ["a" * 201]
+    body = client.post(f"/api/llm/providers/{provider['id']}/fetch-models", headers=headers).json()
+    assert (body["added"], body["total"], body["skipped"]) == (500, 601, 101)
+    assert [m["model_id"] for m in body["models"]] == [f"m-{index:03d}" for index in range(500)]
+
+
 # ---------- 验收第 5 条：密钥不外泄 ----------
 
 def test_key_never_leaks_from_test_fetch_or_chat(client, fake):
@@ -428,7 +534,7 @@ def test_key_never_leaks_from_test_fetch_or_chat(client, fake):
         client.post(f"/api/llm/providers/{provider['id']}/fetch-models", headers=headers),
         _chat(client, headers),
     ]
-    assert len(fake.requests) == 6  # 两次测试各拉取一次、对话一次；获取模型一次；调用一次
+    assert len(fake.requests) == 4  # 两次测试各拉取一次（密钥错误时不再做对话）；获取模型一次；调用一次
     for response in responses:
         assert SECRET not in response.text and SECRET[3:] not in response.text
     assert [r.status_code for r in responses] == [200, 200, 400, 400]

@@ -135,23 +135,25 @@ def clear_assignment(purpose: str, user: LlmUser, db: DbSession) -> Response:
 
 
 @router.post("/providers/test", response_model=ConnectionReportOut)
-def test_unsaved_provider(body: ProviderTest, user: LlmUser, factory: Factory) -> ConnectionReportOut:
-    report = service.test_connection(body.kind, body.base_url, body.api_key, body.model_id, factory)
+def check_unsaved_provider(body: ProviderTest, user: LlmUser, db: DbSession, factory: Factory) -> ConnectionReportOut:
+    db.commit()  # 结束鉴权查询留下的只读事务，调用服务期间不占着事务
+    report = service.check_connection(body.kind, body.base_url, body.api_key, body.model_id, factory)
     return ConnectionReportOut.model_validate(asdict(report))
 
 
 @router.post("/providers/{provider_id}/test", response_model=ConnectionReportOut)
-def test_saved_provider(
+def check_saved_provider(
     provider_id: uuid.UUID, body: SavedProviderTest, user: LlmUser, db: DbSession, factory: Factory
 ) -> ConnectionReportOut:
-    report = service.test_saved_provider(db, user.id, provider_id, body.model_id, factory)
+    report = service.check_saved_provider(db, user.id, provider_id, body.model_id, factory)
     return ConnectionReportOut.model_validate(asdict(report))
 
 
 @router.post("/providers/{provider_id}/fetch-models", response_model=FetchModelsOut)
 def fetch_models(provider_id: uuid.UUID, user: LlmUser, db: DbSession, factory: Factory) -> FetchModelsOut:
     fetched = service.fetch_models(db, user.id, provider_id, factory)
-    return FetchModelsOut(added=fetched.added, total=fetched.total, models=[_model_out(m) for m in fetched.models])
+    return FetchModelsOut(added=fetched.added, total=fetched.total, skipped=fetched.skipped,
+                          models=[_model_out(m) for m in fetched.models])
 
 
 @router.post("/chat", response_model=ChatOut)
