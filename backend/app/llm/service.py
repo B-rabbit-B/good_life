@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.common.ownership import get_owned_or_404, owned_by
 from app.config import get_settings
+from app.db import get_sessionmaker
 from app.errors import AppError
 from app.llm.adapters import make_adapter
 from app.llm.adapters.base import Adapter, ChatMessage, ChatResult, LlmError, ToolSpec
@@ -390,6 +391,7 @@ _CONCLUSION_CODES = {
     "provider_error": "llm_provider_error",
 }
 _MISSING = ("not_found", "model_not_found")
+_CHAT_AFTER_LIST_ERRORS = ("not_found", "invalid_key")  # 拉取遇到这些错误时仍做对话测试
 
 
 def _model_unavailable(model_id: str, exc: LlmError) -> tuple[str, str]:
@@ -417,8 +419,9 @@ def _judge_chat(list_error: LlmError | None, chat_error: LlmError, model_id: str
 def _run_test(adapter: Adapter, model_id: str | None) -> ConnectionReport:
     """步骤一拉取模型列表；步骤二（给了模型编号时）发一次最小对话，再按“关键决策”里的判定表给出结论。
 
-    拉取失败的原因不是 404（密钥、额度、限流、超时、不可达等）时，结论跟随拉取的错误，不再做对话；
-    只有拉取 404 时才靠对话区分“不支持拉取列表”（对话成功）与“地址错误”（对话也 404）。
+    拉取 404 时靠对话区分“不支持拉取列表”（对话成功）与“地址错误”（对话也 404）；
+    拉取报密钥错误时也做对话：有的密钥无权拉列表却能对话，对话成功给 ok_listing_unsupported，对话失败结论跟随拉取；
+    其它拉取错误（额度、限流、超时、不可达、服务出错、请求被拒）结论跟随拉取，不再做对话。
     """
     listed = []
     list_error = chat_error = None
@@ -426,7 +429,7 @@ def _run_test(adapter: Adapter, model_id: str | None) -> ConnectionReport:
         listed = adapter.list_models()
     except LlmError as exc:
         list_error = exc
-    chat_ran = model_id is not None and (list_error is None or list_error.code == "not_found")
+    chat_ran = model_id is not None and (list_error is None or list_error.code in _CHAT_AFTER_LIST_ERRORS)
     if chat_ran:
         try:
             adapter.chat(model_id, [ChatMessage("user", TEST_PROMPT)], max_tokens=TEST_MAX_TOKENS)
@@ -439,13 +442,20 @@ def _run_test(adapter: Adapter, model_id: str | None) -> ConnectionReport:
         _status, code, text = _describe(list_error, "list")
         listing = StepReport(ok=False, code=code, message=text)
     chat = None
-    if chat_error is not None:
+    if chat_error is not None and list_error is not None and list_error.code == "invalid_key":
+        _status, code, text = _describe(chat_error, "chat")
+        chat = StepReport(ok=False, code=code, message=text)
+        conclusion, message = "invalid_key", listing.message
+    elif chat_error is not None:
         conclusion, message = _judge_chat(list_error, chat_error, model_id)
         chat = StepReport(ok=False, code=_CONCLUSION_CODES[conclusion], message=message)
     elif chat_ran:
         chat = StepReport(ok=True, code=None, message=f"模型 {model_id} 对话成功")
         if list_error is None:
             conclusion, message = "ok", f"连接正常：拉取到 {len(listed)} 个模型，模型 {model_id} 对话成功。"
+        elif list_error.code == "invalid_key":
+            conclusion, message = "ok_listing_unsupported", (
+                f"模型 {model_id} 对话成功，但当前密钥没有拉取模型列表的权限，请手动添加模型编号。")
         else:
             conclusion, message = "ok_listing_unsupported", (
                 f"模型 {model_id} 对话成功，但该服务不支持拉取模型列表，请手动添加模型编号。")
@@ -523,7 +533,9 @@ def complete(
 ) -> CompletionResult:
     """统一调用入口：按用途找到分配的模型，调用前再查一遍能力，最后才读取密钥并调用服务。
 
-    调用服务前会提交（结束）当前数据库事务，调用服务期间不占着事务；调用方不要在此之前留着未提交的修改。
+    complete 从不读写、提交或回滚调用方的会话 db（保留这个参数只为接口一致）：分配、能力、地址与密钥都用一个独立的短会话
+    读取（同样按 user_id 过滤），读完就关闭，调用服务期间不占任何事务。调用方也不要在调用 complete 时开着事务，
+    以免调用服务期间（最长约 20 秒）一直占着数据库连接。
     """
     _check_purpose(purpose)
     _check_images(messages)
@@ -534,30 +546,32 @@ def complete(
         .join(LlmProvider, LlmProvider.id == LlmModel.provider_id)
         .where(LlmAssignment.purpose == purpose)
     )
-    row = db.execute(query).first()
     label = PURPOSE_LABELS[purpose]
-    if row is None:
-        raise AppError(409, "llm_not_configured",
-                       f"还没有为“{label}”选择模型：请先到设置页的“模型服务”里，为“日常对话”或“看图识别”选择一个模型，再来使用。")
-    _assignment, model, provider = row
-    caps = model_capabilities(model)[0]
-    if caps.vision is not True and (purpose == "vision" or any(m.images for m in messages)):
-        raise AppError(422, "llm_model_lacks_vision",
-                       f"当前模型 {model.model_id} 不支持看图（对照表标明不支持，或无法确认）。请到设置页换一个支持看图的模型；"
-                       "如果你确认它能看图，可以在模型上手动标注“支持看图”；也可以不传图片，改为手动填写。")
-    if tools and caps.tools is False:
-        raise AppError(422, "llm_model_lacks_tools",
-                       f"当前模型 {model.model_id} 被标明不支持工具调用。请到设置页换一个支持工具调用的模型，"
-                       "或在模型上手动标注“支持工具调用”。")
-    if caps.chat is False:
-        raise AppError(422, "llm_model_not_chat",
-                       f"当前模型 {model.model_id} 被标明不是对话模型（例如向量、语音、绘图模型），不能用于“{label}”。"
-                       "请到设置页换一个对话模型，或在模型上手动标注“支持对话”。")
-    model_pk, model_id, provider_name = model.id, model.model_id, provider.name
-    target = _target(db, provider)  # 只有到这一步才读取（解密）密钥
+    with get_sessionmaker()() as session:
+        row = session.execute(query).first()
+        if row is None:
+            raise AppError(409, "llm_not_configured",
+                           f"还没有为“{label}”选择模型：请先到设置页的“模型服务”里，为“日常对话”或“看图识别”选择一个模型，再来使用。")
+        _assignment, model, provider = row
+        caps = model_capabilities(model)[0]
+        if caps.vision is not True and (purpose == "vision" or any(m.images for m in messages)):
+            raise AppError(422, "llm_model_lacks_vision",
+                           f"当前模型 {model.model_id} 不支持看图（对照表标明不支持，或无法确认）。请到设置页换一个支持看图的模型；"
+                           "如果你确认它能看图，可以在模型上手动标注“支持看图”；也可以不传图片，改为手动填写。")
+        if tools and caps.tools is False:
+            raise AppError(422, "llm_model_lacks_tools",
+                           f"当前模型 {model.model_id} 被标明不支持工具调用。请到设置页换一个支持工具调用的模型，"
+                           "或在模型上手动标注“支持工具调用”。")
+        if caps.chat is False:
+            raise AppError(422, "llm_model_not_chat",
+                           f"当前模型 {model.model_id} 被标明不是对话模型（例如向量、语音、绘图模型），不能用于“{label}”。"
+                           "请到设置页换一个对话模型，或在模型上手动标注“支持对话”。")
+        model_pk, model_id, provider_name = model.id, model.model_id, provider.name
+        kind, base_url = provider.kind, provider.base_url
+        api_key = provider.api_key  # 只有到这一步才读取（解密）密钥
+    base_url = _check_url(base_url)  # 出站前再查一次地址；此时短会话已关闭
     try:
-        result = factory(target.kind, target.base_url, target.api_key).chat(
-            model_id, messages, tools=tools, max_tokens=max_tokens)
+        result = factory(kind, base_url, api_key).chat(model_id, messages, tools=tools, max_tokens=max_tokens)
     except LlmError as exc:
         raise _app_error(exc, "chat") from None
     return CompletionResult(result=result, provider_name=provider_name, model_pk=model_pk, model_id=model_id)

@@ -15,7 +15,7 @@ from app.errors import AppError
 from app.llm import service
 from app.llm.adapters import make_adapter
 from app.llm.adapters.base import ADAPTER_ERROR_CODES, ChatMessage, ToolSpec
-from app.llm.models import LlmProvider
+from app.llm.models import LlmModel, LlmProvider
 from tests.helpers import ready_user
 
 SECRET = "sk-test-0123456789abcdef"
@@ -71,7 +71,7 @@ class FakeLlm:
 
 
 @pytest.fixture
-def fake(client):
+def fake(client, monkeypatch):
     fake = FakeLlm()
 
     def factory(kind, base_url, api_key):
@@ -87,6 +87,17 @@ def fake(client):
 
     client.app.dependency_overrides[service.get_adapter_factory] = lambda: factory
     client.app.dependency_overrides[get_db] = tracked_db
+    make_session = get_sessionmaker()
+
+    def tracked_sessionmaker():  # complete 自己开的短会话也登记进来
+        def make():
+            session = make_session()
+            fake.sessions.append(session)
+            return session
+
+        return make
+
+    monkeypatch.setattr(service, "get_sessionmaker", tracked_sessionmaker)
     yield fake
     # 每个用例结束时都检查：假服务收到请求的那一刻，没有任何数据库会话开着事务
     assert fake.in_transaction == [False] * len(fake.requests)
@@ -225,16 +236,17 @@ def test_connection_test_six_failures_are_distinct(client, fake):
     assert "密钥" in reports[0]["message"] and "地址" in reports[1]["message"]
     assert "404" in reports[2]["message"] and "nope" in reports[3]["message"]
     assert "额度" in reports[4]["message"] and "超时" in reports[5]["message"]
-    # 拉取失败且不是 404（密钥、不可达、超时）时结论跟随拉取，不再白等一次对话
-    assert [r["chat"] is None for r in reports] == [True, True, False, False, False, True]
+    # 拉取不可达、超时时结论跟随拉取，不再白等一次对话；拉取报密钥错误时仍做对话
+    assert [r["chat"] is None for r in reports] == [False, True, False, False, False, True]
 
 
 @pytest.mark.parametrize("list_reply, conclusion", [
-    ((401, {"error": {"message": "Invalid API key"}}), "invalid_key"),
     ((402, {"error": {"message": "Insufficient Balance"}}), "quota_exceeded"),
     ((429, {"error": {"message": "Rate limit reached"}}), "rate_limited"),
     (httpx2.ReadTimeout("slow"), "timeout"),
     ((500, "boom"), "provider_error"),
+    (httpx2.ConnectError("refused"), "bad_url"),
+    ((400, {"error": {"message": "unsupported parameter"}}), "bad_request"),
 ])
 def test_connection_test_follows_listing_error_unless_404(client, fake, list_reply, conclusion):
     headers = ready_user(client, "alice")
@@ -244,6 +256,31 @@ def test_connection_test_follows_listing_error_unless_404(client, fake, list_rep
     assert (report["conclusion"], report["chat"]) == (conclusion, None)
     assert report["listing"]["code"] == f"llm_{conclusion}" and report["message"] == report["listing"]["message"]
     assert fake.chat_bodies == []
+
+
+def test_connection_test_invalid_key_listing_still_tries_chat(client, fake):
+    headers = ready_user(client, "alice")
+    fake.list_reply = (403, {"error": {"message": "This key is not allowed to list models"}})
+    report = _test_unsaved(client, headers, model_id="deepseek-chat")  # 受限密钥：不能拉列表，但能对话
+    assert (report["conclusion"], report["ok"]) == ("ok_listing_unsupported", True)
+    assert "没有拉取模型列表的权限" in report["message"] and "手动添加模型编号" in report["message"]
+    assert report["listing"]["code"] == "llm_invalid_key" and report["chat"]["ok"] is True
+    assert fake.chat_bodies[0]["model"] == "deepseek-chat"
+
+    fake.list_reply = (401, {"error": {"message": "Invalid API key"}})
+    fake.chat_reply = (401, {"error": {"message": "Invalid API key in chat"}})
+    report = _test_unsaved(client, headers, model_id="deepseek-chat")  # 两步都是密钥错误 → 结论跟随拉取
+    assert (report["conclusion"], report["ok"]) == ("invalid_key", False)
+    assert report["message"] == report["listing"]["message"] and "密钥" in report["message"]
+    assert report["chat"]["ok"] is False and report["chat"]["code"] == "llm_invalid_key"
+
+    fake.chat_reply = (404, {"error": {"message": "The model `x` does not exist"}})
+    report = _test_unsaved(client, headers, model_id="x")  # 拉取密钥错误、对话失败（任何原因）→ 结论跟随拉取
+    assert report["conclusion"] == "invalid_key" and report["chat"]["code"] == "llm_model_unavailable"
+
+    report = _test_unsaved(client, headers)  # 没给模型编号：只看拉取
+    assert (report["conclusion"], report["chat"]) == ("invalid_key", None)
+    assert len(fake.chat_bodies) == 3
 
 
 def test_connection_test_step_codes_match_conclusion(client, fake):
@@ -407,15 +444,34 @@ def test_complete_refuses_tools_when_model_lacks_them(client, fake):
     with get_sessionmaker()() as db:
         fake.sessions.append(db)
         user_id = db.scalar(select(User.id).where(User.username == "alice"))
+        db.commit()  # 规矩的调用方：调用 complete 前不开着事务
         with pytest.raises(AppError) as caught:
             service.complete(db, user_id, "chat", [ChatMessage("user", "你好")], tools=(tool,), factory=factory)
         assert caught.value.code == "llm_model_lacks_tools"
         client.patch(f"/api/llm/models/{model['id']}", json={"tools": None}, headers=headers)
-        db.expire_all()
         done = service.complete(db, user_id, "chat", [ChatMessage("user", "你好")], tools=(tool,), factory=factory)
     assert (done.result.text, done.model_id, done.model_pk, done.provider_name) == (
         "好", "deepseek-chat", uuid.UUID(model["id"]), provider["name"])
     assert fake.chat_bodies[0]["tools"][0]["function"]["name"] == "lookup"
+
+
+def test_complete_leaves_the_callers_session_untouched(client, fake):
+    headers = ready_user(client, "alice")
+    provider = _provider(client, headers)
+    model = _add_model(client, headers, provider, "deepseek-chat")
+    _assign(client, headers, "chat", model)
+    factory = lambda kind, url, key: make_adapter(kind, url, key, transport=httpx2.MockTransport(fake))
+    with get_sessionmaker()() as db:  # 故意不登记到 fake.sessions：这个调用方特意开着事务、留着未写入的修改
+        user_id = db.scalar(select(User.id).where(User.username == "alice"))
+        pending = LlmModel(user_id=user_id, provider_id=uuid.UUID(provider["id"]), model_id="pending-model",
+                           source="manual")
+        db.add(pending)
+        done = service.complete(db, user_id, "chat", [ChatMessage("user", "你好")], factory=factory)
+        assert done.result.text == "好"
+        assert pending in db.new and db.in_transaction()  # 没有被提交，也没有被回滚
+        db.rollback()
+    listed = client.get(f"/api/llm/providers/{provider['id']}/models", headers=headers).json()
+    assert [m["model_id"] for m in listed] == ["deepseek-chat"]
 
 
 @pytest.mark.parametrize("reply, status, code", [
@@ -534,7 +590,7 @@ def test_key_never_leaks_from_test_fetch_or_chat(client, fake):
         client.post(f"/api/llm/providers/{provider['id']}/fetch-models", headers=headers),
         _chat(client, headers),
     ]
-    assert len(fake.requests) == 4  # 两次测试各拉取一次（密钥错误时不再做对话）；获取模型一次；调用一次
+    assert len(fake.requests) == 6  # 两次测试各拉取一次、对话一次；获取模型一次；调用一次
     for response in responses:
         assert SECRET not in response.text and SECRET[3:] not in response.text
     assert [r.status_code for r in responses] == [200, 200, 400, 400]
