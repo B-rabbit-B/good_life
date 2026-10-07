@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 
 from app.llm.adapters import make_adapter
-from app.llm.adapters.base import _SK_PATTERN, Adapter, ChatMessage, ImagePart, LlmError, ToolSpec
+from app.llm.adapters.base import Adapter, ChatMessage, ImagePart, LlmError, ToolSpec, scrub_sk
 from app.llm.kinds import PRESETS, PROVIDER_KINDS
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -31,6 +31,9 @@ DISPLAY_NAMES = {"QWEN": "通义千问", "DEEPSEEK": "DeepSeek", "DOUBAO": "豆�
                  "CLAUDE": "Claude", "GEMINI": "Gemini", "CUSTOM": "通用兼容服务"}
 
 PASS, FAIL, SKIP = "通过", "未通过", "跳过"
+LIVE_TIMEOUT_SECONDS = 60  # 实测时每次调用的超时，比正式调用宽松，慢模型（长推理、看图）也能跑完
+MAX_TOKENS = 512  # 对话、工具调用、看图的最大输出长度；会思考的模型先在思考上花掉一部分，太小会得到空回复
+ERROR_MAX_TOKENS = 16  # 三个故意的错误只看报错，不需要输出
 CHAT_PROMPT = "请只回复：好"
 TOOL_PROMPT = "北京今天天气怎么样？请调用工具查询"
 VISION_PROMPT = "这张图片是什么颜色？只回答颜色"
@@ -47,6 +50,12 @@ EXPECTED_CODES = {"密钥改错": ("invalid_key",), "地址改错": ("not_found"
                   "模型名改错": ("model_not_found",)}
 
 Factory = Callable[[str, str, str], Adapter]
+Progress = Callable[[str], None]
+
+
+def live_adapter(kind: str, base_url: str, api_key: str) -> Adapter:
+    """实测脚本默认用的适配器：与正式调用同一套代码，只是每次调用的超时放宽到 60 秒。"""
+    return make_adapter(kind, base_url, api_key, timeout=LIVE_TIMEOUT_SECONDS)
 
 
 @dataclass(frozen=True)
@@ -96,7 +105,7 @@ def scrub(text: str, secrets: list[str]) -> str:
     """去掉全部密钥原文与形如 sk- 开头的长串；不截断（整份结果不能被截断）。"""
     for secret in sorted((s for s in secrets if s), key=len, reverse=True):
         text = text.replace(secret, "****")
-    return _SK_PATTERN.sub("sk-****", text)
+    return scrub_sk(text)
 
 
 def _describe_error(exc: LlmError) -> str:
@@ -107,21 +116,24 @@ def _describe_error(exc: LlmError) -> str:
 class _Runner:
     """某一家服务的检查：把每次调用的耗时、结果、错误码记成一行。"""
 
-    def __init__(self, name: str, kind: str, base_url: str, api_key: str, factory: Factory, secrets: list[str]):
+    def __init__(self, name: str, kind: str, base_url: str, api_key: str, factory: Factory, secrets: list[str],
+                 rows: list[CheckRow], progress: Progress):
         self.name = DISPLAY_NAMES[name]
         self.kind = kind
         self.base_url = base_url
         self.api_key = api_key
         self.factory = factory
         self.secrets = secrets
-        self.rows: list[CheckRow] = []
+        self.rows = rows  # 与调用方共用的列表：中途被打断时，已完成的检查仍在里面
+        self.progress = progress
 
     def adapter(self, *, base_url: str | None = None, api_key: str | None = None) -> Adapter:
         return self.factory(self.kind, self.base_url if base_url is None else base_url,
                             self.api_key if api_key is None else api_key)
 
     def add(self, item: str, result: str, code: str | None, note: str, seconds: float | None = None) -> None:
-        self.rows.append(CheckRow(self.name, item, result, code, scrub(note, self.secrets), seconds))
+        _record(self.rows, CheckRow(self.name, item, result, code, scrub(note, self.secrets), seconds),
+                self.progress, self.secrets)
 
     def skip(self, item: str, reason: str) -> None:
         self.add(item, SKIP, None, reason)
@@ -179,18 +191,31 @@ def _resolve(name: str, config: dict[str, str]) -> tuple[str, str] | str:
     return preset.kind, base_url or preset.base_url
 
 
-def _check_provider(name: str, config: dict[str, str], factory: Factory, secrets: list[str]) -> list[CheckRow]:
+def _record(rows: list[CheckRow], row: CheckRow, progress: Progress, secrets: list[str]) -> None:
+    """记下一项结果，并打印一行进度（只有项目、结果、错误码与耗时，不含说明文字，也去掉全部密钥）。"""
+    rows.append(row)
+    code = f"，{row.code}" if row.code else ""
+    seconds = "" if row.seconds is None else f"，{row.seconds:.1f} 秒"
+    progress(scrub(f"  {row.provider} · {row.item}：{row.result}{code}{seconds}", secrets))
+
+
+def _check_provider(name: str, config: dict[str, str], factory: Factory, secrets: list[str],
+                    rows: list[CheckRow], progress: Progress) -> None:
+    display = DISPLAY_NAMES[name]
+    progress(f"开始检查 {display}")
     api_key = config.get(f"{name}_API_KEY", "").strip()
     if not api_key:
-        return [CheckRow(DISPLAY_NAMES[name], "全部检查", SKIP, None, "未提供密钥", None)]
+        _record(rows, CheckRow(display, "全部检查", SKIP, None, "未提供密钥", None), progress, secrets)
+        return
     resolved = _resolve(name, config)
     if isinstance(resolved, str):
-        return [CheckRow(DISPLAY_NAMES[name], "配置", FAIL, None, resolved, None)]
+        _record(rows, CheckRow(display, "配置", FAIL, None, resolved, None), progress, secrets)
+        return
     kind, base_url = resolved
     chat_model = config.get(f"{name}_CHAT_MODEL", "").strip()
     vision_model = config.get(f"{name}_VISION_MODEL", "").strip()
     tools_model = config.get(f"{name}_TOOLS_MODEL", "").strip() or chat_model
-    runner = _Runner(name, kind, base_url, api_key, factory, secrets)
+    runner = _Runner(name, kind, base_url, api_key, factory, secrets, rows, progress)
 
     def judge_list(models) -> tuple[bool, str]:
         names = "、".join(item.model_id for item in models[:5])
@@ -199,7 +224,8 @@ def _check_provider(name: str, config: dict[str, str], factory: Factory, secrets
     runner.run("拉取模型", lambda: runner.adapter().list_models(), judge_list)
 
     if chat_model:
-        runner.run("对话", lambda: runner.adapter().chat(chat_model, [ChatMessage("user", CHAT_PROMPT)], max_tokens=64),
+        runner.run("对话", lambda: runner.adapter().chat(chat_model, [ChatMessage("user", CHAT_PROMPT)],
+                                                         max_tokens=MAX_TOKENS),
                    lambda r: (bool(r.text.strip()), f"模型 {chat_model} 回复：{r.text.strip()[:40] or '（空）'}"))
     else:
         runner.skip("对话", f"未填写 {name}_CHAT_MODEL")
@@ -212,14 +238,14 @@ def _check_provider(name: str, config: dict[str, str], factory: Factory, secrets
             return True, f"模型 {tools_model} 调用了 get_weather，参数：{call.arguments}"
 
         runner.run("工具调用", lambda: runner.adapter().chat(
-            tools_model, [ChatMessage("user", TOOL_PROMPT)], tools=[WEATHER_TOOL], max_tokens=256), judge_tools)
+            tools_model, [ChatMessage("user", TOOL_PROMPT)], tools=[WEATHER_TOOL], max_tokens=MAX_TOKENS), judge_tools)
     else:
         runner.skip("工具调用", f"未填写 {name}_TOOLS_MODEL 与 {name}_CHAT_MODEL")
 
     if vision_model:
         image = ImagePart("image/png", red_png_base64())
         runner.run("看图", lambda: runner.adapter().chat(
-            vision_model, [ChatMessage("user", VISION_PROMPT, (image,))], max_tokens=64),
+            vision_model, [ChatMessage("user", VISION_PROMPT, (image,))], max_tokens=MAX_TOKENS),
             lambda r: ("红" in r.text, f"模型 {vision_model} 回答：{r.text.strip()[:40] or '（空）'}"
                        + ("" if "红" in r.text else "（回答里没有“红”）")))
     else:
@@ -227,22 +253,29 @@ def _check_provider(name: str, config: dict[str, str], factory: Factory, secrets
 
     ask = [ChatMessage("user", CHAT_PROMPT)]
     if chat_model:
-        runner.deliberate("密钥改错", lambda: runner.adapter(api_key=WRONG_KEY).chat(chat_model, ask, max_tokens=16),
-                          "用错误的密钥发起对话")
+        runner.deliberate("密钥改错", lambda: runner.adapter(api_key=WRONG_KEY).chat(
+            chat_model, ask, max_tokens=ERROR_MAX_TOKENS), "用错误的密钥发起对话")
     else:
         runner.deliberate("密钥改错", lambda: runner.adapter(api_key=WRONG_KEY).list_models(), "用错误的密钥拉取模型")
-    runner.deliberate("地址改错", lambda: runner.adapter(base_url=base_url + WRONG_PATH).list_models(),
+    wrong_url = base_url.rstrip("/") + WRONG_PATH  # 地址结尾带斜杠时不要拼出两个斜杠
+    runner.deliberate("地址改错", lambda: runner.adapter(base_url=wrong_url).list_models(),
                       f"地址后加 {WRONG_PATH} 后拉取模型")
-    runner.deliberate("模型名改错", lambda: runner.adapter().chat(WRONG_MODEL, ask, max_tokens=16),
+    runner.deliberate("模型名改错", lambda: runner.adapter().chat(WRONG_MODEL, ask, max_tokens=ERROR_MAX_TOKENS),
                       "用一个不存在的模型名发起对话")
-    return runner.rows
 
 
-def run_checks(config: dict[str, str], factory: Factory = make_adapter) -> list[CheckRow]:
+def _quiet(_line: str) -> None:
+    pass
+
+
+def run_checks(config: dict[str, str], factory: Factory = live_adapter, *, progress: Progress = _quiet,
+               rows: list[CheckRow] | None = None) -> list[CheckRow]:
+    """依次检查每家服务；每完成一项就追加到 rows（给了就用调用方的列表，中途被打断时已完成的仍在里面），
+    并用 progress 报一行进度（每家开始时一行，每项完成时一行）。"""
     secrets = [value.strip() for name, value in config.items() if name.endswith("_API_KEY") and value.strip()]
-    rows: list[CheckRow] = []
+    rows = [] if rows is None else rows
     for name in PROVIDERS:
-        rows.extend(_check_provider(name, config, factory, secrets))
+        _check_provider(name, config, factory, secrets, rows, progress)
     return rows
 
 
@@ -250,10 +283,13 @@ def _cell(text: str) -> str:
     return " ".join(text.split()).replace("|", "｜")
 
 
-def render_markdown(rows: list[CheckRow], secrets: list[str] | tuple[str, ...] = (), today: date | None = None) -> str:
+def render_markdown(rows: list[CheckRow], secrets: list[str] | tuple[str, ...] = (), today: date | None = None,
+                    *, interrupted: bool = False) -> str:
     """生成结果表；整份文本输出前按给出的全部密钥去掉原文。"""
     day = (today or date.today()).isoformat()
     lines = ["# 模型服务实测结果", "", f"运行日期：{day}", "", "本文件不含任何密钥。", ""]
+    if interrupted:
+        lines += ["注意：本次运行中途被中断，下面只有中断之前已经完成的检查，请重新完整运行一次。", ""]
     counts = {result: sum(1 for row in rows if row.result == result) for result in (PASS, FAIL, SKIP)}
     lines += [f"合计：{PASS} {counts[PASS]} 项，{FAIL} {counts[FAIL]} 项，{SKIP} {counts[SKIP]} 项。", ""]
     provider_order = list(dict.fromkeys(row.provider for row in rows))
@@ -266,17 +302,33 @@ def render_markdown(rows: list[CheckRow], secrets: list[str] | tuple[str, ...] =
     return scrub("\n".join(lines), list(secrets))
 
 
-def main(env_path: Path = KEYS_FILE, result_path: Path = RESULT_FILE, factory: Factory = make_adapter) -> int:
+def main(env_path: Path = KEYS_FILE, result_path: Path = RESULT_FILE, factory: Factory = live_adapter) -> int:
     if not env_path.exists():
         print(f"没有找到 {env_path.name}。请先把 llm_keys.local.env.example 复制为 {env_path.name}，"
               "填入你自己的密钥后再运行（这个文件不要提交，也不要发给任何人）。")
         return 1
-    config = parse_env(env_path.read_text(encoding="utf-8"))
+    try:
+        text = env_path.read_text(encoding="utf-8-sig")  # 记事本另存的 UTF-8 文件开头可能带 BOM
+    except UnicodeDecodeError:
+        print(f"{env_path.name} 不是 UTF-8 编码，无法读取。请用文本编辑器打开它，另存为 UTF-8 编码后再运行。")
+        return 1
+    config = parse_env(text)
     secrets = [value for name, value in config.items() if name.endswith("_API_KEY") and value]
-    report = render_markdown(run_checks(config, factory), secrets)
-    result_path.write_text(report, encoding="utf-8")
-    print(report)
-    print(f"结果已写入 {result_path.name}（不含密钥，但也请先看一遍再决定是否分享）。")
+    rows: list[CheckRow] = []
+    finished = False
+    try:
+        run_checks(config, factory, progress=print, rows=rows)
+        finished = True
+    except KeyboardInterrupt:
+        print("已中断：中断之前已经完成的检查会写入结果文件。")
+        return 130
+    finally:
+        # 不论正常结束还是中途被打断，都把已完成的检查写下来；整份文本在输出前会再去掉一遍全部密钥
+        report = render_markdown(rows, secrets, interrupted=not finished)
+        result_path.write_text(report, encoding="utf-8")
+        if finished:
+            print(report)
+        print(f"结果已写入 {result_path.name}（不含密钥，但也请先看一遍再决定是否分享）。")
     return 0
 
 

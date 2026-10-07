@@ -2,6 +2,7 @@ import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlsplit
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -75,15 +76,31 @@ def get_provider(db: Session, user_id: uuid.UUID, provider_id: uuid.UUID) -> Llm
     return get_owned_or_404(db, LlmProvider, user_id, provider_id)
 
 
+def _origin(url: str) -> tuple[str, str | None, int | None]:
+    """（协议，主机，端口）；没写端口时按协议的默认端口算。地址已通过 validate_base_url，可以直接解析。"""
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    return scheme, parts.hostname, parts.port or {"http": 80, "https": 443}.get(scheme)
+
+
 def update_provider(db: Session, user_id: uuid.UUID, provider_id: uuid.UUID, changes: dict[str, Any]) -> LlmProvider:
-    """只能改名称、地址、密钥；服务类型不可改。密钥缺省保持原值。"""
+    """只能改名称、地址、密钥；服务类型不可改。密钥缺省保持原值。
+
+    地址的协议、主机或端口变了时，必须在同一次修改里重新填写密钥，否则拒绝（llm_key_required_for_new_url）：
+    防止拿到登录状态的人把地址改到自己的服务器，再借测试或拉取把已保存的密钥发过去。只改路径时保留原密钥。
+    """
     provider = get_provider(db, user_id, provider_id)
+    new_url = _check_url(changes["base_url"]) if "base_url" in changes else None
+    if new_url is not None and "api_key" not in changes and _origin(new_url) != _origin(provider.base_url):
+        raise AppError(422, "llm_key_required_for_new_url",
+                       "服务地址的协议、主机或端口变了，为了不把已保存的密钥发到新地址，请在同一次修改里重新填写密钥；"
+                       "只改地址里的路径时不需要重填。")
     if "name" in changes and changes["name"] != provider.name:
         if _name_taken(db, user_id, changes["name"], provider.id):
             raise _provider_exists()
         provider.name = changes["name"]
-    if "base_url" in changes:
-        provider.base_url = _check_url(changes["base_url"])
+    if new_url is not None:
+        provider.base_url = new_url
     if "api_key" in changes:
         provider.api_key = changes["api_key"]
         provider.key_hint = key_hint(changes["api_key"])
@@ -522,7 +539,6 @@ def _check_images(messages: Sequence[ChatMessage]) -> None:
 
 
 def complete(
-    db: Session,
     user_id: uuid.UUID,
     purpose: str,
     messages: Sequence[ChatMessage],
@@ -533,8 +549,8 @@ def complete(
 ) -> CompletionResult:
     """统一调用入口：按用途找到分配的模型，调用前再查一遍能力，最后才读取密钥并调用服务。
 
-    complete 从不读写、提交或回滚调用方的会话 db（保留这个参数只为接口一致）：分配、能力、地址与密钥都用一个独立的短会话
-    读取（同样按 user_id 过滤），读完就关闭，调用服务期间不占任何事务。调用方也不要在调用 complete 时开着事务，
+    complete 不接收调用方的数据库会话，而是自己开一个短会话：分配、能力、地址与密钥都在里面读取（同样按 user_id 过滤），
+    读完就关闭，调用服务期间不占任何事务。调用方也不要在调用 complete 时开着自己的事务，
     以免调用服务期间（最长约 20 秒）一直占着数据库连接。
     """
     _check_purpose(purpose)

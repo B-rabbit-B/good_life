@@ -3,6 +3,7 @@
 import base64
 import json
 import uuid
+from inspect import signature as inspect_signature
 
 import httpx2
 import pytest
@@ -446,13 +447,19 @@ def test_complete_refuses_tools_when_model_lacks_them(client, fake):
         user_id = db.scalar(select(User.id).where(User.username == "alice"))
         db.commit()  # 规矩的调用方：调用 complete 前不开着事务
         with pytest.raises(AppError) as caught:
-            service.complete(db, user_id, "chat", [ChatMessage("user", "你好")], tools=(tool,), factory=factory)
+            service.complete(user_id, "chat", [ChatMessage("user", "你好")], tools=(tool,), factory=factory)
         assert caught.value.code == "llm_model_lacks_tools"
         client.patch(f"/api/llm/models/{model['id']}", json={"tools": None}, headers=headers)
-        done = service.complete(db, user_id, "chat", [ChatMessage("user", "你好")], tools=(tool,), factory=factory)
+        done = service.complete(user_id, "chat", [ChatMessage("user", "你好")], tools=(tool,), factory=factory)
     assert (done.result.text, done.model_id, done.model_pk, done.provider_name) == (
         "好", "deepseek-chat", uuid.UUID(model["id"]), provider["name"])
     assert fake.chat_bodies[0]["tools"][0]["function"]["name"] == "lookup"
+
+
+def test_complete_takes_no_db_session():
+    # complete 用自己的短会话读取，不接收调用方的会话
+    assert "db" not in inspect_signature(service.complete).parameters
+    assert list(inspect_signature(service.complete).parameters)[:3] == ["user_id", "purpose", "messages"]
 
 
 def test_complete_leaves_the_callers_session_untouched(client, fake):
@@ -466,7 +473,7 @@ def test_complete_leaves_the_callers_session_untouched(client, fake):
         pending = LlmModel(user_id=user_id, provider_id=uuid.UUID(provider["id"]), model_id="pending-model",
                            source="manual")
         db.add(pending)
-        done = service.complete(db, user_id, "chat", [ChatMessage("user", "你好")], factory=factory)
+        done = service.complete(user_id, "chat", [ChatMessage("user", "你好")], factory=factory)
         assert done.result.text == "好"
         assert pending in db.new and db.in_transaction()  # 没有被提交，也没有被回滚
         db.rollback()
@@ -595,6 +602,51 @@ def test_key_never_leaks_from_test_fetch_or_chat(client, fake):
         assert SECRET not in response.text and SECRET[3:] not in response.text
     assert [r.status_code for r in responses] == [200, 200, 400, 400]
     assert responses[0].json()["conclusion"] == "invalid_key"
+
+
+# ---------- 改地址必须同时重填密钥 ----------
+
+@pytest.mark.parametrize("new_url", [
+    "http://localhost:9/v1",  # 主机变了
+    "http://127.0.0.1:10/v1",  # 端口变了
+    "https://127.0.0.1:9/v1",  # 协议变了
+])
+def test_changing_host_scheme_or_port_requires_a_new_key(client, fake, new_url):
+    headers = ready_user(client, "alice")
+    provider = _provider(client, headers)
+    path = f"/api/llm/providers/{provider['id']}"
+    refused = client.patch(path, json={"base_url": new_url, "name": "改名也不生效"}, headers=headers)
+    assert (refused.status_code, refused.json()["error"]["code"]) == (422, "llm_key_required_for_new_url")
+    assert "密钥" in refused.json()["error"]["message"] and SECRET not in refused.text
+    refused = client.patch(path, json={"base_url": new_url, "api_key": None}, headers=headers)
+    assert refused.json()["error"]["code"] == "llm_key_required_for_new_url"
+    kept = client.get(path, headers=headers).json()
+    assert (kept["base_url"], kept["name"], kept["key_hint"]) == (BASE, provider["name"], provider["key_hint"])
+
+    # 旧密钥只会发往原来的地址
+    client.post(f"{path}/test", json={"model_id": "deepseek-chat"}, headers=headers)
+    client.post(f"{path}/fetch-models", headers=headers)
+    assert fake.requests and all(str(r.url).startswith(BASE + "/") for r in fake.requests)
+
+    new_key = "sk-brand-new-key-77776666"
+    moved = client.patch(path, json={"base_url": new_url + "/", "api_key": new_key}, headers=headers)
+    assert moved.status_code == 200, moved.text
+    assert (moved.json()["base_url"], moved.json()["key_hint"]) == (new_url, "****6666")
+    client.post(f"{path}/fetch-models", headers=headers)
+    assert str(fake.requests[-1].url).startswith(new_url + "/")
+    assert fake.requests[-1].headers["authorization"] == f"Bearer {new_key}"
+
+
+def test_path_only_change_keeps_the_key(client, fake):
+    headers = ready_user(client, "alice")
+    provider = _provider(client, headers)
+    path = f"/api/llm/providers/{provider['id']}"
+    for new_url in ("http://127.0.0.1:9/compatible-mode/v1", "HTTP://127.0.0.1:9/v2/", BASE):
+        changed = client.patch(path, json={"base_url": new_url}, headers=headers)
+        assert changed.status_code == 200, changed.text
+        assert changed.json()["key_hint"] == provider["key_hint"]
+    client.post(f"{path}/fetch-models", headers=headers)
+    assert fake.requests[0].headers["authorization"] == f"Bearer {SECRET}"
 
 
 # ---------- 出站前再次检查地址 ----------

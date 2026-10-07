@@ -29,7 +29,9 @@ def _content(message: ChatMessage) -> str | list[dict]:
 
 
 def _arguments(raw: Any) -> dict:
-    """arguments 按规范是 JSON 字符串；空串视为没有参数，个别兼容服务直接给对象时原样使用。"""
+    """arguments 按规范是 JSON 字符串；空串与 null 视为没有参数，个别兼容服务直接给对象时原样使用。"""
+    if raw is None:
+        return {}
     if isinstance(raw, dict):
         return raw
     if not raw.strip():

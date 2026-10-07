@@ -21,6 +21,7 @@ ADAPTER_ERROR_CODES = (
 )
 MAX_LIST_PAGES = 10
 MAX_DETAIL_CHARS = 300
+MAX_RESPONSE_BYTES = 10 * 1024 * 1024  # 响应正文的上限，超过就停止读取
 
 During = Literal["list", "chat"]
 T = TypeVar("T")
@@ -115,18 +116,25 @@ class LlmError(Exception):
 _SK_PATTERN = re.compile(r"sk-[A-Za-z0-9_\-]{12,}")
 
 
+def scrub_sk(text: str) -> str:
+    """把形如 sk- 开头的长串换成 sk-****（不截断）。"""
+    return _SK_PATTERN.sub("sk-****", text)
+
+
 def redact(text: str, secret: str | None) -> str:
     """去掉密钥原文与形如 sk- 开头的长串，再截断到 300 字；先替换后截断，避免截出密钥片段。"""
     if secret:
         text = text.replace(secret, "****")
-    text = _SK_PATTERN.sub("sk-****", text)
-    return text[:MAX_DETAIL_CHARS]
+    return scrub_sk(text)[:MAX_DETAIL_CHARS]
 
 
 _QUOTA_WORDS = ("quota", "insufficient", "balance", "余额", "额度", "欠费", "arrearage")
 # 余额不足、欠费类正文：不论 400、402、403 还是 429，都归为额度不足（各家用的状态码不一样）
 _BALANCE_WORDS = ("arrearage", "credit balance is too low", "insufficient balance", "insufficient_quota", "余额不足", "欠费")
-_MODEL_MISSING_WORDS = ("model not found", "does not exist", "模型不存在", "invalidendpointormodel", "model_not_found")
+_MODEL_MISSING_WORDS = ("model not found", "does not exist", "模型不存在", "invalidendpointormodel", "model_not_found",
+                        "model not exist")
+# 更宽松的写法：model 之后不远处先出现 not 再出现 exist（例如 DeepSeek 的 “Model Not Exist”、“model x is not exist”）
+_MODEL_NOT_EXIST = re.compile(r"\bmodel\b.{0,80}?\bnot\b.{0,20}?\bexists?\b", re.IGNORECASE | re.DOTALL)
 
 
 def classify_http(status: int, body_text: str, *, during: During, secret: str | None) -> LlmError:
@@ -147,7 +155,8 @@ def classify_http(status: int, body_text: str, *, during: During, secret: str | 
         mentions_model = "model" in lowered or "模型" in lowered
         code = "model_not_found" if during == "chat" and mentions_model else "not_found"
     elif status == 400:
-        code = "model_not_found" if any(word in lowered for word in _MODEL_MISSING_WORDS) else "bad_request"
+        missing = any(word in lowered for word in _MODEL_MISSING_WORDS) or _MODEL_NOT_EXIST.search(body_text)
+        code = "model_not_found" if missing else "bad_request"
     elif 400 <= status < 500:
         code = "bad_request"
     else:
@@ -190,6 +199,20 @@ def sorted_unique(models: list[ListedModel]) -> list[ListedModel]:
     return [seen[key] for key in sorted(seen)]
 
 
+def _read_capped(response: httpx2.Response) -> bytes:
+    """边读边计数（按解压后的字节数），超过 MAX_RESPONSE_BYTES 就停止读取并报服务出错。"""
+    chunks: list[bytes] = []
+    size = 0
+    for chunk in response.iter_bytes():
+        size += len(chunk)
+        if size > MAX_RESPONSE_BYTES:
+            limit = MAX_RESPONSE_BYTES // (1024 * 1024)
+            raise LlmError("provider_error", f"服务返回的内容过大（超过 {limit} MB），已停止读取",
+                           status=response.status_code)
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 class HttpAdapter:
     """三个适配器共用的请求与错误处理；子类给出请求头，必要时补充错误归类。"""
 
@@ -220,7 +243,8 @@ class HttpAdapter:
         with httpx2.Client(transport=self._transport, timeout=self._timeout, headers=self._headers(),
                            trust_env=self._transport is None) as client:
             try:
-                response = client.request(method, self.base_url + path, params=params, json=body)
+                with client.stream(method, self.base_url + path, params=params, json=body) as response:
+                    content = _read_capped(response)
             except httpx2.TimeoutException:
                 raise LlmError("timeout") from None
             except httpx2.HTTPError as exc:
@@ -228,13 +252,14 @@ class HttpAdapter:
                 raise LlmError("unreachable", detail=type(exc).__name__) from None
             except httpx2.InvalidURL:
                 raise LlmError("unreachable", "服务地址格式不正确，请检查地址") from None
+        text = content.decode(response.encoding or "utf-8", errors="replace")
         if not response.is_success:
-            raise self._classify(response.status_code, response.text, during)
+            raise self._classify(response.status_code, text, during)
         try:
-            return response.json()
+            return json.loads(content)  # 与原先的 response.json() 一样按字节解析（自动识别 UTF-8 BOM 等）
         except ValueError:
             raise LlmError("provider_error", "模型服务返回的内容不是合法的 JSON",
-                           status=response.status_code, detail=redact(response.text, self._api_key)) from None
+                           status=response.status_code, detail=redact(text, self._api_key)) from None
 
     def _parse(self, parse: Callable[[Any], T], data: Any) -> T:
         return parse_or_fail(parse, data, self._api_key)

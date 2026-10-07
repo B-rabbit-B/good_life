@@ -53,6 +53,10 @@ def _is_rate_limit(details: Any) -> bool:
     return False
 
 
+# 这些结束原因表示内容被拦截；其它原因（例如 MAX_TOKENS）没有内容时按空回复处理
+_BLOCK_REASONS = ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII")
+
+
 def _blocked(reason: Any) -> LlmError:
     return LlmError("bad_request", f"内容被 Gemini 的安全过滤拦截（原因：{reason}），请修改提问内容后再试")
 
@@ -121,9 +125,13 @@ class GeminiAdapter(HttpAdapter):
         if not candidates and block_reason:
             raise _blocked(block_reason)
         candidate = candidates[0]
-        if "content" not in candidate and candidate.get("finishReason"):
-            raise _blocked(candidate["finishReason"])
-        content = candidate["content"]
+        if "content" not in candidate:
+            reason = candidate.get("finishReason")
+            if reason in _BLOCK_REASONS:
+                raise _blocked(reason)
+            if not reason:
+                raise KeyError("content")
+        content = candidate.get("content") or {}  # 没有内容（例如 MAX_TOKENS 时全部用在了思考上）按空回复处理
         texts: list[str] = []
         calls: list[ToolCall] = []
         for part in content.get("parts") or ():  # 输出被截断或拦截时可能没有 parts

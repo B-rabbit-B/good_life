@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import httpx2
 import pytest
@@ -7,6 +8,7 @@ from app.llm.adapters import make_adapter
 from app.llm.adapters.base import (
     ADAPTER_ERROR_CODES,
     MAX_LIST_PAGES,
+    MAX_RESPONSE_BYTES,
     ChatMessage,
     ImagePart,
     ListedModel,
@@ -16,6 +18,7 @@ from app.llm.adapters.base import (
     Usage,
     classify_http,
     redact,
+    scrub_sk,
 )
 
 SECRET = "sk-test-0123456789abcdef"
@@ -300,6 +303,10 @@ COMMON_CASES = [
     ("400 智谱", "chat", 400, ZHIPU_400, "model_not_found"),
     ("400 火山方舟", "chat", 400, ARK_400, "model_not_found"),
     ("400 model not found", "chat", 400, {"error": {"message": "Model Not Found"}}, "model_not_found"),
+    ("400 DeepSeek", "chat", 400, {"error": {"message": "Model Not Exist", "type": "invalid_request_error",
+                                             "param": None, "code": "invalid_request_error"}}, "model_not_found"),
+    ("400 model is not exist", "chat", 400, {"error": {"message": "model qwen-x is not exist"}}, "model_not_found"),
+    ("400 not 与 exist 不挨着 model", "chat", 400, {"error": {"message": "file not exist; model ok"}}, "bad_request"),
     ("400 其它", "chat", 400, {"error": {"message": "max_tokens is too large"}}, "bad_request"),
     ("500", "chat", 500, "Internal Server Error", "provider_error"),
     ("503 列表", "list", 503, "<html>bad gateway</html>", "provider_error"),
@@ -449,6 +456,61 @@ def test_gemini_blocked_content_is_bad_request(body, reason):
     error = _fail("gemini", "chat", Recorder((200, body)))
     assert error.code == "bad_request"
     assert "安全过滤" in error.message and reason in error.message
+
+
+@pytest.mark.parametrize("reason", ["RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII"])
+def test_gemini_other_block_reasons_are_bad_request(reason):
+    error = _fail("gemini", "chat", Recorder((200, {"candidates": [{"finishReason": reason}]})))
+    assert error.code == "bad_request" and reason in error.message
+
+
+@pytest.mark.parametrize("reason", ["MAX_TOKENS", "STOP", "OTHER", "MALFORMED_FUNCTION_CALL"])
+def test_gemini_candidate_without_content_and_non_block_reason_is_empty_text(reason):
+    rec = Recorder((200, {"candidates": [{"finishReason": reason, "index": 0}], "modelVersion": "gemini-2.5-pro",
+                          "usageMetadata": {"promptTokenCount": 7, "thoughtsTokenCount": 64}}))
+    result = _adapter("gemini", rec).chat("gemini-2.5-pro", [ChatMessage("user", "你好")], max_tokens=64)
+    assert (result.text, result.tool_calls, result.model, result.usage) == ("", (), "gemini-2.5-pro", Usage(7, None))
+
+
+def test_openai_tool_call_with_null_arguments_is_empty_dict():
+    rec = Recorder((200, {"choices": [{"message": {"content": None, "tool_calls": [
+        {"id": "call_1", "type": "function", "function": {"name": "get_time", "arguments": None}},
+    ]}}]}))
+    result = _adapter("openai_compatible", rec).chat("qwen-plus", [ChatMessage("user", "几点了")], tools=[WEATHER])
+    assert result.tool_calls == (ToolCall("get_time", {}, "call_1"),)
+
+
+@pytest.mark.parametrize("kind", KINDS)
+@pytest.mark.parametrize("during", ["list", "chat"])
+@pytest.mark.parametrize("status", [200, 500])
+def test_oversized_response_is_provider_error(kind, during, status):
+    huge = b'{"data": "' + b"x" * (MAX_RESPONSE_BYTES + 1) + b'"}'
+    chunks: list[int] = []
+
+    def stream():
+        for start in range(0, len(huge), 1024 * 1024):
+            chunks.append(start)
+            yield huge[start:start + 1024 * 1024]
+
+    def handler(request):
+        return httpx2.Response(status, content=stream(), headers={"content-type": "application/json"})
+
+    adapter = make_adapter(kind, BASES[kind], SECRET, transport=httpx2.MockTransport(handler))
+    with pytest.raises(LlmError) as caught:
+        adapter.list_models() if during == "list" else adapter.chat("m", [ChatMessage("user", "hi")])
+    assert caught.value.code == "provider_error" and "服务返回的内容过大" in caught.value.message
+    assert len(chunks) <= MAX_RESPONSE_BYTES // (1024 * 1024) + 1  # 超过上限就停止读取，不把剩下的也读完
+
+
+def test_response_just_under_the_cap_is_read():
+    body = {"object": "list", "data": [{"id": "m"}], "pad": "x" * (MAX_RESPONSE_BYTES - 100)}
+    assert _adapter("openai_compatible", Recorder((200, body))).list_models() == [ListedModel("m", None)]
+
+
+def test_scrub_sk_is_public_and_live_check_does_not_use_private_names():
+    assert scrub_sk(f"key {SECRET} and sk-short") == "key sk-**** and sk-short"
+    source = (Path(__file__).resolve().parents[1] / "app" / "llm" / "live_check.py").read_text(encoding="utf-8")
+    assert "_SK_PATTERN" not in source and "scrub_sk" in source
 
 
 def test_gemini_chat_strips_models_prefix():

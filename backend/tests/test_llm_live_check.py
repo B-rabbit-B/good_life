@@ -6,6 +6,7 @@ import struct
 import tempfile
 import zlib
 from datetime import date
+from inspect import signature
 from pathlib import Path
 
 import httpx2
@@ -264,6 +265,95 @@ def test_main_writes_and_prints_the_result_without_any_key(capsys):
         assert secret not in written and secret not in printed
     assert written.strip() in printed
     assert "通义千问" in written and "DeepSeek" in written
+
+
+def test_live_adapter_uses_a_60_second_timeout_and_is_the_default():
+    adapter = live_check.live_adapter("openai_compatible", "https://api.example.com/v1", "k-0123456789")
+    assert live_check.LIVE_TIMEOUT_SECONDS == 60 and adapter._timeout == 60
+    assert signature(run_checks).parameters["factory"].default is live_check.live_adapter
+    assert signature(live_check.main).parameters["factory"].default is live_check.live_adapter
+
+
+def test_token_caps_for_chat_tools_and_vision():
+    caps: dict[str, int] = {}
+
+    def factory(kind, base_url, api_key):
+        def route(request: httpx2.Request) -> httpx2.Response:
+            if request.method == "POST" and _key(request) == QWEN_KEY:
+                body = json.loads(request.content)
+                label = ("tools" if body.get("tools") else "vision" if isinstance(body["messages"][0]["content"], list)
+                         else "chat" if body["model"] != live_check.WRONG_MODEL else "wrong_model")
+                caps[label] = body["max_tokens"]
+            return _all_good(request)
+
+        return make_adapter(kind, base_url, api_key, transport=httpx2.MockTransport(route))
+
+    run_checks({"QWEN_API_KEY": QWEN_KEY, "QWEN_CHAT_MODEL": "chat-m", "QWEN_VISION_MODEL": "vl-m"}, factory)
+    assert (caps["chat"], caps["tools"], caps["vision"]) == (512, 512, 512)
+
+
+def test_progress_lines_per_provider_and_per_check_without_keys():
+    lines: list[str] = []
+    rows = run_checks(_config(), _factory, progress=lines.append)
+    for name in live_check.DISPLAY_NAMES.values():
+        assert any(name in line and "开始" in line for line in lines), name
+    assert len(lines) == len(live_check.PROVIDERS) + len(rows)
+    assert any("通义千问" in line and "对话" in line and "通过" in line for line in lines)
+    for secret in ALL_KEYS:
+        assert all(secret not in line for line in lines)
+
+
+def test_wrong_path_is_appended_after_stripping_the_trailing_slash():
+    seen: list[str] = []
+
+    def factory(kind, base_url, api_key):
+        seen.append(base_url)
+        return _factory(kind, base_url, api_key)
+
+    run_checks({"QWEN_API_KEY": QWEN_KEY, "QWEN_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1/"}, factory)
+    assert "https://dashscope.aliyuncs.com/compatible-mode/v1/nonexistent-path" in seen
+    assert not any("//nonexistent-path" in url for url in seen)
+
+
+def test_main_reads_a_keys_file_saved_with_a_bom(capsys):
+    with tempfile.TemporaryDirectory() as directory:
+        keys, result = Path(directory) / "llm_keys.local.env", Path(directory) / "llm_live_result.md"
+        keys.write_text(f"QWEN_API_KEY={QWEN_KEY}\nQWEN_CHAT_MODEL=qwen-plus\n", encoding="utf-8-sig")
+        assert live_check.main(keys, result, _factory) == 0
+        written = result.read_text(encoding="utf-8")
+    assert "## 通义千问" in written and "| 对话 | 通过 |" in written
+    assert QWEN_KEY not in written and QWEN_KEY not in capsys.readouterr().out
+
+
+def test_main_explains_a_keys_file_that_is_not_utf8(capsys):
+    with tempfile.TemporaryDirectory() as directory:
+        keys, result = Path(directory) / "llm_keys.local.env", Path(directory) / "llm_live_result.md"
+        keys.write_bytes(f"# 注释\nQWEN_API_KEY={QWEN_KEY}\n".encode("gbk"))
+        assert live_check.main(keys, result, _factory) == 1
+        assert not result.exists()
+    captured = capsys.readouterr()
+    assert "UTF-8" in captured.out and "Traceback" not in captured.out + captured.err
+    assert QWEN_KEY not in captured.out + captured.err
+
+
+def test_main_writes_partial_results_when_interrupted(capsys):
+    calls = {"count": 0}
+
+    def factory(kind, base_url, api_key):
+        calls["count"] += 1
+        if calls["count"] == 3:  # 第三次调用时用户按下 Ctrl+C
+            raise KeyboardInterrupt
+        return _factory(kind, base_url, api_key)
+
+    with tempfile.TemporaryDirectory() as directory:
+        keys, result = Path(directory) / "llm_keys.local.env", Path(directory) / "llm_live_result.md"
+        keys.write_text(f"QWEN_API_KEY={QWEN_KEY}\nQWEN_CHAT_MODEL=qwen-plus\n", encoding="utf-8")
+        assert live_check.main(keys, result, factory) == 130
+        written = result.read_text(encoding="utf-8")
+    assert "中断" in written and "| 拉取模型 | 通过 |" in written and "| 对话 | 通过 |" in written
+    assert "工具调用" not in written and QWEN_KEY not in written
+    out = capsys.readouterr().out
+    assert "中断" in out and QWEN_KEY not in out
 
 
 def test_example_file_lists_every_variable_with_no_key_values():

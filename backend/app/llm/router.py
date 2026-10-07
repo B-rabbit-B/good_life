@@ -162,8 +162,8 @@ def chat(body: ChatRequest, user: LlmUser, db: DbSession, factory: Factory) -> C
         ChatMessage(m.role, m.text, tuple(ImagePart(i.mime_type, i.data_base64) for i in m.images))
         for m in body.messages
     ]
-    db.commit()  # 结束鉴权查询留下的只读事务；complete 用自己的短会话读取，调用服务期间不占着事务
-    done = service.complete(db, user.id, body.purpose, messages, max_tokens=body.max_tokens, factory=factory)
+    db.commit()  # 结束鉴权查询留下的只读事务；complete 自己开短会话读取，调用服务期间不占着事务
+    done = service.complete(user.id, body.purpose, messages, max_tokens=body.max_tokens, factory=factory)
     return ChatOut(
         text=done.result.text,
         tool_calls=[ToolCallOut(**asdict(call)) for call in done.result.tool_calls],
