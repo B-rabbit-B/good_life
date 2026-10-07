@@ -9,12 +9,17 @@ from app.auth.models import User
 from app.db import get_db
 from app.disclaimer.deps import require_disclaimer_user
 from app.llm import service
+from app.llm.adapters.base import ChatMessage, ImagePart
 from app.llm.kinds import PRESETS
 from app.llm.models import LlmAssignment, LlmModel
 from app.llm.schemas import (
     AssignmentOut,
     AssignmentSet,
     CapabilitiesOut,
+    ChatOut,
+    ChatRequest,
+    ConnectionReportOut,
+    FetchModelsOut,
     ModelCreate,
     ModelOut,
     ModelUpdatedOut,
@@ -22,13 +27,18 @@ from app.llm.schemas import (
     PresetOut,
     ProviderCreate,
     ProviderOut,
+    ProviderTest,
     ProviderUpdate,
+    SavedProviderTest,
+    ToolCallOut,
+    UsageOut,
 )
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 
 LlmUser = Annotated[User, Depends(require_disclaimer_user)]
 DbSession = Annotated[Session, Depends(get_db)]
+Factory = Annotated[service.AdapterFactory, Depends(service.get_adapter_factory)]
 
 
 def _model_out(model: LlmModel) -> ModelOut:
@@ -122,3 +132,39 @@ def set_assignment(purpose: str, body: AssignmentSet, user: LlmUser, db: DbSessi
 def clear_assignment(purpose: str, user: LlmUser, db: DbSession) -> Response:
     service.unassign(db, user.id, purpose)
     return Response(status_code=204)
+
+
+@router.post("/providers/test", response_model=ConnectionReportOut)
+def test_unsaved_provider(body: ProviderTest, user: LlmUser, factory: Factory) -> ConnectionReportOut:
+    report = service.test_connection(body.kind, body.base_url, body.api_key, body.model_id, factory)
+    return ConnectionReportOut.model_validate(asdict(report))
+
+
+@router.post("/providers/{provider_id}/test", response_model=ConnectionReportOut)
+def test_saved_provider(
+    provider_id: uuid.UUID, body: SavedProviderTest, user: LlmUser, db: DbSession, factory: Factory
+) -> ConnectionReportOut:
+    report = service.test_saved_provider(db, user.id, provider_id, body.model_id, factory)
+    return ConnectionReportOut.model_validate(asdict(report))
+
+
+@router.post("/providers/{provider_id}/fetch-models", response_model=FetchModelsOut)
+def fetch_models(provider_id: uuid.UUID, user: LlmUser, db: DbSession, factory: Factory) -> FetchModelsOut:
+    fetched = service.fetch_models(db, user.id, provider_id, factory)
+    return FetchModelsOut(added=fetched.added, total=fetched.total, models=[_model_out(m) for m in fetched.models])
+
+
+@router.post("/chat", response_model=ChatOut)
+def chat(body: ChatRequest, user: LlmUser, db: DbSession, factory: Factory) -> ChatOut:
+    messages = [
+        ChatMessage(m.role, m.text, tuple(ImagePart(i.mime_type, i.data_base64) for i in m.images))
+        for m in body.messages
+    ]
+    done = service.complete(db, user.id, body.purpose, messages, max_tokens=body.max_tokens, factory=factory)
+    return ChatOut(
+        text=done.result.text,
+        tool_calls=[ToolCallOut(**asdict(call)) for call in done.result.tool_calls],
+        model_id=done.model_id,
+        provider_name=done.provider_name,
+        usage=UsageOut(**asdict(done.result.usage)),
+    )

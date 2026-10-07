@@ -151,6 +151,19 @@ def test_url_guard_rejects_unresolvable_and_mapped_private_hosts():
             validate_base_url(url, allow_private=False)
 
 
+def test_url_guard_rejects_userinfo_query_and_fragment():
+    public = lambda host, *a, **k: [(socket.AF_INET, 0, 0, "", ("8.8.8.8", 0))]
+    cases = (("https://user:pass@api.deepseek.com/v1", "用户名"), ("https://sk-abc@api.deepseek.com/v1", "用户名"),
+             ("https://api.deepseek.com/v1?key=sk-abc", "查询参数"), ("https://api.deepseek.com/v1?", "查询参数"),
+             ("https://api.deepseek.com/v1#frag", "#"), ("https://api.deepseek.com/v1#", "#"))
+    for url, word in cases:
+        for allow_private in (True, False):
+            with pytest.raises(AppError) as caught:
+                validate_base_url(url, allow_private=allow_private, resolver=public)
+            assert caught.value.code == "llm_invalid_url" and word in caught.value.message, url
+            assert "sk-abc" not in caught.value.message and "pass" not in caught.value.message
+
+
 def test_too_many_providers(client):
     headers = ready_user(client, "alice")
     for index in range(20):

@@ -44,6 +44,13 @@ def validate_base_url(
         raise _invalid("服务地址必须以 https:// 开头（本机调试可用 http://），请检查协议")
     if not host:
         raise _invalid("服务地址里没有主机名，请填写形如 https://api.example.com/v1 的完整地址")
+    # 密钥只能放在“密钥”一栏：地址里的用户名密码、查询参数、# 片段都可能夹带密钥，一律拒绝（提示里不回显原文）
+    if "@" in parts.netloc:
+        raise _invalid("服务地址里不能包含用户名或密码（@ 之前的部分），密钥请填在“密钥”一栏")
+    if "?" in text:
+        raise _invalid("服务地址里不能带查询参数（? 及之后的部分），地址只填到路径为止，密钥请填在“密钥”一栏")
+    if "#" in text:
+        raise _invalid("服务地址里不能带 # 及之后的内容，请删掉后再保存")
     if not allow_private:
         if parts.scheme.lower() != "https":
             raise _invalid("非本机的服务地址必须使用 https://，请把 http:// 改成 https://")
