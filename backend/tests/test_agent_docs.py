@@ -76,12 +76,13 @@ def test_delivery_docs_exist_and_contain_no_code_blocks_or_inline_code():
         assert "`" not in content, doc.name
 
 
-def test_acceptance_record_has_nine_rows_with_existing_tests_and_an_empty_user_column():
+def test_acceptance_record_has_nine_rows_with_existing_tests_and_user_acceptance():
     rows = _acceptance_rows()
     assert [row[0] for row in rows] == [str(n) for n in range(1, 10)]
     for row in rows:
         assert len(row) == 6 and row[1] and row[2] and row[3] and row[4], row[0]
-        assert row[5] == "", row[0]  # “用户验收”列由用户本人填写，目前为空
+        expected = {"1": "待用户实测", "9": "待用户实测", "2": "规则部分代验通过，真实模型待用户实测"}
+        assert row[5] == expected.get(row[0], "通过（代验，见“代为验收记录”）"), row[0]
     references = {(match.group(1), match.group(2)) for row in rows
                   for match in re.finditer(r"(test_\w+\.py)::(test_\w+)", row[2])}
     assert len(references) >= 60
@@ -236,13 +237,13 @@ def test_readme_step_06_section_uses_the_current_sdk_numbers():
     assert "共 32 项能力" not in section.replace("当时共 32 项能力", "")
 
 
-def test_readme_and_overview_record_step_08_as_awaiting_acceptance():
+def test_readme_and_overview_record_step_08_status():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "## 17. 智能体" in readme and "共二十六张表" in readme
     assert "uv run python -m app.agent.live_check" in readme and "agent_live_result.md" in readme
     assert "步骤 08" in readme.split("定位声明")[0]
     overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8")
-    assert "| 08 | 智能体层 | 08-智能体层.md | 06、07 | 待验收（见 08-交付物/验收记录.md） |" in overview
+    assert "| 08 | 智能体层 | 08-智能体层.md | 06、07 | 有条件通过（" in overview and "见 08-交付物/验收记录.md） |" in overview
 
 
 def test_step_06_records_note_the_new_capability_without_changing_old_numbers_and_the_audit_doc_has_kind_agent():
