@@ -134,9 +134,19 @@ def test_newlines_still_split_names():
 
 def test_mostly_latin():
     assert guard.mostly_latin("Mapo tofu is great tonight")
-    assert guard.mostly_latin("麻婆豆腐YYDS")
-    assert not guard.mostly_latin("今晚推荐清蒸鱼，配 1 碗米饭（约 150g）")
+    assert guard.mostly_latin("Try the mapo tofu 麻婆豆腐 tonight")
+    assert not guard.mostly_latin("麻婆豆腐YYDS")  # 本身就会因为麻婆豆腐被拦下
     assert not guard.mostly_latin("12345")
+
+
+@pytest.mark.parametrize("text", [
+    "早餐：燕麦50g，鸡蛋1个，牛奶250ml，约400kcal",
+    "今晚 BMI 23.5，TDEE 2200kcal，蛋白质120g",
+    "推荐清蒸鱼（约200g，含DHA、EPA）",
+    "今晚推荐清蒸鱼，配 1 碗米饭（约 150g）",
+])
+def test_units_and_acronyms_do_not_make_an_answer_latin(text):
+    assert not guard.mostly_latin(text)
 
 
 # ---------- 输出检查：默认拦截 ----------
@@ -187,6 +197,26 @@ PROHIBITING = [
     "麻婆豆腐、火锅这类辛辣菜要先避开", "不要吃麻婆豆腐、火锅这类辛辣菜", "麻婆豆腐这几天千万别",
     "这几天不要吃：\n- 麻婆豆腐\n- 火锅", "下面这些要避免：\n1. 麻婆豆腐\n2. 宫保鸡丁\n\n晚饭推荐清蒸鱼。",
     "避免以下食物：\n- 麻婆豆腐", "別吃麻婆豆腐", "不要吃麻 婆豆腐",
+    "火锅 不要吃", "不要 吃 火锅", "不 要吃火锅", "推荐清蒸鱼，不要吃火锅", "麻婆豆腐 不要吃。", "這幾天別吃火鍋",
+    "火鍋這幾天先別碰", "不要吃火锅，可以吃清蒸鱼", "火锅等医生说好了后再吃", "火锅等复查后再吃", "不要吃火锅等辛辣菜",
+    "这几天不要吃：\n- 麻婆豆腐（含辣）\n- 火锅。",
+]
+
+# 复审的静默放行：后文反悔、禁止后面还有别的内容、列表标题或条目不明确、“等……后再吃”不是等医嘱
+SILENT_PASSES = [
+    "不要吃火锅？其实可以", "别吃清蒸鱼和麻婆豆腐以外的东西", "避免火锅？没必要", "火锅不要吃？才怪", "火锅别吃了？想吃就吃",
+    "千万别吃麻婆豆腐以外的菜", "不要吃火锅和宫保鸡丁以外的", "不要吃火锅和麻婆豆腐吧，开玩笑的", "不要吃火锅，开玩笑，吃吧",
+    "不要吃清蒸鱼和麻婆豆腐，开玩笑",
+    "火锅等下班后再吃", "火锅等你回来后再吃", "麻婆豆腐等周末后再吃",
+    "避免吃火锅太晚", "不要吃火锅的时候喝冰水", "不要吃火锅后马上运动", "别吃火锅吃到撑", "不要吃火锅太快",
+    "这几天要避免：\n- 冰饮，可以多吃麻婆豆腐", "这几天不要吃：\n- 清蒸鱼，推荐火锅",
+    "不要犹豫，试试这些：\n- 麻婆豆腐", "别错过这些：\n- 火锅", "不能错过的川菜：\n- 麻婆豆腐",
+    "避免饿肚子，晚上吃这些：\n- 火锅\n- 宫保鸡丁", "不要只吃米饭，加上这些：\n1. 麻婆豆腐", "别光吃菜：\n- 火锅",
+    "不要吃火锅？可以的", "火锅不要吃？不存在的", "火锅不行？那是以前", "不建议吃火锅，骗你的", "别吃麻婆豆腐，除非你很想吃",
+    "不要吃麻婆豆腐，除非不辣", "麻婆豆腐不能吃？能吃", "麻婆豆腐别吃！才怪", "不要吃火锅；当然吃也没关系",
+    "不要吃火锅\n开玩笑，可以吃", "忌麻婆豆腐？早就解除了", "远离火锅？不需要", "不要吃麻婆豆腐以外的辣菜",
+    "忌麻婆豆腐偶爾吃", "麻婆豆腐不要吃，偶爾", "不要吃火鍋偶爾來點", "這幾天別吃火鍋，其實可以",
+    "这几天不要吃：\n- 麻婆豆腐也能吃", "这几天不要吃：\n- 麻婆豆腐。今晚就吃它",
 ]
 
 # 自然的提醒但不在禁止结构里：仍会拦下，交给重写或固定安全回答（可以接受）
@@ -196,7 +226,7 @@ STILL_BLOCKED = [
 ]
 
 
-@pytest.mark.parametrize("text", RECOMMENDING + STILL_BLOCKED)
+@pytest.mark.parametrize("text", RECOMMENDING + SILENT_PASSES + STILL_BLOCKED)
 def test_blocked_food_outside_prohibition_is_a_violation(text):
     verdict = check_answer(text, _spicy_blocked())
     assert not verdict.passed and verdict.violations
