@@ -5,7 +5,6 @@ import pytest
 
 from app.agent.guard import (
     EXCLUDED_NAMES,
-    NEGATIVE_CUES,
     REWRITE_INSTRUCTION,
     SAFE_FALLBACK,
     FoodMention,
@@ -25,6 +24,8 @@ MAPO = "dish:mapo_tofu"
 TOMATO_EGG = "dish:tomato_egg"
 STEAMED_FISH = "dish:steamed_fish"
 KUNG_PAO = "dish:kung_pao_chicken"
+HOT_POT = "dish:hot_pot"
+TWICE_COOKED = "dish:twice_cooked_pork"
 NO_SPICY = HardConstraint("m1", "diet_avoid", "忌辛辣", ("辛辣",))
 NO_SEAFOOD = HardConstraint("m2", "diet_avoid", "忌海鲜", ("海鲜",))
 STRENGTH = TrainingContext(True, ("strength",), "vigorous", 200)
@@ -105,71 +106,128 @@ def test_index_is_built_once_and_matching_is_fast():
     assert time.perf_counter() - started < 2.0
 
 
-# ---------- 否定语气 ----------
+# ---------- 归一 ----------
 
-@pytest.mark.parametrize("text", [
-    "今晚别吃麻婆豆腐",
-    "不建议吃麻婆豆腐和回锅肉",
-    "最好避免辛辣的菜，比如麻婆豆腐",
-    "医嘱要求忌辛辣，麻婆豆腐不宜",
-    "麻婆豆腐不要吃",
-    "麻婆豆腐属于你医嘱要求避免的辛辣菜",
-    "麻婆豆腐、宫保鸡丁这几天都别碰",
-    "别吃麻婆豆腐",                      # 否定词在全文开头
-    "麻婆豆腐这几天千万别",              # 否定词在全文结尾
-])
-def test_negative_tone(text):
-    assert is_negative(text, _mention(text, MAPO))
+def test_zero_width_and_spaces_between_chinese_are_ignored():
+    text = "推荐 麻\u200b婆 豆腐，再来\u3000火锅"
+    mentions = find_foods(text, CATALOG)
+    assert [m.food_id for m in mentions] == [MAPO, HOT_POT]
+    assert all(text[m.start:m.end] == m.name for m in mentions)
+    assert mentions[0].name == "麻\u200b婆 豆腐"
 
 
-@pytest.mark.parametrize("text", [
-    "推荐麻婆豆腐",
-    "可以来一份麻婆豆腐",
-    "别吃太多。推荐麻婆豆腐",            # 跨句的否定不算
-    "不要空腹！麻婆豆腐配米饭正好",
-    "特别推荐麻婆豆腐",                  # “特别”里的“别”不是否定
-    "区别不大，麻婆豆腐也行",
-    "不建议吃回锅肉，可以换成麻婆豆腐",  # 否定之后转为推荐
-    "少吃油炸的，多吃麻婆豆腐",
-    "不要错过麻婆豆腐",
-    "现在不用忌口了，麻婆豆腐也能吃",
-    "推荐麻婆豆腐，不要犹豫",            # 食物之后的否定只看同一小句
-])
-def test_recommending_tone(text):
-    assert not is_negative(text, _mention(text, MAPO))
+def test_traditional_characters_are_mapped():
+    text = "宮保雞丁和回鍋肉都好吃，火鍋也行"
+    assert _ids(text) == [KUNG_PAO, TWICE_COOKED, HOT_POT]
+    assert find_foods(text, CATALOG)[0].name == "宮保雞丁"
 
 
-def test_negative_cues_are_the_agreed_list():
-    assert NEGATIVE_CUES == ("不要", "别", "避免", "不建议", "不能", "不宜", "忌", "少吃", "不推荐", "停止", "不适合")
+def test_food_traditional_table_maps_to_catalog_characters():
+    used = {ch for food in CATALOG.foods.values() for name in CATALOG.match_names_of(food) for ch in name}
+    assert all(len(src) == 1 and dst in used for src, dst in guard.FOOD_TRADITIONAL_TO_SIMPLIFIED.items())
+    assert set("鍋雞豬魚腸麵餅湯醬燒涼蝦飯") <= guard.FOOD_TRADITIONAL_TO_SIMPLIFIED.keys()
 
 
-# ---------- 输出检查 ----------
+def test_newlines_still_split_names():
+    assert _ids("麻婆\n豆腐") != [MAPO]
+
+
+def test_mostly_latin():
+    assert guard.mostly_latin("Mapo tofu is great tonight")
+    assert guard.mostly_latin("麻婆豆腐YYDS")
+    assert not guard.mostly_latin("今晚推荐清蒸鱼，配 1 碗米饭（约 150g）")
+    assert not guard.mostly_latin("12345")
+
+
+# ---------- 输出检查：默认拦截 ----------
 
 def _spicy_blocked():
-    return {
-        MAPO: _evaluate(MAPO, constraints=(NO_SPICY,)),
-        KUNG_PAO: _evaluate(KUNG_PAO, constraints=(NO_SPICY,)),
-        STEAMED_FISH: _evaluate(STEAMED_FISH, constraints=(NO_SPICY,), goal="gain_muscle", training=STRENGTH),
-    }
+    blocked = (MAPO, KUNG_PAO, HOT_POT, TWICE_COOKED)
+    evaluations = {food_id: _evaluate(food_id, constraints=(NO_SPICY,)) for food_id in blocked}
+    evaluations[STEAMED_FISH] = _evaluate(STEAMED_FISH, constraints=(NO_SPICY,), goal="gain_muscle", training=STRENGTH)
+    return evaluations
 
 
-def test_medical_block_in_recommending_tone_is_a_violation():
+# 推荐、放宽或只是提到：一律违反（评审给出的探测句）
+RECOMMENDING = [
+    "推荐麻婆豆腐配米饭不要太多", "麻婆豆腐可以吃，别吃太多", "麻婆豆腐可以吃，但别吃太多", "不要犹豫，来份麻婆豆腐",
+    "别担心，麻婆豆腐没问题", "别担心麻婆豆腐没问题", "不建议你错过麻婆豆腐", "少吃点麻婆豆腐就行", "少吃麻婆豆腐就行",
+    "麻婆豆腐不辣的话可以吃", "火锅别点太辣的就行", "火锅别太辣就好", "不忌口的话推荐宫保鸡丁", "不忌口的话宫保鸡丁很好",
+    "别犹豫，麻婆豆腐走起", "别客气，点个麻婆豆腐吧", "不要怕，麻婆豆腐吃了没事", "不要怕麻婆豆腐吃了没事",
+    "不能错过的川菜：麻婆豆腐", "不能不吃的川菜是麻婆豆腐", "停止纠结，直接点火锅", "避免饿肚子，晚上来顿火锅",
+    "避免浪费，把麻婆豆腐吃完", "忌口期间也能吃麻婆豆腐", "少吃多餐，麻婆豆腐分两次吃", "别饿着，宫保鸡丁加米饭",
+    "不适合你的菜很多，但麻婆豆腐例外", "麻婆豆腐别有一番风味，推荐", "麻婆豆腐是个不错的选择，不要太辣",
+    "宫保鸡丁很下饭，别放太多油就好", "火锅不能天天吃，偶尔吃一次没问题", "火锅不宜太烫，记得晾一下再吃",
+    "麻婆豆腐吃完别忘了喝水", "吃麻婆豆腐的时候别配啤酒", "晚饭就麻婆豆腐吧，不要再犹豫了", "晚饭就吃麻婆豆腐吧",
+    "麻婆豆腐YYDS", "今晚麻婆豆腐安排上", "没有医嘱限制的话，麻婆豆腐很好", "你的医嘱不禁止麻婆豆腐",
+    "虽然忌辛辣，但麻婆豆腐可以少量吃", "虽然要避免辛辣，麻婆豆腐少量也行", "避免辛辣？麻婆豆腐其实问题不大",
+    "不要只吃米饭，配点麻婆豆腐", "别只吃米饭，加个麻婆豆腐", "别光吃菜，火锅里的肉也要吃",
+    "不建议空腹，先吃点宫保鸡丁垫垫", "少吃零食，正餐吃麻婆豆腐", "宮保雞丁很好吃", "回鍋肉推荐", "火鍋推荐",
+    "别人都说麻婆豆腐好吃，你也试试",
+    # 结构成立但同一小句里有放宽说法
+    "不要吃太多麻婆豆腐", "火锅不要吃太多", "麻婆豆腐别吃太多", "麻婆豆腐不能天天吃", "能不能吃麻婆豆腐？可以",
+    "要不要来点麻婆豆腐", "可以分别吃麻婆豆腐和米饭", "现在不用忌麻婆豆腐了",
+    # 列表：空行、非禁止标题、推荐标题、条目里放宽
+    "这几天不要吃：\n- 清蒸鱼\n\n- 麻婆豆腐", "这几天不要吃：\n- 回锅肉\n晚饭推荐：\n- 麻婆豆腐",
+    "推荐这些，别太辣：\n- 麻婆豆腐", "这几天不要吃：\n- 麻婆豆腐（少量可以）", "- 麻婆豆腐",
+]
+
+# 明确的禁止结构：不算违反
+PROHIBITING = [
+    "今晚别吃麻婆豆腐，推荐清蒸鱼", "不要吃麻婆豆腐", "先别吃麻婆豆腐", "不能吃麻婆豆腐", "不建议吃麻婆豆腐",
+    "避免麻婆豆腐", "避开麻婆豆腐", "忌麻婆豆腐", "远离麻婆豆腐和火锅。", "戒掉火锅一段时间", "最好不吃火锅", "不碰火锅",
+    "暂停火锅", "火锅暂停一段时间", "建议避开麻婆豆腐", "建议不要吃麻婆豆腐", "推荐你避开火锅",
+    "千万不要碰火锅、麻婆豆腐和宫保鸡丁。",
+    "麻婆豆腐不要吃", "麻婆豆腐别吃", "麻婆豆腐先别吃", "麻婆豆腐不能吃", "麻婆豆腐不建议吃", "麻婆豆腐要避免",
+    "麻婆豆腐要避开", "麻婆豆腐不行", "麻婆豆腐就算了", "麻婆豆腐先不吃", "火锅等医嘱解除后再吃。", "麻婆豆腐这几天先别碰",
+    "按医嘱，麻婆豆腐暂时不能吃。", "麻婆豆腐我不推荐，换成清蒸鱼更好。", "不建议吃火锅，建议改天再说，改吃清蒸鱼。",
+    "不建议吃火锅，建议你吃清蒸鱼。", "医嘱要求忌辛辣，因此麻婆豆腐不在推荐范围内。", "你可以吃清蒸鱼，但麻婆豆腐不行。",
+    "可以吃清蒸鱼，麻婆豆腐就算了。", "不要吃麻婆豆腐，也不要吃火锅。", "宫保鸡丁？不行，医嘱忌辛辣。", "忌：麻婆豆腐、火锅",
+    "你的医嘱要求忌辛辣，所以麻婆豆腐、火锅和宫保鸡丁这几天都先别碰。", "麻婆豆腐、火锅这类辛辣菜，按医嘱要先避开。",
+    "麻婆豆腐、火锅这类辛辣菜要先避开", "不要吃麻婆豆腐、火锅这类辛辣菜", "麻婆豆腐这几天千万别",
+    "这几天不要吃：\n- 麻婆豆腐\n- 火锅", "下面这些要避免：\n1. 麻婆豆腐\n2. 宫保鸡丁\n\n晚饭推荐清蒸鱼。",
+    "避免以下食物：\n- 麻婆豆腐", "別吃麻婆豆腐", "不要吃麻 婆豆腐",
+]
+
+# 自然的提醒但不在禁止结构里：仍会拦下，交给重写或固定安全回答（可以接受）
+STILL_BLOCKED = [
+    "火锅含辣，医嘱期间不吃为好。", "我知道你很想吃火锅，但医嘱期间还是不行。", "不建议吃火锅，可以理解你想吃火锅的心情。",
+    "麻婆豆腐属于辛辣菜，与你的医嘱冲突。", "不宜：辛辣菜（如麻婆豆腐）", "不要吃辣，麻婆豆腐这种换季时更要注意",
+]
+
+
+@pytest.mark.parametrize("text", RECOMMENDING + STILL_BLOCKED)
+def test_blocked_food_outside_prohibition_is_a_violation(text):
+    verdict = check_answer(text, _spicy_blocked())
+    assert not verdict.passed and verdict.violations
+
+
+@pytest.mark.parametrize("text", PROHIBITING)
+def test_blocked_food_inside_prohibition_passes(text):
+    verdict = check_answer(text, _spicy_blocked())
+    assert verdict == GuardVerdict(True, ()), verdict
+    assert all(is_negative(text, m) for m in find_foods(text, CATALOG) if m.food_id != STEAMED_FISH)
+
+
+def test_latin_answer_has_no_mentions_but_is_flagged():
+    text = "Mapo tofu is great tonight"
+    assert check_answer(text, _spicy_blocked()).passed  # 识别不了食物，由调用方按 mostly_latin 要求重写
+    assert guard.mostly_latin(text)
+
+
+def test_violation_names_and_order():
     evaluations = _spicy_blocked()
-    assert evaluations[MAPO]["conclusion"] == "not_recommended"
     assert check_answer("今晚推荐麻婆豆腐", evaluations) == GuardVerdict(False, ("麻婆豆腐",))
-    assert check_answer("可以来一份麻婆豆腐，再加宫保鸡丁", evaluations) == GuardVerdict(False, ("麻婆豆腐", "宫保鸡丁"))
+    assert check_answer("可以来一份麻婆豆腐，再加宮保雞丁", evaluations) == GuardVerdict(False, ("麻婆豆腐", "宫保鸡丁"))
 
 
-def test_negative_tone_passes():
-    evaluations = _spicy_blocked()
-    verdict = check_answer("今晚别吃麻婆豆腐，推荐清蒸鱼", evaluations)
-    assert verdict == GuardVerdict(True, ())
-
-
-def test_any_recommending_occurrence_counts():
-    evaluations = _spicy_blocked()
-    verdict = check_answer("别吃麻婆豆腐。不过实在想吃的话，麻婆豆腐少来点也行", evaluations)
+def test_any_unprohibited_occurrence_counts():
+    verdict = check_answer("别吃麻婆豆腐。不过实在想吃的话，麻婆豆腐少来点也行", _spicy_blocked())
     assert verdict == GuardVerdict(False, ("麻婆豆腐",))
+
+
+def test_unblocked_foods_never_violate():
+    assert check_answer("推荐清蒸鱼，可以多吃点", _spicy_blocked()).passed
 
 
 def test_only_medical_blocks_count():
@@ -189,6 +247,12 @@ def test_foods_without_evaluation_are_skipped():
     assert check_answer("推荐麻婆豆腐", {}).passed
 
 
+def test_catalog_parameter_is_used():
+    evaluations = _spicy_blocked()
+    assert check_answer("推荐麻婆豆腐", evaluations, CATALOG) == check_answer("推荐麻婆豆腐", evaluations)
+    assert rewrite_instruction("推荐麻婆豆腐", evaluations, CATALOG) == rewrite_instruction("推荐麻婆豆腐", evaluations)
+
+
 def test_fallback_and_rewrite_texts():
     assert SAFE_FALLBACK.format(foods="麻婆豆腐、宫保鸡丁").startswith("根据你当前生效的医嘱，下面这些食物不建议吃：麻婆豆腐、宫保鸡丁。")
     evaluations = _spicy_blocked()
@@ -196,6 +260,7 @@ def test_fallback_and_rewrite_texts():
     block = evaluations[MAPO]["reasons"][0]["message"]
     assert block in instruction and "麻婆豆腐" in instruction and "清蒸鱼" not in instruction
     assert instruction == REWRITE_INSTRUCTION.format(details=f"麻婆豆腐：{block}")
+    assert "简体中文" in REWRITE_INSTRUCTION and "这几天先别吃" in REWRITE_INSTRUCTION
 
 
 # ---------- 依据 ----------
@@ -220,7 +285,8 @@ def test_evidence_quotes_engine_reasons_verbatim():
         body = line.split("依据：", 1)[1]
         pieces = [p for p in body.split("【") if p]
         assert len(pieces) == len(evaluation["reasons"]) + bool(evaluation["tradeoff"])
-        given = {SOURCE_NAMES[r["source"]] for r in evaluation["reasons"]} | ({"权衡"} if evaluation["tradeoff"] else set())
+        given = {SOURCE_NAMES[r["source"]] for r in evaluation["reasons"]}
+        given |= {"权衡"} if evaluation["tradeoff"] else set()
         for piece in pieces:
             label, message = piece.split("】", 1)
             assert label in labels and label in given
