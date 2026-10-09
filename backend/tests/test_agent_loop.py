@@ -13,12 +13,18 @@ from app.agent.guard import NOTICE_HEADER, REWRITE_INSTRUCTION, SAFE_FALLBACK
 from app.agent.loop import (
     CHINESE_ONLY,
     LATIN_INSTRUCTION,
+    MAX_EVALUATED_FOODS,
     MAX_MODEL_CALLS,
     TOOL_LIMIT_REPLY,
+    UNKNOWN_FOODS_INSTRUCTION,
     UNKNOWN_TOOL_MESSAGE,
     replayable,
     strip_self_evidence,
 )
+from app.agent import conversations
+from app.agent.guard import mentioned_food_ids
+from app.auth.models import User
+from app.sdk import GoodLife, SdkError
 from app.agent.safety import HEALTH_DISCLAIMER, SAFE_REPLIES
 from app.agent_grants.models import SdkCallAudit
 from app.common.clock import get_today
@@ -185,7 +191,7 @@ def test_tool_round_trip_appends_engine_evidence_and_is_audited_as_agent(client,
     assert body["tools_used"] == ["nutrition_search_foods", "nutrition_evaluate_food"]
     assert body["flags"] == []
     assert _answer(body["text"]) == "晚饭可以吃清蒸鱼，清淡又有蛋白质。"
-    assert body["evidence"] and body["evidence"] in body["text"]
+    assert body["evidence"] and body["evidence"] not in body["text"] and "依据" not in body["text"]
     _assert_evidence_from_engine(client, headers, body["evidence"], [STEAMED_FISH])
     assert body["text"].endswith(HEALTH_DISCLAIMER)
 
@@ -302,15 +308,80 @@ def test_latin_answer_is_kept_for_users_without_diet_orders(client, scripted):
     assert _answer(body["text"]) == "Tonight try steamed fish, light and healthy."
 
 
-def test_no_rewrite_budget_left_means_fallback(client, scripted):
+def test_the_rewrite_does_not_count_toward_the_tool_loop_cap(client, scripted):
     headers, _ = _no_spicy_user(client, "bob")
     connect(client, headers)
     scripted.add(*[call("nutrition_search_foods", {"query": "豆腐"})] * (MAX_MODEL_CALLS - 1),
-                 say("推荐麻婆豆腐。"))
+                 say("推荐麻婆豆腐。"), say("推荐清蒸鱼。"))
     body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
-    assert len(scripted.requests) == MAX_MODEL_CALLS
+    assert len(scripted.requests) == MAX_MODEL_CALLS + 1
+    assert scripted.requests[-1].tools == []
+    assert body["flags"] == ["guard_rewritten"]
+    assert _answer(body["text"]) == "推荐清蒸鱼。"
+
+
+def _fail_evaluations(monkeypatch, food_id):
+    """让循环（客户端名 agent）对某个食物的引擎判断失败。"""
+    original = GoodLife.call
+
+    def failing(self, credential, capability, params=None, *, client_name="sdk"):
+        if capability == "nutrition.evaluate_food" and (params or {}).get("food_id") == food_id:
+            raise SdkError("internal", "internal_error", "服务内部出错")
+        return original(self, credential, capability, params, client_name=client_name)
+
+    monkeypatch.setattr(GoodLife, "call", failing)
+
+
+def test_unevaluated_foods_fail_closed_for_users_with_diet_orders(client, scripted, monkeypatch):
+    headers, _ = _no_spicy_user(client, "bob")
+    connect(client, headers)
+    _fail_evaluations(monkeypatch, STEAMED_FISH)
+    scripted.add(say("今晚吃清蒸鱼。"), say("今晚吃米饭配番茄炒蛋。"))
+    body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
+    instruction = scripted.requests[1].messages[-1]["content"]
+    assert instruction == UNKNOWN_FOODS_INSTRUCTION.format(foods="清蒸鱼")
+    assert body["flags"] == ["guard_rewritten"] and _answer(body["text"]) == "今晚吃米饭配番茄炒蛋。"
+
+    scripted.add(say("今晚吃清蒸鱼。"), say("还是清蒸鱼吧。"))
+    body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
     assert body["flags"] == ["guard_fallback"]
-    assert _answer(body["text"]) == SAFE_FALLBACK.format(foods="麻婆豆腐")
+    assert _answer(body["text"]) == SAFE_FALLBACK.format(foods="清蒸鱼")
+
+
+def test_unevaluated_foods_pass_for_users_without_diet_orders(client, scripted, monkeypatch):
+    headers = ready_user(client, "carl", FULL_PROFILE)
+    connect(client, headers)
+    _fail_evaluations(monkeypatch, STEAMED_FISH)
+    scripted.add(say("今晚吃清蒸鱼。"))
+    body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
+    assert len(scripted.requests) == 1 and body["flags"] == []
+    assert body["evidence"] == ""
+
+
+def test_foods_evaluated_per_turn_are_capped(client, scripted):
+    headers = ready_user(client, "carl", FULL_PROFILE)
+    connect(client, headers)
+    dishes = [food.name for food in load_catalog().foods.values() if food.id.startswith("dish:")][:30]
+    answer = "可以从这些里挑：" + "、".join(dishes) + "。"
+    assert len(mentioned_food_ids(answer)) > MAX_EVALUATED_FOODS
+    scripted.add(say(answer))
+    _send(client, headers, _conversation(client, headers), "晚饭吃什么")
+    with get_sessionmaker()() as db:
+        evaluated = db.scalars(select(SdkCallAudit).where(
+            SdkCallAudit.client_name == "agent", SdkCallAudit.capability == "nutrition.evaluate_food")).all()
+    assert len(evaluated) == MAX_EVALUATED_FOODS
+
+
+def test_capability_errors_go_back_to_the_model_as_structured_results(client, scripted):
+    headers = ready_user(client, "carl", FULL_PROFILE)
+    connect(client, headers)
+    scripted.add(call("nutrition_evaluate_food", {"food_id": "no-such-food"}), say("没找到这种食物。"))
+    body = _send(client, headers, _conversation(client, headers), "这个能吃吗")
+    [result] = _tool_results(scripted.requests[1])
+    error = json.loads(result)
+    assert error["ok"] is False and error["error"]["kind"] == "not_found"
+    assert {"code", "message", "hint"} <= set(error["error"])
+    assert body["tools_used"] == ["nutrition_evaluate_food"]
 
 
 # ---------- 验收第 3 条：医嘱线索 ----------
@@ -427,6 +498,11 @@ def test_preferences_are_remembered_filtered_and_never_replace_orders(client, sc
     [rejected] = _tool_results(scripted.requests[-1])[-1:]
     assert "agent_preference_rejected" in rejected and '"ok": false' in rejected
     assert len(client.get("/api/agent/preferences", headers=headers).json()) == 1
+    with get_sessionmaker()() as db:
+        audits = db.scalars(select(SdkCallAudit).where(SdkCallAudit.capability == "agent.remember_preference")
+                            .order_by(SdkCallAudit.created_at)).all()
+    assert [(a.outcome, a.error_code, a.credential_kind, a.client_name) for a in audits] == [
+        ("ok", None, "agent", "agent"), ("error", "agent_preference_rejected", "agent", "agent")]
 
     scripted.add(echo("【用户偏好"))
     body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
@@ -518,6 +594,21 @@ def test_streaming_sends_deltas_then_done(client, scripted):
     assert set(done) == {"message_id", "evidence", "flags", "tools_used"}
     final = _messages(client, headers, cid)[-1]
     assert "".join(deltas) == final["text"] and done["evidence"] == final["evidence"]
+
+
+def test_streaming_a_rewritten_answer_sends_only_the_guarded_text(client, scripted):
+    headers, _ = _no_spicy_user(client, "bob")
+    connect(client, headers)
+    cid = _conversation(client, headers)
+    scripted.add(say("今晚推荐麻婆豆腐，很下饭。"), say("今晚可以吃清蒸鱼配米饭，清淡又有蛋白质。"))
+    events = _events(_post(client, headers, cid, "晚饭吃什么", stream=True))
+    streamed = "".join(data["text"] for event, data in events if event == "delta")
+    event, done = events[-1]
+    assert event == "done" and done["flags"] == ["guard_rewritten"]
+    assert streamed == _messages(client, headers, cid)[-1]["text"]
+    assert _answer(streamed) == "今晚可以吃清蒸鱼配米饭，清淡又有蛋白质。"
+    assert "很下饭" not in streamed and done["evidence"] not in streamed
+    assert NOTICE_HEADER.format(foods="麻婆豆腐") in streamed
 
 
 def test_non_streaming_returns_json(client, scripted):
@@ -650,6 +741,32 @@ def test_provider_state_is_replayed_only_to_the_same_model(client, scripted):
     assert len(_tool_results(scripted.requests[-1])) == 1
 
 
+def test_gemini_history_replays_to_claude_with_unique_tool_ids(client, scripted):
+    headers = ready_user(client, "xena", FULL_PROFILE)
+    cid = _conversation(client, headers)
+    with get_sessionmaker()() as db:
+        uid = db.scalar(select(User.id).where(User.username == "xena"))
+        gemini_step = {"text": "", "provider_state": None, "model": "gemini-2.5-flash", "provider_kind": "gemini",
+                       "tool_calls": [{"name": "nutrition_search_foods", "arguments": {"query": "米饭"},
+                                       "call_id": "gemini-call-1", "provider_state": {"thoughtSignature": "SIG"}}]}
+        result = {"text": "{}", "tool_call_id": "gemini-call-1", "tool_name": "nutrition_search_foods"}
+        for role, content in [("user", {"text": "米饭能吃吗"}), ("assistant", gemini_step), ("tool", result),
+                              ("assistant", gemini_step), ("tool", result),
+                              ("assistant", {"text": "可以吃。", "answer": "可以吃。"})]:
+            conversations.append_message(db, uid, uuid.UUID(cid), role, content)
+    connect(client, headers, "anthropic")
+    scripted.add(say("好的。"))
+    _send(client, headers, cid, "谢谢")
+    [request] = scripted.requests
+    assert request.kind == "anthropic" and "SIG" not in request.text()
+    uses = [b["id"] for m in request.messages if isinstance(m["content"], list)
+            for b in m["content"] if b["type"] == "tool_use"]
+    results = [b["tool_use_id"] for m in request.messages if isinstance(m["content"], list)
+               for b in m["content"] if b["type"] == "tool_result"]
+    assert len(uses) == 2 and len(set(uses)) == 2 and uses == results
+    assert all(re.fullmatch(r"[A-Za-z0-9_-]+", call_id) for call_id in uses)
+
+
 def _target(kind="openai_compatible", model_id="m1"):
     return ResolvedTarget(kind=kind, base_url="http://127.0.0.1:9", api_key="k", model_id=model_id,
                           provider_name="p", model_pk=uuid.uuid4(), capabilities=Capabilities())
@@ -684,5 +801,9 @@ def test_replayable_drops_the_unreplayable_parts():
         ("assistant", "回答", None), ("user", "第二问", None)]
     assert out[1].provider_state == {"s": 1}
     assert [c.call_id for c in out[1].tool_calls] == ["f", "f2"]
-    assert replayable(saved, _target(model_id="m2"))[1].provider_state is None
+    other = replayable(saved, _target(model_id="m2"))
+    assert other[1].provider_state is None
+    assert [c.call_id for c in other[1].tool_calls] == ["h2_1", "h2_2"]  # 换了模型：重新编号，结果跟着改
+    assert [m.tool_call_id for m in other[2:4]] == ["h2_2", "h2_1"]
+    assert replayable(saved + [_calls("g", "g"), _result("g"), _result("g")], _target())[-1].role == "user"  # 同一回复里编号重复：整组丢掉
     assert replayable(saved, _target(kind="anthropic"))[1].provider_state is None

@@ -1,27 +1,32 @@
 """对话循环：保存用户消息 → 风险话题 → 装配 → 调模型与执行工具 → 输出检查 → 收尾。
 
 - 风险话题命中时直接用固定安全回复，不解析模型、不调模型、不调工具。
-- 每轮只解析一次调用目标（resolve_target），同一个目标用于本轮的每次模型调用；每轮最多 MAX_MODEL_CALLS 次模型调用，
-  输出检查要求的重写也算在内：工具循环用满时没有重写的余量，违反输出检查就直接换成固定的安全回答。
+- 每轮只解析一次调用目标（resolve_target），同一个目标用于本轮的每次模型调用；工具循环最多 MAX_MODEL_CALLS 次模型调用，
+  输出检查要求的那一次重写不算在内。
 - 工具只认本轮发给模型的工具声明：remember_preference 写偏好表（来源 agent，被拒绝时把结构化错误交回模型），
   其余经 capability_for_tool 找到能力，用智能体凭证经 SDK 调用（客户端名 agent，因此都有审计）；SdkError 转成结构化错误交回模型。
+  remember_preference 也记一行审计（能力名 agent.remember_preference，不记内容）。
   工具结果只与同一次回复里的工具调用配对（Gemini 合成的编号只在一次回复里唯一）。
 - 每一步的工具调用与全部工具结果执行完才一起保存；用满次数时最后一次回复里的工具调用直接丢弃，不保存，
   所以保存下来的历史总能原样回放。读历史时再兜底一次：窗口开头不是用户消息的部分、没有配齐结果的工具调用、
-  孤立的工具结果都不放进上下文；保存时的模型与当前模型不同时，去掉 provider_state。
-- 输出检查：回答与用户消息里提到的每个食物（最长匹配加上重叠说法）都用 nutrition.evaluate_food（默认份量）请引擎判断；
-  回答提到医嘱阻断的食物，或用户有饮食类医嘱而回答主要是拉丁字母，就让模型不带工具重写一次再查；仍不通过换成固定的安全回答。
+  孤立的工具结果都不放进上下文；保存时的模型与当前模型不同时，去掉 provider_state，并把调用编号重新编成全局唯一的
+  h<组>_<序号>（Gemini 合成的编号与各家的编号规则不同，回放给 Claude 时不能重复）。
+- 输出检查：回答与用户消息里提到的食物（重叠说法也算，先回答后用户消息，每轮最多 MAX_EVALUATED_FOODS 种）都用
+  nutrition.evaluate_food（默认份量）请引擎判断；回答提到医嘱阻断的食物，或用户有饮食类医嘱而回答提到没能判断的食物
+  （判断失败或超出上限，按不能吃处理），或用户有饮食类医嘱而回答主要是拉丁字母，就让模型不带工具重写一次再查；
+  仍不通过换成固定的安全回答。
   医嘱提醒（medical_notice）由程序附在回答后面，覆盖模型试图提到的和用户提到的医嘱阻断食物。
-- 最终文本 = 回答（去掉模型自写的“依据”段）+ 医嘱提醒 + 依据段（回答里留下的食物，原样取自引擎）+ 健康提示；
-  依据段另存在 evidence 里，模型那部分另存在 answer 里供下一轮回放。对话正文不写日志。
+- 最终文本 = 回答（去掉模型自写的“依据”段）+ 医嘱提醒 + 健康提示；依据段（回答里留下的食物，原样取自引擎）只放在
+  evidence 里；模型那部分另存在 answer 里供下一轮回放。对话正文不写日志。
 """
 
 import json
 import logging
 import re
+import time
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -44,7 +49,7 @@ from app.errors import AppError
 from app.llm.adapters.base import ChatMessage, ChatResult, ToolCall, ToolSpec
 from app.llm.service import AdapterFactory, ResolvedTarget, complete, resolve_target
 from app.nutrition.catalog import load_catalog
-from app.sdk import AgentCredential, GoodLife, SdkError, SdkResult
+from app.sdk import AgentCredential, GoodLife, SdkError, SdkResult, audit
 from app.sdk.client import error_envelope
 from app.sdk.errors import from_app_error
 from app.sdk.tooling import agent_registry, capability_for_tool
@@ -52,6 +57,8 @@ from app.sdk.tooling import agent_registry, capability_for_tool
 logger = logging.getLogger(__name__)
 
 MAX_MODEL_CALLS = 6
+MAX_EVALUATED_FOODS = 20
+REMEMBER_AUDIT_NAME = "agent.remember_preference"
 MAX_ANSWER_TOKENS = 2048
 PURPOSE = "chat"
 DIET_CATEGORIES = frozenset({"diet_avoid", "diet_require", "medication_diet"})
@@ -62,6 +69,10 @@ TOOL_LIMIT_REPLY = "这个问题需要查的内容比较多，我没能在限定
 EMPTY_REPLY = "抱歉，我这次没有整理出回答，请换个说法再问一次。"
 LATIN_INSTRUCTION = "你上一版回答主要用了英文或拼音。请用简体中文重写回答，食物名称一律写中文；其余内容保持原意，不要自己写依据。"
 CHINESE_ONLY = "请用简体中文回答。"
+UNKNOWN_FOODS_INSTRUCTION = (
+    "下面这些食物暂时没能按用户当前生效的医嘱核对：{foods}。请用简体中文重写回答，完全不要提到这些食物——"
+    "不要写出它们的名字，也不要描述、搭配或暗示它们；其余内容保持原意，可以推荐别的食物；不要自己写依据。"
+)
 LATIN_FALLBACK = "抱歉，我这次没能用中文整理好回答。请再问一次，我会按你当前生效的医嘱给出建议。"
 UNKNOWN_TOOL_MESSAGE = "没有这个工具"
 UNKNOWN_TOOL_HINT = "只能使用本轮提供的工具"
@@ -112,6 +123,7 @@ def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarg
     去掉助手消息与工具调用上的 provider_state。
     """
     out: list[ChatMessage] = []
+    group = 0
     index = 0
     while index < len(saved) and saved[index][0] != "user":
         index += 1
@@ -123,6 +135,7 @@ def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarg
             while index < len(saved) and saved[index][0] == "tool":
                 results.append(saved[index][1])
                 index += 1
+            group += 1
             same_model = content.get("model") == target.model_id and content.get("provider_kind") == target.kind
             calls = tuple(
                 ToolCall(c["name"], c.get("arguments") or {}, c.get("call_id"),
@@ -131,12 +144,17 @@ def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarg
             )
             call_ids = [call.call_id for call in calls]
             result_ids = [result.get("tool_call_id") for result in results]
-            paired = (None not in call_ids and sorted(call_ids) == sorted(result_ids)
-                      and all(result.get("tool_name") for result in results))
+            paired = (None not in call_ids and len(set(call_ids)) == len(call_ids)
+                      and sorted(call_ids) == sorted(result_ids) and all(result.get("tool_name") for result in results))
             if paired:
+                if same_model:
+                    rename = {call_id: call_id for call_id in call_ids}
+                else:
+                    rename = {call_id: f"h{group}_{i}" for i, call_id in enumerate(call_ids, start=1)}
+                calls = tuple(replace(call, call_id=rename[call.call_id]) for call in calls)
                 out.append(ChatMessage("assistant", content.get("text") or "", tool_calls=calls,
                                        provider_state=content.get("provider_state") if same_model else None))
-                out.extend(ChatMessage("tool", result.get("text") or "", tool_call_id=result["tool_call_id"],
+                out.extend(ChatMessage("tool", result.get("text") or "", tool_call_id=rename[result["tool_call_id"]],
                                        tool_name=result["tool_name"]) for result in results)
         elif role in ("user", "assistant") and (content.get("answer") or content.get("text")):
             out.append(ChatMessage(role, content.get("answer") or content["text"]))
@@ -176,14 +194,25 @@ def _unknown_tool(name: str) -> dict[str, Any]:
 
 
 def _remember(user_id: uuid.UUID, arguments: dict) -> dict[str, Any]:
+    """写偏好表并像其他工具一样记一行审计（只记能力名与结果，不记内容）。"""
+    started = time.perf_counter()
+    error: SdkError | None = None
+    content = None
     text = arguments.get("text")
     if not isinstance(text, str):
-        return error_envelope(SdkError("invalid_input", "validation_error", "参数不合法：text 必须是一句文字"))
-    try:
-        with get_sessionmaker()() as db:
-            content = preferences.add_preference(db, user_id, text, "agent").content
-    except AppError as err:
-        return error_envelope(from_app_error(err))
+        error = SdkError("invalid_input", "validation_error", "参数不合法：text 必须是一句文字")
+    else:
+        try:
+            with get_sessionmaker()() as db:
+                content = preferences.add_preference(db, user_id, text, "agent").content
+        except AppError as err:
+            error = from_app_error(err)
+    audit.record_call(user_id=user_id, grant_id=None, credential_kind="agent", client_name=CLIENT_NAME,
+                      capability=REMEMBER_AUDIT_NAME, outcome="ok" if error is None else "error",
+                      error_code=None if error is None else error.code,
+                      duration_ms=int((time.perf_counter() - started) * 1000))
+    if error is not None:
+        return error_envelope(error)
     return SdkResult({"remembered": content}).to_dict()
 
 
@@ -201,12 +230,11 @@ def _execute(call: ToolCall, declared: set[str], sdk: GoodLife, credential: Agen
         return error_envelope(err)
 
 
-def _tool_step(result: ChatResult, step: int, declared: set[str], sdk: GoodLife,
-               credential: AgentCredential) -> list[ChatMessage]:
-    """执行一次回复里的全部工具调用；结果只按这次回复里的调用编号配对。没有编号的调用补一个本轮内唯一的编号。"""
+def _tool_step(result: ChatResult, declared: set[str], sdk: GoodLife, credential: AgentCredential) -> list[ChatMessage]:
+    """执行一次回复里的全部工具调用；结果只按这次回复里的调用编号配对。没有编号的调用补一个随机的唯一编号。"""
     calls = tuple(
-        ToolCall(c.name, c.arguments, c.call_id or f"call-{step}-{i}", c.provider_state)
-        for i, c in enumerate(result.tool_calls, start=1)
+        ToolCall(c.name, c.arguments, c.call_id or f"call_{uuid.uuid4().hex[:16]}", c.provider_state)
+        for c in result.tool_calls
     )
     step_messages = [ChatMessage("assistant", result.text, tool_calls=calls, provider_state=result.provider_state)]
     for call in calls:
@@ -256,7 +284,8 @@ def strip_self_evidence(text: str) -> str:
 
 
 class _Evaluations:
-    """请引擎判断回答与用户消息里提到的食物；同一食物只判断一次，判断失败（如饮食模块未开放）就不判断。"""
+    """请引擎判断提到的食物（mentioned_food_ids 已包含 find_foods 的最长匹配）；同一食物只判断一次，每轮最多
+    MAX_EVALUATED_FOODS 种。判断失败或超出上限的记进 unknown，有饮食类医嘱时按不能吃处理。饮食模块未开放时不判断。"""
 
     def __init__(self, sdk: GoodLife, credential: AgentCredential, enabled: bool):
         self._sdk = sdk
@@ -264,13 +293,16 @@ class _Evaluations:
         self._enabled = enabled
         self._tried: set[str] = set()
         self.data: dict[str, dict] = {}
+        self.unknown: set[str] = set()
 
     def cover(self, text: str) -> None:
         if not self._enabled:
             return
-        found = [m.food_id for m in find_foods(text, load_catalog())] + mentioned_food_ids(text)
-        for food_id in dict.fromkeys(found):
-            if food_id in self._tried:
+        for food_id in mentioned_food_ids(text):
+            if food_id in self._tried or food_id in self.unknown:
+                continue
+            if len(self._tried) >= MAX_EVALUATED_FOODS:
+                self.unknown.add(food_id)
                 continue
             self._tried.add(food_id)
             try:
@@ -278,8 +310,30 @@ class _Evaluations:
                                         client_name=CLIENT_NAME)
             except SdkError as err:
                 logger.warning("输出检查判断食物失败：%s", err.code)
+                self.unknown.add(food_id)
                 continue
             self.data[food_id] = result.data
+
+    def unknown_in(self, text: str) -> list[str]:
+        return [food_id for food_id in mentioned_food_ids(text) if food_id in self.unknown]
+
+
+def _food_names(food_ids: Sequence[str], evaluations: dict[str, dict]) -> list[str]:
+    catalog = load_catalog()
+    return [evaluations[f]["food_name"] if f in evaluations else catalog.get(f).name for f in dict.fromkeys(food_ids)]
+
+
+def _instruction(violations: tuple[str, ...], unknown: list[str], latin: bool, evaluations: dict[str, dict]) -> str:
+    parts = []
+    if violations:
+        parts.append(rewrite_instruction(violations, evaluations))
+    if unknown:
+        parts.append(UNKNOWN_FOODS_INSTRUCTION.format(foods="、".join(_food_names(unknown, evaluations))))
+    if not parts:
+        return LATIN_INSTRUCTION
+    if latin:
+        parts.append(CHINESE_ONLY)
+    return "\n".join(parts)
 
 
 def _has_diet_constraints(ctx: AgentContext) -> bool:
@@ -325,45 +379,42 @@ def run_turn(user_id: uuid.UUID, conversation_id: uuid.UUID, user_text: str, *, 
             flags.append(FLAG_TOOL_LIMIT)
             answer = result.text or TOOL_LIMIT_REPLY
             break
-        step_messages = _tool_step(result, calls, declared, sdk, credential)
+        step_messages = _tool_step(result, declared, sdk, credential)
         tools_used.extend(call.name for call in step_messages[0].tool_calls if call.name in declared)
         _save(user_id, conversation_id, _step_contents(step_messages, target))
         messages.extend(step_messages)
 
     answer = strip_self_evidence(answer) or EMPTY_REPLY
     evaluations = _Evaluations(sdk, credential, bool(ctx.capabilities.get("nutrition")))
-    evaluations.cover(user_text)
     evaluations.cover(answer)
+    evaluations.cover(user_text)
     diet = _has_diet_constraints(ctx)
     first = check_answer(answer, evaluations.data)
     attempted = list(first.food_ids)  # 模型试图提到的医嘱阻断食物
-    if not first.passed or (diet and mostly_latin(answer)):
+    unknown = evaluations.unknown_in(answer) if diet else []
+    latin = diet and mostly_latin(answer)
+    if not first.passed or unknown or latin:
+        rewrite = [system, ChatMessage("user", user_text), ChatMessage("assistant", answer),
+                   ChatMessage("user", _instruction(first.violations, unknown, latin, evaluations.data))]
         rewritten = ""
-        if calls < MAX_MODEL_CALLS:
-            if first.passed:
-                instruction = LATIN_INSTRUCTION
-            else:
-                instruction = rewrite_instruction(first.violations, evaluations.data)
-                if diet and mostly_latin(answer):
-                    instruction += CHINESE_ONLY
-            rewrite = [system, ChatMessage("user", user_text), ChatMessage("assistant", answer),
-                       ChatMessage("user", instruction)]
-            try:
-                rewritten = strip_self_evidence(_complete(user_id, rewrite, (), factory, target).text)
-            except AppError as err:  # 重写失败时不能把未通过检查的回答发出去，换成固定的安全回答
-                logger.warning("输出检查的重写调用失败：%s", err.code)
-        second = None
+        try:
+            rewritten = strip_self_evidence(_complete(user_id, rewrite, (), factory, target).text)
+        except AppError as err:  # 重写失败时不能把未通过检查的回答发出去，换成固定的安全回答
+            logger.warning("输出检查的重写调用失败：%s", err.code)
+        passed = False
         if rewritten:
             evaluations.cover(rewritten)
             second = check_answer(rewritten, evaluations.data)
             attempted.extend(second.food_ids)
-        if second is not None and second.passed and not (diet and mostly_latin(rewritten)):
+            still_unknown = evaluations.unknown_in(rewritten) if diet else []
+            unknown.extend(still_unknown)
+            passed = second.passed and not still_unknown and not (diet and mostly_latin(rewritten))
+        if passed:
             answer = rewritten
             flags.append(FLAG_REWRITTEN)
         else:
-            blocked = list(dict.fromkeys(attempted))
-            names = "、".join(evaluations.data[food_id]["food_name"] for food_id in blocked)
-            answer = SAFE_FALLBACK.format(foods=names) if blocked else LATIN_FALLBACK
+            foods = _food_names([*attempted, *unknown], evaluations.data)
+            answer = SAFE_FALLBACK.format(foods="、".join(foods)) if foods else LATIN_FALLBACK
             flags.append(FLAG_FALLBACK)
 
     user_blocked = check_answer(user_text, evaluations.data).food_ids
@@ -373,7 +424,7 @@ def run_turn(user_id: uuid.UUID, conversation_id: uuid.UUID, user_text: str, *, 
     evidence = evidence_section(mentions, evaluations.data)
     health = bool(mentions or notice) or any(name.startswith(HEALTH_TOOL_PREFIXES) for name in tools_used)
     disclaimer = HEALTH_DISCLAIMER if health else ""
-    text = "\n\n".join(part for part in (answer, notice, evidence, disclaimer) if part)
+    text = "\n\n".join(part for part in (answer, notice, disclaimer) if part)
 
     used = tuple(dict.fromkeys(tools_used))
     message_id = _save(user_id, conversation_id, [("assistant", {
