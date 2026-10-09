@@ -1,5 +1,6 @@
 """Gemini（Generative Language API v1beta）。密钥放在 x-goog-api-key 请求头里，不放进地址。"""
 
+import json
 from collections.abc import Sequence
 from typing import Any
 from urllib.parse import quote
@@ -9,6 +10,7 @@ from app.llm.adapters.base import (
     ChatMessage,
     ChatResult,
     During,
+    FinishReason,
     HttpAdapter,
     ListedModel,
     LlmError,
@@ -16,9 +18,12 @@ from app.llm.adapters.base import (
     ToolSpec,
     Usage,
     error_body,
+    finish_with_calls,
     http_error,
     optional_int,
+    sanitize_schema_for_gemini,
     sorted_unique,
+    validate_messages,
 )
 
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
@@ -30,6 +35,56 @@ def _parts(message: ChatMessage) -> list[dict]:
     parts.extend({"inline_data": {"mime_type": image.mime_type, "data": image.data_base64}}
                  for image in message.images)
     return parts
+
+
+def _model_parts(message: ChatMessage) -> list[dict]:
+    """助手的工具调用变成 functionCall 片段；thoughtSignature 必须放回原来那个片段里（Gemini 3 缺了会报 400）。"""
+    parts: list[dict] = [{"text": message.text}] if message.text else []
+    for call in message.tool_calls:
+        part: dict[str, Any] = {"functionCall": {"name": call.name, "args": call.arguments}}
+        signature = (call.provider_state or {}).get("thoughtSignature")
+        if signature is not None:
+            part["thoughtSignature"] = signature
+        parts.append(part)
+    return parts
+
+
+def _function_response(message: ChatMessage) -> dict:
+    """工具结果放进 response.result：能解析成 JSON 就用解析后的值，否则用原文。"""
+    try:
+        result = json.loads(message.text)
+    except ValueError:
+        result = message.text
+    return {"functionResponse": {"name": message.tool_name, "response": {"result": result}}}
+
+
+def _contents(messages: Sequence[ChatMessage]) -> list[dict]:
+    """连续的工具结果合并成一条 user 内容（并行调用的结果要放在一起，不能与调用交错）。"""
+    out: list[dict] = []
+    previous: ChatMessage | None = None
+    for message in messages:
+        if message.role == "system":
+            continue
+        if message.role == "tool":
+            if previous is not None and previous.role == "tool":
+                out[-1]["parts"].append(_function_response(message))
+            else:
+                out.append({"role": "user", "parts": [_function_response(message)]})
+        elif message.tool_calls:
+            out.append({"role": "model", "parts": _model_parts(message)})
+        else:
+            out.append({"role": _ROLES[message.role], "parts": _parts(message)})
+        previous = message
+    return out
+
+
+def _declaration(tool: ToolSpec) -> dict:
+    """参数结构先转成 Gemini 认得的子集；没有参数时不带 parameters（Gemini 不接受 properties 为空的对象）。"""
+    declaration: dict[str, Any] = {"name": tool.name, "description": tool.description}
+    parameters = sanitize_schema_for_gemini(tool.parameters)
+    if parameters.get("properties") or parameters.get("type") != "object":
+        declaration["parameters"] = parameters
+    return declaration
 
 
 def _is_rate_limit(details: Any) -> bool:
@@ -55,6 +110,9 @@ def _is_rate_limit(details: Any) -> bool:
 
 # 这些结束原因表示内容被拦截；其它原因（例如 MAX_TOKENS）没有内容时按空回复处理
 _BLOCK_REASONS = ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII")
+_FINISH_REASONS: dict[Any, FinishReason] = {
+    "STOP": "stop", "MAX_TOKENS": "length", **{reason: "content_filter" for reason in _BLOCK_REASONS},
+    "IMAGE_SAFETY": "content_filter", "IMAGE_PROHIBITED_CONTENT": "content_filter"}
 
 
 def _blocked(reason: Any) -> LlmError:
@@ -104,16 +162,16 @@ class GeminiAdapter(HttpAdapter):
 
     def chat(self, model: str, messages: Sequence[ChatMessage], *, tools: Sequence[ToolSpec] = (),
              max_tokens: int = 1024) -> ChatResult:
+        validate_messages(messages)
         system = "\n\n".join(m.text for m in messages if m.role == "system")
         body: dict[str, Any] = {
-            "contents": [{"role": _ROLES[m.role], "parts": _parts(m)} for m in messages if m.role != "system"],
+            "contents": _contents(messages),
             "generationConfig": {"maxOutputTokens": max_tokens},
         }
         if system:
             body["systemInstruction"] = {"parts": [{"text": system}]}
         if tools:
-            body["tools"] = [{"functionDeclarations": [
-                {"name": t.name, "description": t.description, "parameters": t.parameters} for t in tools]}]
+            body["tools"] = [{"functionDeclarations": [_declaration(t) for t in tools]}]
         model = model.removeprefix("models/")
         data = self._request("POST", f"/models/{quote(model, safe='')}:generateContent", during="chat", body=body)
         return self._parse(lambda d: self._result(d, model), data)
@@ -142,7 +200,11 @@ class GeminiAdapter(HttpAdapter):
                 arguments = call.get("args") or {}
                 if not isinstance(arguments, dict):
                     raise TypeError("functionCall args must be an object")
-                calls.append(ToolCall(call["name"], arguments, call.get("id")))
+                # 没有 id 时按出现顺序合成一个，便于把工具结果对应回去；thoughtSignature 留着下一轮原样放回
+                call_id = call.get("id") or f"gemini-call-{len(calls) + 1}"
+                signature = part.get("thoughtSignature")
+                state = {"thoughtSignature": signature} if signature is not None else None
+                calls.append(ToolCall(call["name"], arguments, call_id, state))
         usage = data.get("usageMetadata") or {}
         model = data.get("modelVersion")
         return ChatResult(
@@ -150,4 +212,5 @@ class GeminiAdapter(HttpAdapter):
             tool_calls=tuple(calls),
             model=model if isinstance(model, str) and model else requested_model,
             usage=Usage(optional_int(usage.get("promptTokenCount")), optional_int(usage.get("candidatesTokenCount"))),
+            finish_reason=finish_with_calls(_FINISH_REASONS.get(candidate.get("finishReason"), "other"), calls),
         )

@@ -34,10 +34,28 @@ class ImagePart:
 
 
 @dataclass(frozen=True)
+class ToolCall:
+    name: str
+    arguments: dict
+    call_id: str | None
+    provider_state: dict | None = None  # 需要原样回传的厂商字段，例如 Gemini 的 thoughtSignature
+
+
+Role = Literal["system", "user", "assistant", "tool"]
+
+
+@dataclass(frozen=True)
 class ChatMessage:
-    role: Literal["system", "user", "assistant"]
+    """一条对话消息。只有 user 可带图片；只有 assistant 可带 tool_calls 与 provider_state；
+    tool 消息必须带 tool_call_id 与 tool_name，text 是工具结果（JSON 文本）。组合是否合法由 validate_messages 检查。"""
+
+    role: Role
     text: str
     images: tuple[ImagePart, ...] = ()
+    tool_calls: tuple[ToolCall, ...] = ()
+    tool_call_id: str | None = None
+    tool_name: str | None = None
+    provider_state: dict | None = None  # 上一次 ChatResult.provider_state，例如 DeepSeek 的 reasoning_content
 
 
 @dataclass(frozen=True)
@@ -48,16 +66,13 @@ class ToolSpec:
 
 
 @dataclass(frozen=True)
-class ToolCall:
-    name: str
-    arguments: dict
-    call_id: str | None
-
-
-@dataclass(frozen=True)
 class Usage:
     input_tokens: int | None
     output_tokens: int | None
+
+
+FINISH_REASONS = ("stop", "tool_calls", "length", "content_filter", "other")
+FinishReason = Literal["stop", "tool_calls", "length", "content_filter", "other"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +81,13 @@ class ChatResult:
     tool_calls: tuple[ToolCall, ...]
     model: str
     usage: Usage
+    finish_reason: FinishReason = "other"
+    provider_state: dict | None = None  # 下一轮要放回这条助手消息上的厂商字段
+
+
+def finish_with_calls(reason: FinishReason, calls: Sequence[ToolCall]) -> FinishReason:
+    """有工具调用时，正常结束或无法归类的停止原因一律报 tool_calls，保证与 tool_calls 一致。"""
+    return "tool_calls" if calls and reason in ("stop", "other") else reason
 
 
 @dataclass(frozen=True)
@@ -263,3 +285,112 @@ class HttpAdapter:
 
     def _parse(self, parse: Callable[[Any], T], data: Any) -> T:
         return parse_or_fail(parse, data, self._api_key)
+
+
+def validate_messages(messages: Sequence[ChatMessage]) -> None:
+    """检查消息组合；不合法时在发请求之前统一抛 LlmError("bad_request")（经统一入口变成 llm_bad_request）。"""
+    for message in messages:
+        role = message.role
+        if role not in ("system", "user", "assistant", "tool"):
+            problem = f"不支持的消息角色 {role}"
+        elif message.images and role != "user":
+            problem = "只有用户消息可以附带图片"
+        elif (message.tool_calls or message.provider_state is not None) and role != "assistant":
+            problem = "只有助手消息可以带工具调用或跨轮状态"
+        elif role == "tool" and not (message.tool_call_id and message.tool_name):
+            problem = "工具结果消息必须带工具调用编号与工具名"
+        elif role != "tool" and (message.tool_call_id is not None or message.tool_name is not None):
+            problem = "只有工具结果消息可以带工具调用编号与工具名"
+        else:
+            continue
+        raise LlmError("bad_request", f"消息格式不对：{problem}")
+
+
+def require_call_ids(messages: Sequence[ChatMessage]) -> None:
+    """OpenAI 兼容格式与 Claude 靠编号把工具结果对应到工具调用，助手消息里的工具调用必须有编号。"""
+    if any(call.call_id is None for message in messages for call in message.tool_calls):
+        raise LlmError("bad_request", "消息格式不对：工具调用缺少编号，无法把工具结果对应回去")
+
+
+# ---------- Gemini 工具参数结构 ----------
+
+# Gemini 的 parameters 是 OpenAPI 3.0 Schema 的子集；format 只保留文档里有特殊含义的取值
+_GEMINI_FORMATS = {"string": ("date-time", "enum"), "number": ("float", "double"), "integer": ("int32", "int64")}
+_REF_PREFIXES = ("#/$defs/", "#/definitions/")
+
+
+def sanitize_schema_for_gemini(schema: dict) -> dict:
+    """把 JSON Schema（例如 pydantic 生成的）转成 Gemini parameters 认得的结构，不改动传入的字典。
+
+    内联展开 $defs 与 definitions 里的 $ref（含只包一层的 allOf）；可空写法（anyOf 含 null、type 列表含 null）转成 nullable；
+    const 转成单值 enum，enum 只留给字符串；只保留 type、properties、required、items、enum、description、format、
+    nullable、anyOf，其余（title、additionalProperties、default、examples、最值限制等）一律去掉。递归引用无法展开，抛 ValueError。
+    """
+    definitions = {**(schema.get("definitions") or {}), **(schema.get("$defs") or {})}
+    return _sanitize(schema, definitions, ())
+
+
+def _resolve_ref(node: dict, definitions: dict, seen: tuple[str, ...]) -> tuple[dict, tuple[str, ...]]:
+    """把 $ref 与只有一项的 allOf 合并成一个结构（同层的其它键优先）。"""
+    while True:
+        node = dict(node)
+        if "$ref" in node:
+            ref = node.pop("$ref")
+            name = next((ref.removeprefix(p) for p in _REF_PREFIXES if ref.startswith(p)), None)
+            if name is None or name not in definitions:
+                raise ValueError(f"cannot resolve schema reference {ref}")
+            if name in seen:
+                raise ValueError(f"recursive schema reference {ref} is not supported by Gemini")
+            seen = (*seen, name)
+            node = {**definitions[name], **node}
+        elif isinstance(node.get("allOf"), list) and len(node["allOf"]) == 1:
+            (inner,) = node.pop("allOf")
+            node = {**inner, **node}
+        else:
+            return node, seen
+
+
+def _sanitize(node: Any, definitions: dict, seen: tuple[str, ...]) -> dict:
+    if not isinstance(node, dict):
+        return {}
+    node, seen = _resolve_ref(node, definitions, seen)
+    nullable = node.get("nullable") is True
+    variants = node.get("anyOf")
+    if isinstance(variants, list):
+        non_null = [v for v in variants if not (isinstance(v, dict) and v.get("type") == "null")]
+        nullable = nullable or len(non_null) < len(variants)
+        if len(non_null) == 1:  # Optional[X]：展开成 X 加 nullable，外层的说明优先
+            inner, seen = _resolve_ref(non_null[0], definitions, seen)
+            node = {**inner, **{k: v for k, v in node.items() if k != "anyOf"}}
+            variants = None
+        else:
+            variants = non_null
+    kind = node.get("type")
+    if isinstance(kind, list):
+        types = [t for t in kind if t != "null"]
+        nullable = nullable or len(types) < len(kind)
+        kind = types[0] if len(types) == 1 else None
+    out: dict[str, Any] = {}
+    if isinstance(kind, str) and kind != "null":
+        out["type"] = kind
+    if isinstance(node.get("description"), str):
+        out["description"] = node["description"]
+    if nullable:
+        out["nullable"] = True
+    if kind == "string":
+        values = node["enum"] if isinstance(node.get("enum"), list) else [node["const"]] if "const" in node else None
+        if values and all(isinstance(v, str) for v in values):
+            out["enum"] = list(values)
+    fmt = node.get("format")
+    if isinstance(kind, str) and fmt in _GEMINI_FORMATS.get(kind, ()):
+        out["format"] = fmt
+    if isinstance(node.get("properties"), dict):
+        out["properties"] = {name: _sanitize(sub, definitions, seen) for name, sub in node["properties"].items()}
+        required = [name for name in node.get("required") or () if name in out["properties"]]
+        if required:
+            out["required"] = required
+    if "items" in node:
+        out["items"] = _sanitize(node["items"], definitions, seen)
+    if variants:
+        out["anyOf"] = [_sanitize(v, definitions, seen) for v in variants]
+    return out

@@ -8,14 +8,21 @@ from urllib.parse import urlsplit
 from app.llm.adapters.base import (
     ChatMessage,
     ChatResult,
+    FinishReason,
     HttpAdapter,
     ListedModel,
     ToolCall,
     ToolSpec,
     Usage,
+    finish_with_calls,
     optional_int,
+    require_call_ids,
     sorted_unique,
+    validate_messages,
 )
+
+_FINISH_REASONS: dict[Any, FinishReason] = {
+    "stop": "stop", "tool_calls": "tool_calls", "length": "length", "content_filter": "content_filter"}
 
 
 def _content(message: ChatMessage) -> str | list[dict]:
@@ -26,6 +33,21 @@ def _content(message: ChatMessage) -> str | list[dict]:
         parts.append({"type": "image_url",
                       "image_url": {"url": f"data:{image.mime_type};base64,{image.data_base64}"}})
     return parts
+
+
+def _message(message: ChatMessage) -> dict:
+    if message.role == "tool":
+        return {"role": "tool", "tool_call_id": message.tool_call_id, "content": message.text}
+    out: dict[str, Any] = {"role": message.role, "content": _content(message)}
+    if message.tool_calls:
+        out["content"] = message.text or None
+        out["tool_calls"] = [{"id": call.call_id, "type": "function", "function": {
+            "name": call.name, "arguments": json.dumps(call.arguments, ensure_ascii=False)}}
+            for call in message.tool_calls]
+    state = message.provider_state or {}
+    if "reasoning_content" in state:  # DeepSeek 等思考模式：带工具时必须把思考内容原样放回这条助手消息
+        out["reasoning_content"] = state["reasoning_content"]
+    return out
 
 
 def _arguments(raw: Any) -> dict:
@@ -59,12 +81,14 @@ class OpenAICompatibleAdapter(HttpAdapter):
 
     def chat(self, model: str, messages: Sequence[ChatMessage], *, tools: Sequence[ToolSpec] = (),
              max_tokens: int = 1024) -> ChatResult:
+        validate_messages(messages)
+        require_call_ids(messages)
         # OpenAI 官方的新模型只接受 max_completion_tokens；其它兼容服务仍用 max_tokens
         limit_field = "max_completion_tokens" if _host(self.base_url) == "api.openai.com" else "max_tokens"
         body: dict[str, Any] = {
             "model": model,
             limit_field: max_tokens,
-            "messages": [{"role": m.role, "content": _content(m)} for m in messages],
+            "messages": [_message(m) for m in messages],
         }
         if tools:
             body["tools"] = [{"type": "function", "function": {
@@ -84,9 +108,13 @@ class OpenAICompatibleAdapter(HttpAdapter):
         )
         usage = data.get("usage") or {}
         model = data.get("model")
+        reasoning = message.get("reasoning_content")
+        reason = _FINISH_REASONS.get(data["choices"][0].get("finish_reason"), "other")
         return ChatResult(
             text=text,
             tool_calls=calls,
             model=model if isinstance(model, str) and model else requested_model,
             usage=Usage(optional_int(usage.get("prompt_tokens")), optional_int(usage.get("completion_tokens"))),
+            finish_reason=finish_with_calls(reason, calls),
+            provider_state={"reasoning_content": reasoning} if isinstance(reasoning, str) else None,
         )

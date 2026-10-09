@@ -538,6 +538,77 @@ def _check_images(messages: Sequence[ChatMessage]) -> None:
         raise AppError(422, "llm_invalid_images", "这次发送的图片合计超过 20 MB，请压缩图片或减少图片数量后再试。")
 
 
+@dataclass(frozen=True)
+class ResolvedTarget:
+    """按用途解析出的调用目标；智能体一轮对话先解析一次，循环里多次调用 complete(target=...) 不再查库。"""
+
+    kind: str
+    base_url: str
+    api_key: str = field(repr=False)  # 不出现在 repr、日志与异常信息里
+    model_id: str
+    provider_name: str
+    model_pk: uuid.UUID
+    capabilities: Capabilities
+
+
+def _read_target(
+    user_id: uuid.UUID, purpose: str, messages: Sequence[ChatMessage] = (), tools: Sequence[ToolSpec] = ()
+) -> ResolvedTarget:
+    """用自己的短会话读取分配、模型与服务（按 user_id 过滤），先查能力，通过后才读取密钥，读完就关闭。"""
+    query = (
+        owned_by(LlmAssignment, user_id)
+        .add_columns(LlmModel, LlmProvider)
+        .join(LlmModel, LlmModel.id == LlmAssignment.llm_model_id)
+        .join(LlmProvider, LlmProvider.id == LlmModel.provider_id)
+        .where(LlmAssignment.purpose == purpose)
+    )
+    with get_sessionmaker()() as session:
+        row = session.execute(query).first()
+        if row is None:
+            raise AppError(409, "llm_not_configured",
+                           f"还没有为“{PURPOSE_LABELS[purpose]}”选择模型：请先到设置页的“模型服务”里，"
+                           "为“日常对话”或“看图识别”选择一个模型，再来使用。")
+        _assignment, model, provider = row
+        caps = model_capabilities(model)[0]
+        _check_capabilities(purpose, model.model_id, caps, messages, tools)
+        return ResolvedTarget(
+            kind=provider.kind,
+            base_url=provider.base_url,
+            api_key=provider.api_key,  # 只有到这一步才读取（解密）密钥
+            model_id=model.model_id,
+            provider_name=provider.name,
+            model_pk=model.id,
+            capabilities=caps,
+        )
+
+
+def _check_capabilities(
+    purpose: str, model_id: str, caps: Capabilities, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
+) -> None:
+    label = PURPOSE_LABELS[purpose]
+    if caps.vision is not True and (purpose == "vision" or any(m.images for m in messages)):
+        raise AppError(422, "llm_model_lacks_vision",
+                       f"当前模型 {model_id} 不支持看图（对照表标明不支持，或无法确认）。请到设置页换一个支持看图的模型；"
+                       "如果你确认它能看图，可以在模型上手动标注“支持看图”；也可以不传图片，改为手动填写。")
+    if tools and caps.tools is False:
+        raise AppError(422, "llm_model_lacks_tools",
+                       f"当前模型 {model_id} 被标明不支持工具调用。请到设置页换一个支持工具调用的模型，"
+                       "或在模型上手动标注“支持工具调用”。")
+    if caps.chat is False:
+        raise AppError(422, "llm_model_not_chat",
+                       f"当前模型 {model_id} 被标明不是对话模型（例如向量、语音、绘图模型），不能用于“{label}”。"
+                       "请到设置页换一个对话模型，或在模型上手动标注“支持对话”。")
+
+
+def resolve_target(user_id: uuid.UUID, purpose: str) -> ResolvedTarget:
+    """按用途找到分配的模型并读出调用所需的全部字段（自己的短会话），同时检查用途本身的能力要求。
+
+    complete(target=...) 每次调用前仍会按这次的消息与工具再查能力、再查地址。
+    """
+    _check_purpose(purpose)
+    return _read_target(user_id, purpose)
+
+
 def complete(
     user_id: uuid.UUID,
     purpose: str,
@@ -546,48 +617,27 @@ def complete(
     tools: Sequence[ToolSpec] = (),
     max_tokens: int = 1024,
     factory: AdapterFactory,
+    target: ResolvedTarget | None = None,
 ) -> CompletionResult:
     """统一调用入口：按用途找到分配的模型，调用前再查一遍能力，最后才读取密钥并调用服务。
 
-    complete 不接收调用方的数据库会话，而是自己开一个短会话：分配、能力、地址与密钥都在里面读取（同样按 user_id 过滤），
-    读完就关闭，调用服务期间不占任何事务。调用方也不要在调用 complete 时开着自己的事务，
+    没给 target 时，complete 不接收调用方的数据库会话，而是自己开一个短会话：分配、能力、地址与密钥都在里面读取
+    （同样按 user_id 过滤），读完就关闭，调用服务期间不占任何事务。调用方也不要在调用 complete 时开着自己的事务，
     以免调用服务期间（最长约 20 秒）一直占着数据库连接。
+    给了 target（来自 resolve_target）时不再读库，user_id 只用于标识调用方；能力检查（图片、工具、用途）与出站前的
+    地址复查照常进行。
     """
     _check_purpose(purpose)
     _check_images(messages)
-    query = (
-        owned_by(LlmAssignment, user_id)
-        .add_columns(LlmModel, LlmProvider)
-        .join(LlmModel, LlmModel.id == LlmAssignment.llm_model_id)
-        .join(LlmProvider, LlmProvider.id == LlmModel.provider_id)
-        .where(LlmAssignment.purpose == purpose)
-    )
-    label = PURPOSE_LABELS[purpose]
-    with get_sessionmaker()() as session:
-        row = session.execute(query).first()
-        if row is None:
-            raise AppError(409, "llm_not_configured",
-                           f"还没有为“{label}”选择模型：请先到设置页的“模型服务”里，为“日常对话”或“看图识别”选择一个模型，再来使用。")
-        _assignment, model, provider = row
-        caps = model_capabilities(model)[0]
-        if caps.vision is not True and (purpose == "vision" or any(m.images for m in messages)):
-            raise AppError(422, "llm_model_lacks_vision",
-                           f"当前模型 {model.model_id} 不支持看图（对照表标明不支持，或无法确认）。请到设置页换一个支持看图的模型；"
-                           "如果你确认它能看图，可以在模型上手动标注“支持看图”；也可以不传图片，改为手动填写。")
-        if tools and caps.tools is False:
-            raise AppError(422, "llm_model_lacks_tools",
-                           f"当前模型 {model.model_id} 被标明不支持工具调用。请到设置页换一个支持工具调用的模型，"
-                           "或在模型上手动标注“支持工具调用”。")
-        if caps.chat is False:
-            raise AppError(422, "llm_model_not_chat",
-                           f"当前模型 {model.model_id} 被标明不是对话模型（例如向量、语音、绘图模型），不能用于“{label}”。"
-                           "请到设置页换一个对话模型，或在模型上手动标注“支持对话”。")
-        model_pk, model_id, provider_name = model.id, model.model_id, provider.name
-        kind, base_url = provider.kind, provider.base_url
-        api_key = provider.api_key  # 只有到这一步才读取（解密）密钥
-    base_url = _check_url(base_url)  # 出站前再查一次地址；此时短会话已关闭
+    if target is None:
+        target = _read_target(user_id, purpose, messages, tools)
+    else:
+        _check_capabilities(purpose, target.model_id, target.capabilities, messages, tools)
+    base_url = _check_url(target.base_url)  # 出站前再查一次地址；此时短会话已关闭
     try:
-        result = factory(kind, base_url, api_key).chat(model_id, messages, tools=tools, max_tokens=max_tokens)
+        result = factory(target.kind, base_url, target.api_key).chat(
+            target.model_id, messages, tools=tools, max_tokens=max_tokens)
     except LlmError as exc:
         raise _app_error(exc, "chat") from None
-    return CompletionResult(result=result, provider_name=provider_name, model_pk=model_pk, model_id=model_id)
+    return CompletionResult(result=result, provider_name=target.provider_name, model_pk=target.model_pk,
+                            model_id=target.model_id)
