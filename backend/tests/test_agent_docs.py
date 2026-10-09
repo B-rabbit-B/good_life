@@ -7,14 +7,22 @@ from pathlib import Path
 from fastapi.routing import APIRoute, iter_route_contexts
 
 from app.agent import conversations
-from app.agent.assembly import SAFETY_SECTION, AgentContext, tool_specs
-from app.agent.guard import EXCLUDED_NAMES, LATIN_SHARE, NOTICE_HEADER, SAFE_FALLBACK
+from app.agent.assembly import DATA_NOTICE, RECORD_CHECK, RISK_FOLLOW_UP, SAFETY_SECTION, AgentContext, tool_specs
+from app.agent.guard import (
+    EXCLUDED_NAMES,
+    FALLBACK_BLOCKED,
+    FALLBACK_TAIL,
+    FALLBACK_UNCHECKED,
+    LATIN_SHARE,
+    NOTICE_HEADER,
+)
 from app.agent.live_check import AFTER_TRAINING, CLUE, DINNER, INDUCEMENTS, RISK_QUESTIONS
 from app.agent.loop import (
     EMPTY_REPLY,
     LATIN_FALLBACK,
     MAX_EVALUATED_FOODS,
     MAX_MODEL_CALLS,
+    RISK_USER_PLACEHOLDER,
     TOOL_LIMIT_REPLY,
 )
 from app.agent.models import AgentConversation, AgentMessage, AgentOpening, AgentPreference, AgentSettings
@@ -27,7 +35,7 @@ from app.agent.openings import (
     PROFILE_STALE_DAYS,
     TEMPLATES,
 )
-from app.agent.preferences import MAX_PREFERENCE_CHARS, MAX_PREFERENCES
+from app.agent.preferences import INSTRUCTION_REASON, MAX_PREFERENCE_CHARS, MAX_PREFERENCES
 from app.agent.router import SSE_CHUNK_CHARS
 from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES, SAFE_REPLIES
 from app.agent.schemas import MAX_MESSAGE_CHARS
@@ -134,11 +142,12 @@ def test_safety_doc_lists_five_topics_with_every_fixed_reply_and_the_prompt_sect
         assert line[2:] in doc, line  # 去掉行首的“- ”
     for word in ("120", "12356", "不调用模型", "第二道防线"):
         assert word in doc, word
+    assert RISK_USER_PLACEHOLDER in doc and RISK_FOLLOW_UP in doc  # 风险话题的回放与下一轮提示
 
 
 def test_output_check_doc_quotes_the_fixed_texts_and_numbers():
     doc = _read("输出检查规则说明.md")
-    for template in (SAFE_FALLBACK, NOTICE_HEADER):
+    for template in (FALLBACK_BLOCKED, FALLBACK_UNCHECKED, FALLBACK_TAIL, NOTICE_HEADER):
         for segment in _segments(template):
             assert segment in doc, segment
     for text in (LATIN_FALLBACK, HEALTH_DISCLAIMER):
@@ -177,6 +186,7 @@ def test_interface_doc_lists_every_agent_route_and_every_error_code():
         assert str(number) in doc, number
     for event in ("delta", "done", "error"):
         assert event in doc, event
+    assert "llm_model_lacks_tools" in doc  # 模型配置类错误按原状态码与错误码返回
 
 
 def test_behavior_doc_numbers_and_fixed_texts_match_the_code():
@@ -198,8 +208,11 @@ def test_behavior_doc_numbers_and_fixed_texts_match_the_code():
         assert model.__tablename__ in doc, model.__tablename__
     assert "迁移版本 0014" in doc
     for word in ("tool_limit", "resolution_clue", "agent_model_not_configured", "agent_model_error",
-                 "agent_preference_rejected", "agent_too_many_preferences", "没有这个工具", "agent.remember_preference"):
+                 "agent_preference_rejected", "agent_too_many_preferences", "没有这个工具", "agent.remember_preference",
+                 "llm_model_lacks_tools", "8 KB"):
         assert word in doc, word
+    for text in (DATA_NOTICE, RECORD_CHECK, INSTRUCTION_REASON):
+        assert text in doc, text
 
 
 def test_scenario_script_covers_the_five_user_kinds_and_the_live_check_inputs():
@@ -210,6 +223,17 @@ def test_scenario_script_covers_the_five_user_kinds_and_the_live_check_inputs():
     for text in (DINNER, *INDUCEMENTS, AFTER_TRAINING, CLUE, *RISK_QUESTIONS):
         assert text in doc, text
     assert "python -m" not in doc and "uv run" not in doc  # 文档里没有命令
+
+
+def test_leftover_live_users_are_described_by_the_exact_prefix_pattern():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "live_ 加 8 位十六进制随机编号再加下划线" in readme and "live_ 加 8 位十六进制随机编号再加下划线" in _read("验收记录.md")
+
+
+def test_readme_step_06_section_uses_the_current_sdk_numbers():
+    section = (ROOT / "README.md").read_text(encoding="utf-8").split("## 14. SDK 与 MCP 演示")[1].split("\n## ")[0]
+    assert "共 33 项能力" in section and "27 项暴露成工具" in section and "1.1" in section
+    assert "共 32 项能力" not in section.replace("当时共 32 项能力", "")
 
 
 def test_readme_and_overview_record_step_08_as_awaiting_acceptance():

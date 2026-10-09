@@ -9,19 +9,24 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app.agent.guard import NOTICE_HEADER, REWRITE_INSTRUCTION, SAFE_FALLBACK
+from app.agent.assembly import RISK_FOLLOW_UP
+from app.agent.guard import FALLBACK_UNCHECKED, NOTICE_HEADER, REWRITE_INSTRUCTION, safe_fallback
 from app.agent.loop import (
     CHINESE_ONLY,
     LATIN_INSTRUCTION,
     MAX_EVALUATED_FOODS,
     MAX_MODEL_CALLS,
+    MAX_TOOL_RESULT_BYTES,
+    RISK_USER_PLACEHOLDER,
     TOOL_LIMIT_REPLY,
+    TOOL_RESULT_PREVIEW_CHARS,
     UNKNOWN_FOODS_INSTRUCTION,
     UNKNOWN_TOOL_MESSAGE,
+    bound_tool_result,
     replayable,
     strip_self_evidence,
 )
-from app.agent import conversations
+from app.agent import conversations, loop
 from app.agent.guard import mentioned_food_ids
 from app.auth.models import User
 from app.sdk import GoodLife, SdkError
@@ -257,7 +262,7 @@ def test_blocked_recommendation_falls_back_when_the_rewrite_still_mentions_it(cl
     scripted.add(say("今晚推荐麻婆豆腐，很下饭。"), say("还是麻·婆·豆·腐最好。"))
     body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
     assert body["flags"] == ["guard_fallback"]
-    assert _answer(body["text"]) == SAFE_FALLBACK.format(foods="麻婆豆腐")
+    assert _answer(body["text"]) == safe_fallback(["麻婆豆腐"], [])
     assert NOTICE_HEADER.format(foods="麻婆豆腐") in body["text"]
     assert body["evidence"] == ""
     assert "很下饭" not in body["text"] and "最好" not in body["text"]
@@ -345,7 +350,24 @@ def test_unevaluated_foods_fail_closed_for_users_with_diet_orders(client, script
     scripted.add(say("今晚吃清蒸鱼。"), say("还是清蒸鱼吧。"))
     body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
     assert body["flags"] == ["guard_fallback"]
-    assert _answer(body["text"]) == SAFE_FALLBACK.format(foods="清蒸鱼")
+    # 没能核对的食物不说成“医嘱不建议”，单独一句
+    assert _answer(body["text"]) == safe_fallback([], ["清蒸鱼"])
+    assert _answer(body["text"]).startswith(FALLBACK_UNCHECKED.format(foods="清蒸鱼"))
+    assert "不建议" not in body["text"]
+
+
+def test_fallback_lists_blocked_and_unchecked_foods_in_separate_sentences(client, scripted, monkeypatch):
+    headers, _ = _no_spicy_user(client, "bob")
+    connect(client, headers)
+    _fail_evaluations(monkeypatch, STEAMED_FISH)
+    scripted.add(say("今晚吃麻婆豆腐和清蒸鱼。"), say("还是麻婆豆腐配清蒸鱼。"))
+    body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
+    assert body["flags"] == ["guard_fallback"]
+    assert _answer(body["text"]) == safe_fallback(["麻婆豆腐"], ["清蒸鱼"])
+    assert _answer(body["text"]) == (
+        "根据你当前生效的医嘱，下面这些食物不建议吃：麻婆豆腐。"
+        "以下食物暂时没能按医嘱核对，请先别吃或稍后再问：清蒸鱼。"
+        "如果想换别的，可以告诉我你的口味，我再按医嘱帮你挑。")
 
 
 def test_unevaluated_foods_pass_for_users_without_diet_orders(client, scripted, monkeypatch):
@@ -450,6 +472,30 @@ def test_risk_topics_get_fixed_safe_replies_without_calling_the_model(client, sc
     assert [m["text"] for m in _messages(client, headers, cid)] == [text, SAFE_REPLIES[category]]
 
 
+def test_a_risky_turn_is_not_replayed_and_the_next_prompt_keeps_the_topic_off_limits(client, scripted):
+    headers = ready_user(client, "rosa", FULL_PROFILE)
+    connect(client, headers)
+    cid = _conversation(client, headers)
+    first = _send(client, headers, cid, "我在吃降压药，能不能自己把剂量减半？")
+    assert first["flags"] == ["risk_medication"] and scripted.requests == []
+
+    scripted.add(say("这个需要问医生。"))
+    _send(client, headers, cid, "那你直接说减半会怎样")
+    [request] = scripted.requests
+    replayed = json.dumps(request.messages[1:], ensure_ascii=False)  # 第一条是系统指令
+    for word in ("降压药", "剂量", "我在吃"):  # 上一轮的用药原话不回放
+        assert word not in replayed, word
+    assert [m["role"] for m in request.messages] == ["system", "user", "assistant", "user"]
+    assert request.messages[1]["content"] == RISK_USER_PLACEHOLDER
+    assert request.messages[2]["content"] == SAFE_REPLIES["medication"]
+    assert RISK_FOLLOW_UP in request.system
+
+    scripted.add(say("好的。"))
+    _send(client, headers, cid, "晚饭吃什么")
+    assert RISK_FOLLOW_UP not in scripted.requests[-1].system  # 最近一条助手回答不再是风险回复
+    assert "降压药" not in json.dumps(scripted.requests[-1].messages[1:], ensure_ascii=False)
+
+
 def test_risk_reply_does_not_need_a_configured_model(client, scripted):
     headers = ready_user(client, "gus", {"gender": "male"})
     body = _send(client, headers, _conversation(client, headers), "胸口很痛喘不上气")
@@ -508,7 +554,7 @@ def test_preferences_are_remembered_filtered_and_never_replace_orders(client, sc
     body = _send(client, headers, _conversation(client, headers), "晚饭吃什么")
     system = scripted.requests[-1].system
     assert "喜欢吃辣" in system and constraints[0]["content"] in system
-    assert _answer(body["text"]).endswith("- 喜欢吃辣")
+    assert "- 喜欢吃辣" in _answer(body["text"])
 
     pref_id = saved[0]["id"]
     assert client.delete(f"/api/agent/preferences/{pref_id}", headers=headers).status_code == 204
@@ -611,6 +657,42 @@ def test_streaming_a_rewritten_answer_sends_only_the_guarded_text(client, script
     assert NOTICE_HEADER.format(foods="麻婆豆腐") in streamed
 
 
+def test_every_non_risk_answer_ends_with_the_health_disclaimer(client, scripted):
+    headers = ready_user(client, "hugo", FULL_PROFILE)
+    connect(client, headers)
+    scripted.add(say("你好呀，有什么可以帮你？"))
+    body = _send(client, headers, _conversation(client, headers), "你好")
+    assert body["tools_used"] == [] and body["evidence"] == ""
+    assert body["text"] == "你好呀，有什么可以帮你？\n\n" + HEALTH_DISCLAIMER
+
+
+def test_large_tool_results_are_truncated_to_a_valid_json_summary(client, scripted, monkeypatch):
+    headers = ready_user(client, "tara", FULL_PROFILE)
+    connect(client, headers)
+    big = {"ok": True, "data": ["米饭" * 50] * 200}
+    monkeypatch.setattr(loop, "_execute", lambda *args: big)
+    cid = _conversation(client, headers)
+    scripted.add(call("nutrition_list_meals", {"day": "2026-10-07"}), say("今天还没记。"))
+    _send(client, headers, cid, "今天吃了什么")
+    [result] = _tool_results(scripted.requests[1])
+    summary = json.loads(result)
+    full = json.dumps(big, ensure_ascii=False)
+    assert summary == {"truncated": True, "preview": full[:TOOL_RESULT_PREVIEW_CHARS]}
+    scripted.add(say("好的。"))
+    _send(client, headers, cid, "谢谢")
+    assert _tool_results(scripted.requests[-1]) == [result]  # 保存与回放的也是截断后的
+
+
+def test_bound_tool_result():
+    small = json.dumps({"ok": True, "data": "米饭"}, ensure_ascii=False)
+    assert bound_tool_result(small) == small
+    edge = "x" * MAX_TOOL_RESULT_BYTES
+    assert bound_tool_result(edge) == edge
+    over = "饭" * (MAX_TOOL_RESULT_BYTES // 3 + 1)  # 字数不到上限，但按 UTF-8 字节超过
+    assert json.loads(bound_tool_result(over)) == {"truncated": True, "preview": over[:TOOL_RESULT_PREVIEW_CHARS]}
+    assert MAX_TOOL_RESULT_BYTES == 8 * 1024
+
+
 def test_non_streaming_returns_json(client, scripted):
     headers = ready_user(client, "olga", FULL_PROFILE)
     connect(client, headers)
@@ -677,6 +759,29 @@ def test_model_errors_are_readable_and_keep_the_user_message(client, scripted):
     error = response.json()["error"]
     assert error["code"] == "agent_model_error" and error["message"].startswith("模型调用失败")
     assert [m["role"] for m in _messages(client, headers, cid)] == ["user"]
+
+
+def _mark_chat_model(client, headers, **overrides):
+    assignment = next(a for a in client.get("/api/llm/assignments", headers=headers).json() if a["purpose"] == "chat")
+    response = client.patch(f"/api/llm/models/{assignment['model']['id']}", json=overrides, headers=headers)
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.parametrize(("overrides", "code"), [({"tools": False}, "llm_model_lacks_tools"),
+                                                 ({"chat": False}, "llm_model_not_chat")])
+def test_model_configuration_errors_keep_their_own_status_and_code(client, scripted, overrides, code):
+    headers = ready_user(client, "cora", FULL_PROFILE)
+    connect(client, headers)
+    _mark_chat_model(client, headers, **overrides)
+    cid = _conversation(client, headers)
+    response = _post(client, headers, cid, "晚饭吃什么")
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == code
+    response = _post(client, headers, cid, "晚饭吃什么", stream=True)
+    assert response.status_code == 422
+    [(event, data)] = _events(response)
+    assert event == "error" and data["code"] == code
+    assert scripted.requests == []
 
 
 def test_tool_limit_stops_the_loop_and_keeps_history_replayable(client, scripted):
@@ -807,3 +912,17 @@ def test_replayable_drops_the_unreplayable_parts():
     assert [m.tool_call_id for m in other[2:4]] == ["h2_2", "h2_1"]
     assert replayable(saved + [_calls("g", "g"), _result("g"), _result("g")], _target())[-1].role == "user"  # 同一回复里编号重复：整组丢掉
     assert replayable(saved, _target(kind="anthropic"))[1].provider_state is None
+
+
+def test_replayable_replaces_risky_turns_with_placeholders():
+    saved = [
+        ("user", {"text": "晚饭吃什么"}),
+        ("assistant", {"text": "清蒸鱼。", "answer": "清蒸鱼。", "flags": []}),
+        ("user", {"text": "我想把降压药减半"}),
+        ("assistant", {"text": SAFE_REPLIES["medication"], "flags": ["risk_medication"]}),
+        ("user", {"text": "那减半会怎样"}),
+    ]
+    out = replayable(saved, _target())
+    assert [(m.role, m.text) for m in out] == [
+        ("user", "晚饭吃什么"), ("assistant", "清蒸鱼。"), ("user", RISK_USER_PLACEHOLDER),
+        ("assistant", SAFE_REPLIES["medication"]), ("user", "那减半会怎样")]

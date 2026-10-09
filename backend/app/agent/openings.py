@@ -1,24 +1,30 @@
 """主动开场：规则决定今天问什么，模型只负责把固定问题说得自然一点。
 
 - 每个类别一条规则，全部经 SDK（智能体凭证，客户端名 agent，因此每次读取都有审计）读取；某条规则读不到数据就当作不触发。
+  规则按优先级逐条判断，第一个触发的类别就是答案，排在后面的规则不再判断（不浪费 SDK 调用）。
 - 同一用户同一天同一类只问一次（唯一约束保证）；任何状态（asked、declined、answered）都算问过。
-- 今天还有一条 asked（没被拒绝也没被回答）的开场时，再取就返回它本身，不新建、不调模型；拒绝或回答之后才轮到下一类。
+- 今天还有一条 asked（没被拒绝也没被回答）的开场时，先重新判断它那一类的规则：仍然成立就返回它本身，不新建、不调模型；
+  不再成立（例如用户已经记了饮食）就把它标为 declined（当天不再问这一类），再往下找下一类。拒绝或回答之后才轮到下一类。
   并发时撞上唯一约束的一方返回刚占住名额的那一条（它是 asked）；若那一条已被处理，则改问下一类。
 - pick_opening 先把固定模板记为 asked 占住名额并提交，再改写措辞；调用模型期间不占事务。
-  模型没配置、任何出错、返回空或过长、丢了模板里的关键事实、或写了模板里没有的“经期”（没开放经期的用户不能被提到）时，直接用模板。
+  模型没配置、任何出错、返回空或过长、丢了模板里的关键事实、写了模板里没有的经期说法（经期、月经、生理期、例假；
+  没开放经期的用户不能被提到）、或提到了模板里没有的营养库食物时，直接用模板。
+  医嘱内容被截断时，必须保留的事实是截断后的内容（不含省略号）。
 """
 
 import logging
 import uuid
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Iterator
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.agent import settings as agent_settings
 from app.agent.assembly import CLIENT_NAME, PROFILE_FIELD_NAMES
+from app.agent.guard import mentioned_food_ids
 from app.agent.models import AgentOpening
 from app.common.ownership import get_owned_or_404, owned_by
 from app.errors import AppError
@@ -35,6 +41,8 @@ PROFILE_STALE_DAYS = 30
 MAX_OPENING_CHARS = 120
 MAX_TOKENS = 200
 MAX_CONTENT_CHARS = 40
+ELLIPSIS = "…"
+CYCLE_WORDS = ("经期", "月经", "生理期", "例假")
 PURPOSE = "chat"
 ASKED, DECLINED, ANSWERED = "asked", "declined", "answered"
 
@@ -82,7 +90,7 @@ def _review_due(reads: _Reads) -> dict | None:
         return None
     content = reviews[0]["content"]
     if len(content) > MAX_CONTENT_CHARS:
-        content = content[:MAX_CONTENT_CHARS] + "…"
+        content = content[:MAX_CONTENT_CHARS] + ELLIPSIS
     return {"content": content}
 
 
@@ -139,21 +147,24 @@ RULES: dict[str, Callable[[_Reads], dict | None]] = {
 }
 
 
-def candidate_kinds(user_id: uuid.UUID, today: date, skip: Collection[str] = ()) -> list[tuple[str, dict]]:
-    """今天满足条件的类别，按优先级排列，每项带模板的填充参数。skip 里的类别不判断（今天已经问过的）。"""
+def _evaluate(reads: _Reads, kind: str) -> dict | None:
+    try:
+        return RULES[kind](reads)
+    except Exception as err:  # 读不到或解析不了只表示这条规则不触发，不影响别的规则
+        logger.warning("开场规则判断失败：%s（%s）", kind, type(err).__name__)
+        return None
+
+
+def candidate_kinds(user_id: uuid.UUID, today: date, skip: Collection[str] = ()) -> Iterator[tuple[str, dict]]:
+    """今天满足条件的类别，按优先级逐个给出，每项带模板的填充参数；skip 里的类别不判断（今天已经问过的）。
+    惰性判断：调用方拿到第一个就停时，排在后面的规则不会判断。"""
     reads = _Reads(user_id, today)
-    found = []
     for kind in OPENING_KINDS:
         if kind in skip:
             continue
-        try:
-            params = RULES[kind](reads)
-        except Exception as err:  # 读不到或解析不了只表示这条规则不触发，不影响别的规则
-            logger.warning("开场规则判断失败：%s（%s）", kind, type(err).__name__)
-            continue
+        params = _evaluate(reads, kind)
         if params is not None:
-            found.append((kind, params))
-    return found
+            yield kind, params
 
 
 # ---------- 措辞 ----------
@@ -162,7 +173,7 @@ def candidate_kinds(user_id: uuid.UUID, today: date, skip: Collection[str] = ())
 def _facts(kind: str, params: dict) -> list[str]:
     """改写后的话里必须出现的关键事实（比较时忽略空白）。"""
     if kind == "review_due":
-        return [params["content"]]
+        return [params["content"].removesuffix(ELLIPSIS)]  # 截断时模型可能把省略号写成“...”
     if kind == "period_soon":
         return [params["when"]]
     if kind == "trained_no_meal_yesterday":
@@ -181,8 +192,10 @@ def _squeeze(text: str) -> str:
 def _acceptable(kind: str, template: str, params: dict, text: str) -> bool:
     if not text or len(text) > MAX_OPENING_CHARS:
         return False
-    if "经期" in text and "经期" not in template:  # 模板没提经期，模型就不能提（没开放经期的用户不该看到这个词）
-        return False
+    if any(word in text for word in CYCLE_WORDS) and not any(word in template for word in CYCLE_WORDS):
+        return False  # 模板没提经期，模型就不能提（没开放经期的用户不该看到这些词）
+    if set(mentioned_food_ids(text)) - set(mentioned_food_ids(template)):
+        return False  # 模型擅自提到的食物没经过输出检查，可能是医嘱阻断的
     squeezed = _squeeze(text)
     return all(_squeeze(fact) in squeezed for fact in _facts(kind, params))
 
@@ -215,10 +228,21 @@ def _pending(db: Session, user_id: uuid.UUID, today: date) -> AgentOpening | Non
     return db.scalars(query.order_by(AgentOpening.created_at, AgentOpening.id)).first()
 
 
+def _still_pending(db: Session, user_id: uuid.UUID, today: date) -> AgentOpening | None:
+    """今天正在问的开场，且它那一类的规则仍然成立；不再成立的标为 declined（只改仍是 asked 的），再看下一条。"""
+    while (pending := _pending(db, user_id, today)) is not None:
+        if _evaluate(_Reads(user_id, today), pending.kind) is not None:
+            return pending
+        db.execute(update(AgentOpening).where(AgentOpening.id == pending.id, AgentOpening.status == ASKED)
+                   .values(status=DECLINED))
+        db.commit()
+    return None
+
+
 def pick_opening(db: Session, user_id: uuid.UUID, today: date, *, factory: AdapterFactory) -> AgentOpening | None:
     if not agent_settings.get_settings(db, user_id).openings_enabled:
         return None
-    pending = _pending(db, user_id, today)
+    pending = _still_pending(db, user_id, today)
     if pending is not None:
         db.commit()  # 结束读事务（不过期已加载的字段）
         return pending

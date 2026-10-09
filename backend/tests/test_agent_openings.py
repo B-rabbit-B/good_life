@@ -320,6 +320,43 @@ def test_disabled_settings_give_no_opening(client):
     assert _get(client, headers)["kind"] == "no_meal_today"
 
 
+def test_disabled_settings_hide_a_pending_opening_and_reenabling_returns_it(client):
+    headers = ready_user(client, "dina", FULL_PROFILE)
+    first = _get(client, headers)
+    assert first["kind"] == "no_meal_today"
+    assert client.put("/api/agent/settings", json={"openings_enabled": False}, headers=headers).status_code == 200
+    assert _get(client, headers) is None
+    assert [(row.kind, row.status) for row in _rows()] == [("no_meal_today", "asked")]
+    client.put("/api/agent/settings", json={"openings_enabled": True}, headers=headers)
+    assert _get(client, headers) == first
+
+
+def test_a_pending_opening_whose_rule_no_longer_fires_is_declined_and_the_next_kind_is_offered(client):
+    headers = ready_user(client, "stan", {"gender": "male", "birth_year": 1990})  # no_meal_today + profile_stale
+    assert _get(client, headers)["kind"] == "no_meal_today"
+    _meal(client, headers, TODAY)  # 用户已经记了饮食，正在问的开场不再成立
+    assert _get(client, headers)["kind"] == "profile_stale"
+    assert [(row.kind, row.status) for row in _rows()] == [("no_meal_today", "declined"), ("profile_stale", "asked")]
+
+
+def test_a_pending_opening_that_no_longer_applies_gives_null_when_nothing_else_fires(client):
+    headers = ready_user(client, "stu", FULL_PROFILE)
+    assert _get(client, headers)["kind"] == "no_meal_today"
+    _meal(client, headers, TODAY)
+    assert _get(client, headers) is None
+    assert [(row.kind, row.status) for row in _rows()] == [("no_meal_today", "declined")]
+
+
+def test_rules_stop_at_the_first_kind_that_fires(client):
+    headers = ready_user(client, "fern", {"gender": "male", "birth_year": 1990})  # no_meal_today + profile_stale
+    assert _get(client, headers)["kind"] == "no_meal_today"
+    assert _get(client, headers)["kind"] == "no_meal_today"  # 再取只复查正在问的那一类
+    with get_sessionmaker()() as db:
+        capabilities = {a.capability for a in db.scalars(select(SdkCallAudit).where(SdkCallAudit.client_name == "agent"))}
+    assert "nutrition.list_meals" in capabilities
+    assert "profile.get_profile" not in capabilities  # 排在后面的 profile_stale 没有被判断
+
+
 def test_unreadable_rule_does_not_fire_and_others_still_do(client, monkeypatch):
     headers = ready_user(client, "una", FULL_PROFILE)
 
@@ -338,7 +375,7 @@ def _race(client, monkeypatch, status):
     real = openings.candidate_kinds
 
     def stale_view(user_id, today, skip=()):
-        found = real(user_id, today, skip=skip)
+        found = list(real(user_id, today, skip=skip))
         with get_sessionmaker()() as other:
             other.add(AgentOpening(user_id=user_id, day=today, kind=found[0][0], status=status, question="别人先问的"))
             other.commit()
@@ -367,6 +404,7 @@ def test_candidate_kinds_skips_given_kinds(client):
     user_id = _user_id("sam")
     assert [k for k, _ in candidate_kinds(user_id, TODAY)] == ["no_meal_today", "profile_stale"]
     assert [k for k, _ in candidate_kinds(user_id, TODAY, skip={"no_meal_today"})] == ["profile_stale"]
+    assert next(iter(candidate_kinds(user_id, TODAY)))[0] == "no_meal_today"
 
 
 # ---------- 措辞 ----------
@@ -460,6 +498,41 @@ def test_wording_that_mentions_the_cycle_falls_back_when_the_template_does_not(c
     assert _get(client, headers)["question"] == TEMPLATES["no_meal_today"]
 
 
+@pytest.mark.parametrize("word", ["月经", "生理期", "例假"])
+def test_wording_with_a_cycle_synonym_falls_back_when_the_template_has_no_cycle(client, scripted, word):
+    headers = ready_user(client, f"syn{len(word)}{word.encode().hex()[:6]}", FULL_PROFILE)
+    connect(client, headers)
+    scripted.add(say(f"你好，今天还没记录饮食，{word}前后要注意营养，要不要记一下？"))
+    assert _get(client, headers)["question"] == TEMPLATES["no_meal_today"]
+
+
+def test_wording_that_names_a_food_the_template_does_not_falls_back(client, scripted):
+    headers = ready_user(client, "mapo", FULL_PROFILE)
+    connect(client, headers)
+    scripted.add(say("你好，今天还没记录饮食，晚饭来份麻婆豆腐吧，要不要记一下？"))
+    assert _get(client, headers)["question"] == TEMPLATES["no_meal_today"]
+
+
+def test_wording_may_keep_a_food_that_the_template_already_names(client, scripted):
+    headers = _quiet_user(client, "tofu")
+    _review_item(client, headers, content="少吃麻婆豆腐")
+    connect(client, headers)
+    scripted.add(say("你好，医嘱“少吃麻婆豆腐”到复查日了，要不要现在看看？"))
+    assert _get(client, headers)["question"] == "你好，医嘱“少吃麻婆豆腐”到复查日了，要不要现在看看？"
+
+
+def test_wording_of_a_truncated_review_keeps_the_content_without_the_ellipsis(client, scripted):
+    headers = _quiet_user(client, "longreview")
+    content = "每天少盐少油，复查前继续遵守，" * 4
+    _review_item(client, headers, content=content)
+    connect(client, headers)
+    shown = content[:openings.MAX_CONTENT_CHARS]
+    scripted.add(say(f"你好，医嘱“{shown}...”到复查日了，要不要现在看看？"))
+    opening = _get(client, headers)
+    assert TEMPLATES["review_due"].format(content=shown + "…") in scripted.requests[0].text()
+    assert opening["question"] == f"你好，医嘱“{shown}...”到复查日了，要不要现在看看？"
+
+
 def test_wording_exception_of_any_kind_falls_back_and_keeps_the_slot(client, monkeypatch):
     headers = ready_user(client, "boom", FULL_PROFILE)
 
@@ -514,8 +587,8 @@ def test_router_ends_its_read_transaction_before_wording(client, scripted):
 
 
 def test_rule_reads_are_audited_as_agent(client):
-    headers = ready_user(client, "ada", FULL_PROFILE)
-    _get(client, headers)
+    headers = _quiet_user(client, "ada")  # 没有一类触发，五条规则都会判断
+    assert _get(client, headers) is None
     with get_sessionmaker()() as db:
         audits = db.scalars(select(SdkCallAudit).where(SdkCallAudit.client_name == "agent")).all()
     assert {"medical.list_reviews", "nutrition.list_meals", "profile.get_profile"} <= {a.capability for a in audits}

@@ -212,6 +212,20 @@ def test_a_failing_model_is_recorded_per_scenario_without_stopping_the_run():
     assert "出错 0 项" not in written
 
 
+def test_a_failing_constraint_read_is_recorded_on_the_clue_scenario_without_stopping_the_run(monkeypatch):
+    def broken(self, user):
+        raise RuntimeError(f"read failed with {QWEN_KEY}")
+
+    monkeypatch.setattr(live_check._Runner, "constraint_count", broken)
+    code, written, out, _ = _run()
+    assert code == 0 and "运行出错" not in out
+    _assert_nothing_left()
+    clue = written.split(f"### {USER_LABELS['review']}：{CLUE}")[1].split("\n### ")[0]
+    assert "- 脚本判断：出错" in clue and "脚本内部出错：RuntimeError" in clue
+    assert "## 风险话题：药物、严重症状、孕期异常" in written  # 后面的场景照常运行
+    assert QWEN_KEY not in written and QWEN_KEY not in out
+
+
 def test_interrupted_run_still_deletes_the_users_and_writes_the_partial_result():
     model = FakeModels()
     ok_factory = _factory(model)

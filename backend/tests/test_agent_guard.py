@@ -5,8 +5,10 @@ import pytest
 
 from app.agent.guard import (
     EXCLUDED_NAMES,
+    FALLBACK_BLOCKED,
+    FALLBACK_TAIL,
+    FALLBACK_UNCHECKED,
     REWRITE_INSTRUCTION,
-    SAFE_FALLBACK,
     FoodMention,
     GuardVerdict,
     check_answer,
@@ -391,7 +393,16 @@ def test_medical_notice_empty_and_deduplicated_messages():
 
 
 def test_safe_fallback_text():
-    assert SAFE_FALLBACK.format(foods="麻婆豆腐、宫保鸡丁").startswith("根据你当前生效的医嘱，下面这些食物不建议吃：麻婆豆腐、宫保鸡丁。")
+    assert guard.safe_fallback(["麻婆豆腐", "宫保鸡丁"], []).startswith("根据你当前生效的医嘱，下面这些食物不建议吃：麻婆豆腐、宫保鸡丁。")
+
+
+def test_safe_fallback_keeps_unchecked_foods_out_of_the_medical_sentence():
+    assert FALLBACK_UNCHECKED == "以下食物暂时没能按医嘱核对，请先别吃或稍后再问：{foods}。"
+    only_unchecked = guard.safe_fallback([], ["清蒸鱼", "米饭"])
+    assert only_unchecked == FALLBACK_UNCHECKED.format(foods="清蒸鱼、米饭") + FALLBACK_TAIL
+    assert "不建议" not in only_unchecked
+    both = guard.safe_fallback(["麻婆豆腐"], ["清蒸鱼"])
+    assert both == FALLBACK_BLOCKED.format(foods="麻婆豆腐") + FALLBACK_UNCHECKED.format(foods="清蒸鱼") + FALLBACK_TAIL
 
 
 # ---------- 依据 ----------

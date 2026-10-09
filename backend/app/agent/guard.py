@@ -23,7 +23,7 @@
 check_answer 只认识 evaluations 里有的食物：调用方（Task 6 的循环）必须对 find_foods 从回答里（以及从用户消息里）
 找出的每个食物都调用引擎判断并放进 evaluations，不能只判断智能体自己搜索过的食物。语气无法用规则可靠地分辨，所以模型的回答里不许出现
 这些食物；需要提醒时由程序在回答后面附上 medical_notice（只取引擎的医嘱阻断说明）。违反时调用方用 rewrite_instruction
-让模型重写一次（不许提到、暗示或指代这些食物），仍然提到就换成 SAFE_FALLBACK。
+让模型重写一次（不许提到、暗示或指代这些食物），仍然提到就换成 safe_fallback 给出的固定安全回答。
 经期、目标、训练、当日摄入、偏好的提示，以及没有医嘱阻断的“不建议”都不算违反。
 
 营养库只有中文说法，拉丁字母写的食物（英文、拼音）识别不了：mostly_latin 去掉单位与常见缩写（LATIN_ALLOWED_WORDS）
@@ -66,7 +66,10 @@ TRADITIONAL_TO_SIMPLIFIED = {**PREFERENCE_TRADITIONAL, **FOOD_TRADITIONAL_TO_SIM
 _TO_SIMPLIFIED = str.maketrans(TRADITIONAL_TO_SIMPLIFIED)
 _LATIN_WORD_RE = re.compile(r"[A-Za-zÀ-ɏ]+")
 
-SAFE_FALLBACK = "根据你当前生效的医嘱，下面这些食物不建议吃：{foods}。如果想换别的，可以告诉我你的口味，我再按医嘱帮你挑。"
+# 固定的安全回答分开说：被医嘱阻断的食物（有才写）与没能按医嘱核对的食物（有才写），不把后者说成医嘱不建议
+FALLBACK_BLOCKED = "根据你当前生效的医嘱，下面这些食物不建议吃：{foods}。"
+FALLBACK_UNCHECKED = "以下食物暂时没能按医嘱核对，请先别吃或稍后再问：{foods}。"
+FALLBACK_TAIL = "如果想换别的，可以告诉我你的口味，我再按医嘱帮你挑。"
 REWRITE_INSTRUCTION = (
     "你上一版回答提到了与用户当前生效的医嘱冲突的食物，下面是这些食物与引擎给出的医嘱判断：\n{details}\n"
     "请用简体中文重写回答：完全不要提到这些食物——不要写出它们的名字，也不要描述、搭配、评价、比较或暗示它们，"
@@ -297,6 +300,16 @@ def medical_notice(food_ids: list[str] | tuple[str, ...], evaluations: dict[str,
     lines = [NOTICE_HEADER.format(foods="、".join(names))]
     lines += [f"{name}：{' '.join(messages)}" for name, (_, messages) in zip(names, blocked, strict=True)]
     return "\n".join(lines)
+
+
+def safe_fallback(blocked: list[str] | tuple[str, ...], unchecked: list[str] | tuple[str, ...]) -> str:
+    """固定的安全回答：被医嘱阻断的食物与没能核对的食物各一句（没有就不写那一句），最后一句请用户说口味再挑。"""
+    parts = []
+    if blocked:
+        parts.append(FALLBACK_BLOCKED.format(foods="、".join(blocked)))
+    if unchecked:
+        parts.append(FALLBACK_UNCHECKED.format(foods="、".join(unchecked)))
+    return "".join(parts) + FALLBACK_TAIL
 
 
 def evidence_section(mentions: list[FoodMention], evaluations: dict[str, dict]) -> str:

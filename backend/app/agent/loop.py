@@ -11,13 +11,20 @@
   所以保存下来的历史总能原样回放。读历史时再兜底一次：窗口开头不是用户消息的部分、没有配齐结果的工具调用、
   孤立的工具结果都不放进上下文；保存时的模型与当前模型不同时，去掉 provider_state，并把调用编号重新编成全局唯一的
   h<组>_<序号>（Gemini 合成的编号与各家的编号规则不同，回放给 Claude 时不能重复）。
+- 工具结果超过 MAX_TOOL_RESULT_BYTES（按 UTF-8 计）时，保存与回放的都换成合法的摘要 JSON：
+  {"truncated": true, "preview": 前 TOOL_RESULT_PREVIEW_CHARS 个字}。
+- 风险话题不回放原话：助手回答带 risk_ 标记的那一轮，用户那句换成 RISK_USER_PLACEHOLDER，助手那句换成该类的固定安全回复；
+  最近一条助手回答带 risk_ 标记时，系统指令里再加一句 RISK_FOLLOW_UP，免得用户换个说法追问就绕过关键词规则。
+- 模型的配置类错误（409、422，例如 llm_model_lacks_tools、llm_model_not_chat）按原状态码与错误码返回，
+  其余调用失败转成 502 agent_model_error；没有选模型时是 409 agent_model_not_configured。
 - 输出检查：回答与用户消息里提到的食物（重叠说法也算，先回答后用户消息，每轮最多 MAX_EVALUATED_FOODS 种）都用
   nutrition.evaluate_food（默认份量）请引擎判断；回答提到医嘱阻断的食物，或用户有饮食类医嘱而回答提到没能判断的食物
   （判断失败或超出上限，按不能吃处理），或用户有饮食类医嘱而回答主要是拉丁字母，就让模型不带工具重写一次再查；
   仍不通过换成固定的安全回答。
   医嘱提醒（medical_notice）由程序附在回答后面，覆盖模型试图提到的和用户提到的医嘱阻断食物。
-- 最终文本 = 回答（去掉模型自写的“依据”段）+ 医嘱提醒 + 健康提示；依据段（回答里留下的食物，原样取自引擎）只放在
-  evidence 里；模型那部分另存在 answer 里供下一轮回放。对话正文不写日志。
+  兜底回答里被医嘱阻断的食物与没能核对的食物分两句说（见 guard.safe_fallback）。
+- 最终文本 = 回答（去掉模型自写的“依据”段）+ 医嘱提醒 + 健康提示（每个不是风险话题的回答都附）；依据段（回答里留下的
+  食物，原样取自引擎）只放在 evidence 里；模型那部分另存在 answer 里供下一轮回放。对话正文不写日志。
 """
 
 import json
@@ -34,7 +41,6 @@ from app.agent import conversations, preferences
 from app.agent.assembly import CLIENT_NAME, REMEMBER_TOOL, AgentContext, build_system_prompt, load_context, tool_specs
 from app.agent.clues import detect_resolution_clue
 from app.agent.guard import (
-    SAFE_FALLBACK,
     check_answer,
     evidence_section,
     find_foods,
@@ -42,6 +48,7 @@ from app.agent.guard import (
     mentioned_food_ids,
     mostly_latin,
     rewrite_instruction,
+    safe_fallback,
 )
 from app.agent.safety import HEALTH_DISCLAIMER, SAFE_REPLIES, classify_risk
 from app.db import get_sessionmaker
@@ -62,7 +69,11 @@ REMEMBER_AUDIT_NAME = "agent.remember_preference"
 MAX_ANSWER_TOKENS = 2048
 PURPOSE = "chat"
 DIET_CATEGORIES = frozenset({"diet_avoid", "diet_require", "medication_diet"})
-HEALTH_TOOL_PREFIXES = ("nutrition_", "fitness_", "medical_")
+CONFIG_ERROR_STATUSES = frozenset({409, 422})  # 模型配置类错误，按原样返回
+MAX_TOOL_RESULT_BYTES = 8 * 1024
+TOOL_RESULT_PREVIEW_CHARS = 2000
+RISK_FLAG_PREFIX = "risk_"
+RISK_USER_PLACEHOLDER = "（用户提到了需要就医的健康问题，已引导就医）"
 
 NOT_CONFIGURED_MESSAGE = "还没有选择对话模型：请先到设置页的“模型服务”里，为“日常对话”选择一个模型，再来和助手聊天。"
 TOOL_LIMIT_REPLY = "这个问题需要查的内容比较多，我没能在限定的步骤里整理出回答。可以把问题说得更具体一些，我再试一次。"
@@ -114,14 +125,49 @@ def _call_content(call: ToolCall) -> dict[str, Any]:
             "provider_state": call.provider_state}
 
 
+def bound_tool_result(text: str) -> str:
+    """工具结果超过 MAX_TOOL_RESULT_BYTES（UTF-8）时换成合法的摘要 JSON，只留前 TOOL_RESULT_PREVIEW_CHARS 个字。"""
+    if len(text.encode("utf-8")) <= MAX_TOOL_RESULT_BYTES:
+        return text
+    return json.dumps({"truncated": True, "preview": text[:TOOL_RESULT_PREVIEW_CHARS]}, ensure_ascii=False)
+
+
+def _risk_category(content: dict[str, Any]) -> str | None:
+    return next((flag.removeprefix(RISK_FLAG_PREFIX) for flag in content.get("flags") or ()
+                 if flag.startswith(RISK_FLAG_PREFIX)), None)
+
+
+def _last_reply_was_risky(saved: Sequence[tuple[str, dict[str, Any]]]) -> bool:
+    last = next((content for role, content in reversed(saved) if role == "assistant"), None)
+    return last is not None and _risk_category(last) is not None
+
+
+def _without_risky_text(saved: Sequence[tuple[str, dict[str, Any]]]) -> list[tuple[str, dict[str, Any]]]:
+    """风险话题那一轮：用户那句换成占位说明，助手那句换成该类的固定安全回复。"""
+    items = list(saved)
+    for index, (role, content) in enumerate(items):
+        category = _risk_category(content) if role == "assistant" else None
+        if category is None:
+            continue
+        items[index] = ("assistant", {"text": SAFE_REPLIES[category]})
+        before = index - 1
+        while before >= 0 and items[before][0] != "user":
+            before -= 1
+        if before >= 0:
+            items[before] = ("user", {"text": RISK_USER_PLACEHOLDER})
+    return items
+
+
 def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarget) -> list[ChatMessage]:
     """把保存的消息变成可以原样发给模型的上下文。
 
     窗口开头直到第一条用户消息之前的部分丢掉；助手的工具调用只有在紧跟的工具结果与它的调用一一对应时才保留（连同结果），
     否则整组丢掉；孤立的工具结果丢掉；空正文的消息丢掉。助手的回答只回放 answer（模型那部分），
     不回放程序附上的医嘱提醒、依据段与健康提示，免得模型模仿着自己写依据。保存时的模型（服务类型与模型编号）与当前目标不同时，
-    去掉助手消息与工具调用上的 provider_state。
+    去掉助手消息与工具调用上的 provider_state。风险话题那一轮不回放原话（见 _without_risky_text）；
+    过长的工具结果按 bound_tool_result 截断。
     """
+    saved = _without_risky_text(saved)
     out: list[ChatMessage] = []
     group = 0
     index = 0
@@ -154,8 +200,9 @@ def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarg
                 calls = tuple(replace(call, call_id=rename[call.call_id]) for call in calls)
                 out.append(ChatMessage("assistant", content.get("text") or "", tool_calls=calls,
                                        provider_state=content.get("provider_state") if same_model else None))
-                out.extend(ChatMessage("tool", result.get("text") or "", tool_call_id=rename[result["tool_call_id"]],
-                                       tool_name=result["tool_name"]) for result in results)
+                out.extend(ChatMessage("tool", bound_tool_result(result.get("text") or ""),
+                                       tool_call_id=rename[result["tool_call_id"]], tool_name=result["tool_name"])
+                           for result in results)
         elif role in ("user", "assistant") and (content.get("answer") or content.get("text")):
             out.append(ChatMessage(role, content.get("answer") or content["text"]))
     return out
@@ -165,6 +212,9 @@ def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarg
 
 
 def _model_error(err: AppError) -> AppError:
+    """配置类错误（409、422）原样返回，让用户看到具体该改什么；其余转成 502 agent_model_error。"""
+    if err.status_code in CONFIG_ERROR_STATUSES:
+        return err
     return AppError(502, "agent_model_error", f"模型调用失败：{err.message}")
 
 
@@ -239,8 +289,8 @@ def _tool_step(result: ChatResult, declared: set[str], sdk: GoodLife, credential
     step_messages = [ChatMessage("assistant", result.text, tool_calls=calls, provider_state=result.provider_state)]
     for call in calls:
         outcome = _execute(call, declared, sdk, credential)
-        step_messages.append(ChatMessage("tool", json.dumps(outcome, ensure_ascii=False), tool_call_id=call.call_id,
-                                         tool_name=call.name))
+        step_messages.append(ChatMessage("tool", bound_tool_result(json.dumps(outcome, ensure_ascii=False)),
+                                         tool_call_id=call.call_id, tool_name=call.name))
     return step_messages
 
 
@@ -363,8 +413,9 @@ def run_turn(user_id: uuid.UUID, conversation_id: uuid.UUID, user_text: str, *, 
     clue = detect_resolution_clue(user_text)
     specs = tool_specs(ctx)
     declared = {spec.name for spec in specs}
-    system = ChatMessage("system", build_system_prompt(ctx, resolution_clue=clue))
-    messages = [system, *replayable(_saved_history(user_id, conversation_id), target)]
+    saved = _saved_history(user_id, conversation_id)
+    system = ChatMessage("system", build_system_prompt(ctx, resolution_clue=clue, after_risk=_last_reply_was_risky(saved)))
+    messages = [system, *replayable(saved, target)]
     flags: list[str] = [FLAG_CLUE] if clue else []
     tools_used: list[str] = []
 
@@ -413,8 +464,9 @@ def run_turn(user_id: uuid.UUID, conversation_id: uuid.UUID, user_text: str, *, 
             answer = rewritten
             flags.append(FLAG_REWRITTEN)
         else:
-            foods = _food_names([*attempted, *unknown], evaluations.data)
-            answer = SAFE_FALLBACK.format(foods="、".join(foods)) if foods else LATIN_FALLBACK
+            blocked = _food_names(attempted, evaluations.data)
+            unchecked = _food_names([food_id for food_id in unknown if food_id not in attempted], evaluations.data)
+            answer = safe_fallback(blocked, unchecked) if blocked or unchecked else LATIN_FALLBACK
             flags.append(FLAG_FALLBACK)
 
     user_blocked = check_answer(user_text, evaluations.data).food_ids
@@ -422,9 +474,7 @@ def run_turn(user_id: uuid.UUID, conversation_id: uuid.UUID, user_text: str, *, 
     shown_blocked = set(check_answer(answer, evaluations.data).food_ids)
     mentions = [m for m in find_foods(answer, load_catalog()) if m.food_id not in shown_blocked]
     evidence = evidence_section(mentions, evaluations.data)
-    health = bool(mentions or notice) or any(name.startswith(HEALTH_TOOL_PREFIXES) for name in tools_used)
-    disclaimer = HEALTH_DISCLAIMER if health else ""
-    text = "\n\n".join(part for part in (answer, notice, disclaimer) if part)
+    text = "\n\n".join(part for part in (answer, notice, HEALTH_DISCLAIMER) if part)
 
     used = tuple(dict.fromkeys(tools_used))
     message_id = _save(user_id, conversation_id, [("assistant", {

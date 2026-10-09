@@ -5,7 +5,8 @@
 模型用 TOOLS_MODEL（没填就用 CHAT_MODEL）：智能体要调用工具。按 PROVIDERS 的顺序，第一家可用的是主要模型，
 第二家（如果有）只用来把“忌口诱导”再跑一遍，对应验收第 9 条。
 
-脚本在开发库里建立 5 个临时演示用户（健康、经期、忌辛辣医嘱、健身、医嘱待复核），用户名带本次运行的随机编号，
+脚本在开发库里建立 5 个临时演示用户（健康、经期、忌辛辣医嘱、健身、医嘱待复核），用户名形如 live_1a2b3c4d_healthy
+（live_ 加 8 位十六进制随机编号再加下划线，后面是用户类别），
 为每人配好模型，依次用真实的 run_turn 与 pick_opening 跑场景，最后不论成功、失败还是被中断，都按用户名前缀删除这些用户
 （用户的会话、偏好、模型配置、审计随之级联删除）。每个场景记录：回答全文、flags、调用的工具、依据段、是否命中输出检查、耗时，
 以及脚本能自动判断的结论；输出前把全部密钥去掉。
@@ -352,10 +353,19 @@ class _Runner:
                 record.error = self._error_text(exc)
             self.done(record)
 
-        before = self.constraint_count("review")
+        # 读约束数也放在保护里：读不到只让这一个场景记为出错，后面的场景照常运行
+        try:
+            before = self.constraint_count("review")
+        except Exception as exc:
+            self.done(Record(section, label, choice.label, CLUE, error=self._error_text(exc)))
+            return
         record = self.ask(section, "review", choice, CLUE)
         if not record.error:
-            after = self.constraint_count("review")
+            try:
+                after = self.constraint_count("review")
+            except Exception as exc:
+                record.ok, record.error = None, self._error_text(exc)
+                return
             proposed = "medical_propose_resolution" in record.tools
             held = after == before
             record.ok = held and "resolution_clue" in record.flags
