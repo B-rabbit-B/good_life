@@ -2,8 +2,8 @@
 
 本模块是纯函数，不访问数据库也不调用模型；引擎判断结果（nutrition.evaluate_food 的 data）由调用方传入。
 
-归一：匹配前去掉不可见格式字符（零宽空格等）、去掉夹在两个汉字之间的空格与制表符（换行保留，它是分句与列表的边界），
-并把 TRADITIONAL_TO_SIMPLIFIED 里的常见繁体字换成简体；位置映射回原文，FoodMention 的位置与说法都是原文的。
+归一：匹配前去掉不可见格式字符（零宽空格等）、去掉夹在两个汉字之间的空格与制表符（换行保留），并把
+TRADITIONAL_TO_SIMPLIFIED 里的常见繁体字换成简体；位置映射回原文，FoodMention 的位置与说法都是原文的。
 
 识别食物：
 - 用全部食物的名称、去掉括号限定后的基本名称、别名与常用名做匹配，只用不少于 2 个字的说法；
@@ -14,37 +14,16 @@
 - 多个食物共有的说法（如“豆腐”）取营养库搜索排第一的那个，与智能体搜索食物时拿到的一致；
 - 索引在首次使用时构建并缓存，匹配时按位置查表，不对每个食物跑一遍文本。
 
-输出检查（默认拦截）：医嘱阻断的食物（结论为不建议、且依据里有来源为医嘱、作用为阻断的条目）在回答里的每一处出现
-都算违反，除非这一处落在下面某个明确的禁止结构里（is_negative 为真）。
-- 前置禁止：禁止词直接管着食物，中间只隔“你、再、先、都、也、就、吃、喝、碰、点、这几天”这类几个字，或“以下食物：”
-  这样的冒号标签：不要吃X、别吃X、先别吃X、不能吃X、不建议吃X、避免X、避开X、忌X、忌：X、远离X、戒掉X、
-  最好不吃X、不碰X、暂停X；“要不要、能不能”里的“不要、不能”，“特别、区别”等词里的“别”，以及跟在“不用、不必、
-  无需、不需要、没必要”后面的禁止词都不算。食物（或列举）之后到小句结束只能跟“这类辛辣菜”式的类别说明（以菜、食物、
-  东西等结尾）、收尾词（了、吧、哦、哈、啊、为好、比较好、更好、这几天、先、暂时、一段时间、遵医嘱、等医嘱解除）
-  或禁止谓语，所以“别吃X的时候……”“避免吃X太晚”“不要吃X以外的……”都不算；
-- 后置禁止：食物后面（可隔类别说明、一个逗号或问号，以及“按医嘱、这几天、都、先、要”这类状语）紧跟禁止谓语并在
-  小句处结束：X不要吃、X别吃、X先别吃、X不能吃、X不建议吃、X要避免、X要避开、X不行、X就算了、X先不吃、
-  X这几天先别碰、X不在推荐范围内、X等医嘱解除后再吃；“等……后再吃”中间要说到医嘱、医生、复查、解除、痊愈、恢复或
-  好了（“等下班后再吃”不算）；谓语后面只能跟收尾词，所以“X不能天天吃”“X不宜太烫”“X别点太辣的”都不算；
-- 两种结构都必须以陈述收尾：紧跟问号（“不要吃X？”“X不要吃？”）不算；
-- 列举：用 、和与及或跟 连起来的一串食物，打头的那个被前置禁止管着，或末尾的那个后面跟着后置禁止，整串都算；
-- 列表：以 - * • 或编号开头、只有食物本身（可带一段 12 字以内的括号说明和标点）的一行，上面紧挨着（中间只有别的
-  列表行，没有空行）一行以冒号结尾的明确禁止标题：含“不要吃、别吃、不能吃、不建议吃、避免、避开、忌、暂停、远离、
-  不宜、按医嘱不吃、不要碰”之一，且不含“错过、犹豫、只吃、光吃、饿、试试、推荐、可以、加上”和放宽说法；
-- 放宽：结构成立后，食物后面到结构结束不能有放宽或限量的说法（PERMISSIVE_WORDS：可以、能吃、也行、没问题、少量、
-  少吃、适量、偶尔、一点、配、别太、不要太……）；对医嘱阻断的食物，“少吃、适量、偶尔”不算禁止；
-- 反悔：这一处之后的全文里只要出现反悔或放开的说法（其实可以、能吃、可以吃、开玩笑、骗你、才怪、除非、没关系、没必要、
-  不需要、想吃就吃、早就解除、已经解除、当然……也、吃吧、偶尔、少量、适量），这一处就算违反；“可以吃、能吃”后面
-  紧跟另一个食物（“不要吃火锅，可以吃清蒸鱼”）是改吃别的，不算反悔。
-其他写法一律算违反，如“不要犹豫，来份X”“别担心，X没问题”“少吃点X就行”“忌口期间也能吃X”“吃X的时候别配啤酒”。
-自然但不在上述结构里的提醒（如“X含辣，医嘱期间不吃为好”）也会被拦下，交给重写或固定安全回答处理。
-营养库只有中文说法，英文为主的回答识别不了食物：mostly_latin 去掉单位与常见缩写（LATIN_ALLOWED_WORDS）和不到 3 个
-字母的词后，拉丁字母比汉字多就为真，供调用方要求模型用简体中文重写。
+输出检查（不许提到）：回答里只要提到医嘱阻断的食物（结论为不建议、且依据里有来源为医嘱、作用为阻断的条目），
+不论语气，一律算违反——推荐、放宽、反话、表格、提醒避免都一样。语气无法用规则可靠地分辨，所以模型的回答里不许出现
+这些食物；需要提醒时由程序在回答后面附上 medical_notice（只取引擎的医嘱阻断说明）。违反时调用方用 rewrite_instruction
+让模型重写一次（不许提到、暗示或指代这些食物），仍然提到就换成 SAFE_FALLBACK。
+经期、目标、训练、当日摄入、偏好的提示，以及没有医嘱阻断的“不建议”都不算违反。
 
-只有医嘱阻断算违反；经期、目标、训练、当日摄入、偏好的提示，以及没有医嘱阻断的“不建议”都不算。
+营养库只有中文说法，拉丁字母写的食物（英文、拼音）识别不了：mostly_latin 去掉单位与常见缩写（LATIN_ALLOWED_WORDS）
+和不到 3 个字母的词后，拉丁字母占（拉丁字母 + 汉字）的 30% 以上就为真，供调用方要求模型用简体中文重写。
 """
 
-import bisect
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -58,13 +37,12 @@ MIN_NAME_LENGTH = 2
 EXCLUDED_NAMES = frozenset({"胖子", "白板", "人乳", "珍珠", "面蛋"})
 CONCLUSION_NAMES = {"suitable": "适合", "caution": "谨慎", "not_recommended": "不建议"}
 TRADEOFF_LABEL = "权衡"
-PERMISSIVE_WORDS = (
-    "可以", "能吃", "也行", "没问题", "没事", "就行", "走起", "安排", "来份", "来点", "少量", "少吃", "适量", "偶尔",
-    "一点", "配", "不辣的话", "别太", "不要太", "别点太", "太多",
-)
-# 放宽说法；“不可以”“不能吃”里的“可以、能吃”不算
-_PERMISSIVE_RE = re.compile("|".join(
-    f"(?<!不){word}" if word in ("可以", "能吃") else re.escape(word) for word in PERMISSIVE_WORDS))
+LATIN_SHARE = 0.3
+MIN_LATIN_WORD = 3
+LATIN_ALLOWED_WORDS = frozenset({
+    "g", "kg", "mg", "ml", "l", "kcal", "cal", "kj", "bmi", "tdee", "bmr", "dha", "epa", "vc", "ve", "gi", "gl", "ok",
+    "app", "wifi",
+})
 
 # 食物名里用到的字（简体字都在营养库的说法里出现过）
 _FOOD_TRADITIONAL = (
@@ -77,81 +55,19 @@ _FOOD_SIMPLIFIED = (
     "杂松莲马铃干丝条块圆团鱿参窝宫盘浆烫热冻馅须银荠苋芦团麸荞籼糁鳝鲳鲢鳙鳊鲟鳜鲭鲨蛳蚬蛏鸽鹌鹑驴熏笼线东门广浓双"
     "细钙铁锌维纤带"
 )
-# 禁止与放宽说法里用到的字
-_CUE_TRADITIONAL = (
-    "別喫開遠離議薦這幾還適沒問題來點錯樣類時個爾暫試猶撐關係騙經須復癒歡選換擇嘗較爲長會隨雖從頓餓飽該種麼嗎們給話現間"
-    "週實無減"
-)
-_CUE_SIMPLIFIED = (
-    "别吃开远离议荐这几还适没问题来点错样类时个尔暂试犹撑关系骗经须复愈欢选换择尝较为长会随虽从顿饿饱该种么吗们给话现间"
-    "周实无减"
-)
 FOOD_TRADITIONAL_TO_SIMPLIFIED = dict(zip(_FOOD_TRADITIONAL, _FOOD_SIMPLIFIED, strict=True))
-TRADITIONAL_TO_SIMPLIFIED = {
-    **PREFERENCE_TRADITIONAL, **FOOD_TRADITIONAL_TO_SIMPLIFIED,
-    **dict(zip(_CUE_TRADITIONAL, _CUE_SIMPLIFIED, strict=True)),
-}
+TRADITIONAL_TO_SIMPLIFIED = {**PREFERENCE_TRADITIONAL, **FOOD_TRADITIONAL_TO_SIMPLIFIED}
 _TO_SIMPLIFIED = str.maketrans(TRADITIONAL_TO_SIMPLIFIED)
+_LATIN_WORD_RE = re.compile(r"[A-Za-zÀ-ɏ]+")
 
 SAFE_FALLBACK = "根据你当前生效的医嘱，下面这些食物不建议吃：{foods}。如果想换别的，可以告诉我你的口味，我再按医嘱帮你挑。"
 REWRITE_INSTRUCTION = (
-    "你上一版回答推荐了按用户当前生效的医嘱不建议吃的食物，下面是这些食物与对应的医嘱判断：\n{details}\n"
-    "请用简体中文重写回答：不要再推荐、建议或鼓励吃这些食物，也不要把它们放进食谱、搭配或列表；"
-    "如果需要提到，只用一句话直接提醒，写成“某某这几天先别吃”这样，同一句里不要再加“可以、少量、适量、偶尔、一点”"
-    "之类放宽的说法。其余内容保持原意，不要自己写依据或引用医嘱原文。"
+    "你上一版回答提到了与用户当前生效的医嘱冲突的食物，下面是这些食物与引擎给出的医嘱判断：\n{details}\n"
+    "请用简体中文重写回答：完全不要提到这些食物——不要写出它们的名字，也不要描述、搭配、评价、比较或暗示它们，"
+    "不要用“它”“这道菜”之类的代词或任何提示指代它们，也不要提醒用户避开它们；系统会在回答后面自动附上医嘱提醒。"
+    "其余内容保持原意，可以推荐别的合适食物；不要自己写依据或引用医嘱原文。"
 )
-
-_NOT_AFTER_DOUBLE_NEGATION = r"(?<!不用)(?<!不必)(?<!无需)(?<!无须)(?<!不需要)(?<!没必要)"
-_PREFIX_CUE = (
-    _NOT_AFTER_DOUBLE_NEGATION
-    + r"(?:(?<![要])不要|(?<![特区分个类级性识辨差告派离道鉴])别|(?<![能])不能|不建议|不推荐|不宜|不适合|避免|避开|"
-    r"忌|远离|戒掉|戒|最好不|尽量不|先不|暂时不|不碰|暂停)"
-)
-_GAP = r"(?:你|您|再|先|都|也|就|去|吃|喝|碰|点|食用|饮用|暂时|这几天|最近|今天|今晚|了|千万)*"
-_LABEL = r"(?:(?:(?:以下|下面|这些|这几样)的?(?:食物|菜|东西)?有?)?[：:])?"
-_PREFIX_RE = re.compile(_PREFIX_CUE + _GAP + _LABEL + r"$")
-_PREFIX_WINDOW = 30
-_CJK_CLASS = "[\u4e00-\u9fff]"
-_VERB = r"(?:吃|碰|喝|点|食用)"
-# 等……后再吃：中间要说到医嘱、医生、复查、解除、痊愈、恢复或好了，“等下班后再吃”不算
-_AFTER_RELEASE = (
-    r"等(?:(?!后再)" + _CJK_CLASS + r"){0,10}?(?:医嘱|医生|复查|解除|痊愈|恢复|好了)(?:(?!后再)" + _CJK_CLASS
-    + r"){0,10}?后再(?:吃|说)"
-)
-_PREDICATE = (
-    r"(?:(?:不要|别|不能|不建议|不推荐|不宜|不适合|避免|避开|忌|戒掉|戒|暂停|停掉|远离)再?" + _VERB + r"?"
-    r"|不再?" + _VERB + r"|不行|就算了|算了|不在推荐范围内|" + _AFTER_RELEASE + r")"
-)
-_CLOSING = r"(?:了|吧|哦|哈|啊|呀|为好|为宜|比较好|更好|这几天|先|暂时|一段时间|一阵子?|几天|遵医嘱|按医嘱|等医嘱解除)"
-# 禁止结构必须在小句处结束；后面紧跟问号（“不要吃火锅？”）不算
-_STATEMENT_END = r"(?=[，,、：:；;。！!\n]|$)"
-_CATEGORY = r"(?:这类|这种|这些|之类|一类|等)的?" + _CJK_CLASS + r"{0,4}?(?:菜|食物|东西|菜品|食品|饮料|饮品|零食|小吃)"
-# 前置禁止的食物（或列举）之后只能跟类别说明、收尾词或禁止谓语
-_TAIL_RE = re.compile(r"(?:" + _CATEGORY + r")?(?:" + _CLOSING + r"|" + _PREDICATE + r")*" + _STATEMENT_END)
-_SUFFIX_RE = re.compile(
-    r"(?:" + _CATEGORY + r")?"
-    r"[，,？?]?"
-    r"(?:我|你|就|也|都|还是|最好|千万|一定|先|暂时|这几天|最近|目前|现在|按医嘱|医嘱期间|要|得|需要|应该|尽量|必须|请)*"
-    + _PREDICATE + _CLOSING + r"*" + _STATEMENT_END
-)
-_CONNECTOR_RE = re.compile(r"(?:、|和|与|及|以及|或|或者|跟|还有)")
-_LIST_ITEM_RE = re.compile(r"\s*(?:[-*•·・]|\d+[.、．)）]|[（(]\d+[)）])\s*")
-# 列表条目只能是食物本身，可带一段简短的括号说明和标点
-_ITEM_REST_RE = re.compile(r"(?:[（(][^（()）\n]{0,12}[）)])?[。.；;，,、！!]?\s*$")
-_HEADING_CUE_RE = re.compile(r"不要吃|别吃|不能吃|不建议吃|避免|避开|忌|暂停|远离|不宜|按医嘱不吃|不要碰|别碰|不能碰")
-_HEADING_EXCLUDED_RE = re.compile(r"错过|犹豫|只吃|光吃|饿|试试|推荐|可以|加上")
-# 后文的反悔或放开：禁止之后出现，前面所有禁止都作废
-_RETRACTION_RE = re.compile(
-    r"其实可以|其实能|(?<!不)能吃|(?<!不)可以吃|开玩笑|骗你|才怪|除非|没关系|没必要|不需要|想吃就吃|早就解除|已经解除"
-    r"|当然[^。！？!?\n]{0,6}?也|(?<![别不])吃吧|偶尔|少量|适量"
-)
-_SUBSTITUTE_FILLER_RE = re.compile(r"(?:点|些|一些|份)?")
-_LATIN_WORD_RE = re.compile(r"[A-Za-z\u00c0-\u024f]+")
-LATIN_ALLOWED_WORDS = frozenset({
-    "g", "kg", "mg", "ml", "l", "kcal", "cal", "kj", "bmi", "tdee", "bmr", "dha", "epa", "vc", "ve", "gi", "gl", "ok",
-    "app", "wifi",
-})
-MIN_LATIN_WORD = 3
+NOTICE_HEADER = "按你当前生效的医嘱，以下食物不建议：{foods}。"
 
 
 @dataclass(frozen=True)
@@ -165,7 +81,8 @@ class FoodMention:
 @dataclass(frozen=True)
 class GuardVerdict:
     passed: bool
-    violations: tuple[str, ...]  # 违反的食物名（归一后的说法），按首次出现排序
+    violations: tuple[str, ...]  # 提到的医嘱阻断食物（归一后的说法），按首次出现排序
+    food_ids: tuple[str, ...] = ()  # 与 violations 对应的食物编号，供 medical_notice 使用
 
 
 @dataclass(frozen=True)
@@ -223,7 +140,7 @@ def _normalize(text: str) -> tuple[str, list[int]]:
 
 
 def _scan(norm: str, catalog: Catalog) -> list[_Hit]:
-    """全部出现（同一食物可能多次）：每个位置取最长的说法，再按长度优先、位置次之挑出互不重叠的。"""
+    """每个位置取最长的说法，再按长度优先、位置次之挑出互不重叠的，按位置排序。"""
     index = _index(catalog)
     candidates = []
     for start in range(len(norm)):
@@ -241,11 +158,6 @@ def _scan(norm: str, catalog: Catalog) -> list[_Hit]:
     return sorted(chosen, key=lambda h: h.start)
 
 
-def _to_mention(text: str, positions: list[int], hit: _Hit) -> FoodMention:
-    start, end = positions[hit.start], positions[hit.end - 1] + 1
-    return FoodMention(hit.food_id, text[start:end], start, end)
-
-
 def find_foods(text: str, catalog: Catalog) -> list[FoodMention]:
     norm, positions = _normalize(text)
     seen: set[str] = set()
@@ -253,134 +165,60 @@ def find_foods(text: str, catalog: Catalog) -> list[FoodMention]:
     for hit in _scan(norm, catalog):
         if hit.food_id not in seen:
             seen.add(hit.food_id)
-            mentions.append(_to_mention(text, positions, hit))
+            start, end = positions[hit.start], positions[hit.end - 1] + 1
+            mentions.append(FoodMention(hit.food_id, text[start:end], start, end))
     return mentions
 
 
-def _connected(norm: str, left: _Hit, right: _Hit) -> bool:
-    return bool(_CONNECTOR_RE.fullmatch(norm, left.end, right.start))
-
-
-def _chain(norm: str, hits: list[_Hit], i: int) -> tuple[int, int]:
-    """这个食物所在列举（用 、和与及或跟 连起来的一串食物）的首尾下标。"""
-    first = last = i
-    while first > 0 and _connected(norm, hits[first - 1], hits[first]):
-        first -= 1
-    while last + 1 < len(hits) and _connected(norm, hits[last], hits[last + 1]):
-        last += 1
-    return first, last
-
-
-def _prefix_end(norm: str, hits: list[_Hit], first: int, last: int) -> int | None:
-    """前置禁止：禁止词直接管着列举打头的食物，列举之后只跟允许的收尾；返回结构结束的位置。"""
-    start = hits[first].start
-    if not _PREFIX_RE.search(norm, max(0, start - _PREFIX_WINDOW), start):
-        return None
-    tail = _TAIL_RE.match(norm, hits[last].end)
-    return tail.end() if tail else None
-
-
-def _suffix_end(norm: str, hits: list[_Hit], last: int) -> int | None:
-    """后置禁止：列举末尾的食物后面紧跟禁止谓语并在小句处结束；返回谓语结束的位置。"""
-    match = _SUFFIX_RE.match(norm, hits[last].end)
-    return match.end() if match else None
-
-
-def _list_end(norm: str, hits: list[_Hit], first: int, last: int) -> int | None:
-    """列表：条目只有食物本身，上面紧挨着明确的禁止标题；返回这一行结束的位置。"""
-    line_start = norm.rfind("\n", 0, hits[first].start) + 1
-    bullet = _LIST_ITEM_RE.match(norm, line_start)
-    line_end = norm.find("\n", hits[last].end)
-    line_end = len(norm) if line_end < 0 else line_end
-    if not bullet or bullet.end() != hits[first].start or not _ITEM_REST_RE.match(norm[hits[last].end:line_end]):
-        return None
-    if _PERMISSIVE_RE.search(norm, line_start, line_end):
-        return None
-    for line in reversed(norm[:line_start].split("\n")[:-1]):
-        if _LIST_ITEM_RE.match(line):
-            continue
-        heading = line.strip()
-        explicit = (heading.endswith(("：", ":")) and _HEADING_CUE_RE.search(heading)
-                    and not _HEADING_EXCLUDED_RE.search(heading) and not _PERMISSIVE_RE.search(heading))
-        return line_end if explicit else None
-    return None
-
-
-def _retracted(norm: str, hits: list[_Hit], hit: _Hit) -> bool:
-    """这一处之后的全文里有反悔或放开的说法；“可以吃/能吃”后面紧跟另一个食物是改吃别的，不算。"""
-    starts = {h.start: h for h in hits}
-    for match in _RETRACTION_RE.finditer(norm, hit.end):
-        if match.group() in ("可以吃", "能吃"):
-            filler = _SUBSTITUTE_FILLER_RE.match(norm, match.end())
-            other = starts.get(filler.end())
-            if other is not None and other.food_id != hit.food_id:
-                continue
-        return True
-    return False
-
-
-def _prohibited(norm: str, hits: list[_Hit], i: int) -> bool:
-    hit = hits[i]
-    first, last = _chain(norm, hits, i)
-    end = (_list_end(norm, hits, first, last) or _prefix_end(norm, hits, first, last)
-           or _suffix_end(norm, hits, last))
-    if end is None or _PERMISSIVE_RE.search(norm, hit.end, end):
-        return False
-    return not _retracted(norm, hits, hit)
-
-
-def is_negative(text: str, mention: FoodMention, catalog: Catalog | None = None) -> bool:
-    """这一处提到是否落在明确的禁止结构里（见模块说明）；只有它为真，医嘱阻断的食物才不算违反。"""
-    norm, positions = _normalize(text)
-    hits = _scan(norm, catalog or load_catalog())
-    start = bisect.bisect_left(positions, mention.start)
-    for i, hit in enumerate(hits):
-        if hit.start == start:
-            return _prohibited(norm, hits, i)
-    return False
-
-
 def mostly_latin(text: str) -> bool:
-    """去掉单位与常见缩写（LATIN_ALLOWED_WORDS）和不到 3 个字母的词后，拉丁字母比汉字多。"""
+    """去掉单位、常见缩写和不到 3 个字母的词后，拉丁字母占（拉丁字母 + 汉字）的比例超过 LATIN_SHARE。"""
     latin = sum(
         len(word) for word in _LATIN_WORD_RE.findall(text)
         if len(word) >= MIN_LATIN_WORD and word.lower() not in LATIN_ALLOWED_WORDS
     )
-    return latin > sum(1 for ch in text if _is_cjk(ch))
+    total = latin + sum(1 for ch in text if _is_cjk(ch))
+    return total > 0 and latin / total > LATIN_SHARE
 
 
-def _medical_blocks(evaluation: dict) -> list[str]:
-    if evaluation.get("conclusion") != "not_recommended":
+def _medical_blocks(evaluation: dict | None) -> list[str]:
+    if not evaluation or evaluation.get("conclusion") != "not_recommended":
         return []
-    return [r["message"] for r in evaluation.get("reasons", ()) if r["source"] == "medical" and r["effect"] == "block"]
-
-
-def _violating(text: str, evaluations: dict[str, dict], catalog: Catalog) -> dict[str, str]:
-    """违反的食物编号 → 归一后的说法（首个不在禁止结构里的出现）。"""
-    norm, _ = _normalize(text)
-    hits = _scan(norm, catalog)
-    found: dict[str, str] = {}
-    for i, hit in enumerate(hits):
-        evaluation = evaluations.get(hit.food_id)
-        if hit.food_id in found or evaluation is None or not _medical_blocks(evaluation):
-            continue
-        if not _prohibited(norm, hits, i):
-            found[hit.food_id] = hit.name
-    return found
+    reasons = evaluation.get("reasons", ())
+    messages = (r["message"] for r in reasons if r["source"] == "medical" and r["effect"] == "block")
+    return list(dict.fromkeys(messages))
 
 
 def check_answer(text: str, evaluations: dict[str, dict], catalog: Catalog | None = None) -> GuardVerdict:
-    names = tuple(dict.fromkeys(_violating(text, evaluations, catalog or load_catalog()).values()))
-    return GuardVerdict(not names, names)
+    """回答里提到的医嘱阻断食物一律算违反，不看语气。"""
+    found: dict[str, str] = {}
+    norm, _ = _normalize(text)
+    for hit in _scan(norm, catalog or load_catalog()):
+        if hit.food_id not in found and _medical_blocks(evaluations.get(hit.food_id)):
+            found[hit.food_id] = hit.name
+    return GuardVerdict(not found, tuple(found.values()), tuple(found))
 
 
-def rewrite_instruction(text: str, evaluations: dict[str, dict], catalog: Catalog | None = None) -> str:
+def rewrite_instruction(violations: tuple[str, ...], evaluations: dict[str, dict],
+                        catalog: Catalog | None = None) -> str:
     """填好 REWRITE_INSTRUCTION：逐个列出违反的食物与引擎给出的医嘱阻断说明。"""
-    details = "\n".join(
-        f"{name}：{' '.join(_medical_blocks(evaluations[food_id]))}"
-        for food_id, name in _violating(text, evaluations, catalog or load_catalog()).items()
-    )
-    return REWRITE_INSTRUCTION.format(details=details)
+    names = _index(catalog or load_catalog()).names
+    lines = []
+    for name in dict.fromkeys(violations):
+        messages = _medical_blocks(evaluations.get(names.get(_normalize(name)[0], "")))
+        lines.append(f"{name}：{' '.join(messages)}" if messages else name)
+    return REWRITE_INSTRUCTION.format(details="\n".join(lines))
+
+
+def medical_notice(food_ids: list[str] | tuple[str, ...], evaluations: dict[str, dict]) -> str:
+    """附在回答后面的医嘱提醒：按给定顺序去重，只列有医嘱阻断的食物，说明原样取自引擎；没有则返回空串。"""
+    blocked = [(food_id, _medical_blocks(evaluations.get(food_id))) for food_id in dict.fromkeys(food_ids)]
+    blocked = [(food_id, messages) for food_id, messages in blocked if messages]
+    if not blocked:
+        return ""
+    names = [evaluations[food_id]["food_name"] for food_id, _ in blocked]
+    lines = [NOTICE_HEADER.format(foods="、".join(names))]
+    lines += [f"{name}：{' '.join(messages)}" for name, (_, messages) in zip(names, blocked, strict=True)]
+    return "\n".join(lines)
 
 
 def evidence_section(mentions: list[FoodMention], evaluations: dict[str, dict]) -> str:
