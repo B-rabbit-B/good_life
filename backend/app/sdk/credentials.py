@@ -27,6 +27,13 @@ class UserAccessToken:
 
 
 @dataclass(frozen=True)
+class AgentCredential:
+    """站内智能体的服务端凭证。只能在服务端代码里构造，不对应任何令牌，不出现在任何请求模型或接口里。"""
+
+    user_id: uuid.UUID
+
+
+@dataclass(frozen=True)
 class Caller:
     user: User
     credential_kind: str
@@ -35,13 +42,20 @@ class Caller:
     user_confirmed: bool
 
 
-def authenticate(db: Session, credential: AgentGrantToken | UserAccessToken | None, now: datetime) -> Caller:
+def authenticate(
+    db: Session, credential: AgentGrantToken | UserAccessToken | AgentCredential | None, now: datetime
+) -> Caller:
     if isinstance(credential, AgentGrantToken):
         grant = authenticate_grant(db, credential.token, now)
         user = db.get(User, grant.user_id) if grant is not None else None
         if grant is None or user is None:
             raise SdkError("unauthenticated", "invalid_grant", "智能体授权无效、已过期或已吊销")
         return Caller(user, "agent_grant", grant.id, grant.access == "read_write", False)
+    if isinstance(credential, AgentCredential):
+        user = db.get(User, credential.user_id)
+        if user is None:
+            raise SdkError("unauthenticated", "invalid_credential", "智能体凭证对应的用户不存在")
+        return Caller(user, "agent", None, True, False)
     if isinstance(credential, UserAccessToken):
         try:
             claims = decode_access_token(credential.token)

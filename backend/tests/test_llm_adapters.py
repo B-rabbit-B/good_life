@@ -273,7 +273,7 @@ def test_gemini_chat_tools_and_function_call():
     ]}}], "usageMetadata": {"promptTokenCount": 40, "candidatesTokenCount": 6}}))
     result = _adapter("gemini", rec).chat("gemini-2.5-flash", [ChatMessage("user", "北京天气")], tools=[WEATHER])
     assert result.text == ""
-    assert result.tool_calls == (ToolCall("get_weather", {"city": "北京"}, None),)
+    assert result.tool_calls == (ToolCall("get_weather", {"city": "北京"}, "gemini-call-1"),)  # 没有 id 时合成
     assert rec.body["tools"] == [{"functionDeclarations": [
         {"name": "get_weather", "description": "查询天气", "parameters": WEATHER.parameters}]}]
 

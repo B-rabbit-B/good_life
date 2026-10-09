@@ -1,9 +1,9 @@
 import re
 from pathlib import Path
 
-from app.mcp_server.server import exposed_capabilities, tool_name
 from app.sdk.errors import ERROR_KINDS
 from app.sdk.registry import REGISTRY
+from app.sdk.tooling import exposed_capabilities, tool_name
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs" / "06-交付物"

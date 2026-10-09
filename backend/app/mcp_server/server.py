@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import sys
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from typing import Any
 
 import anyio
@@ -12,10 +12,9 @@ from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-from app.mcp_server.usage import TOOL_USAGE
 from app.sdk import AgentGrantToken, GoodLife, SdkError
 from app.sdk.client import SDK_VERSION, error_envelope
-from app.sdk.registry import Capability
+from app.sdk.tooling import exposed_capabilities, tool_description, tool_name
 
 logger = logging.getLogger(__name__)
 
@@ -23,29 +22,12 @@ SERVER_NAME = "good-life"
 TOKEN_ENV = "GOODLIFE_AGENT_TOKEN"
 CLIENT_NAME_ENV = "GOODLIFE_CLIENT_NAME"
 
-_LEVEL_TEXT = {"read": "授权级别：只读", "write": "授权级别：写入（需要读写授权）"}
-_IDENTITY_TEXT = "所有工具都代表授权令牌对应的用户，不需要也不接受用户编号。"
 INSTRUCTIONS = (
     "好生活（good-life）的工具都代表授权令牌对应的那一位用户操作，不需要也不接受用户编号。"
     "给出任何饮食或运动建议之前，先调用 medical_get_constraints 读取今天生效的医嘱约束并严格遵守。"
     "医嘱的确认、修改、解除、作废与继续执行只能由用户本人在应用里完成；你最多只能用 medical_propose_resolution 提出解除建议。"
     "只有用户明确要求记录某件事时才调用写入类工具（记录经期、提交医嘱、记录饮食、记录训练、提出解除建议），不要替用户编造日期或数量。"
 )
-
-
-def tool_name(capability_name: str) -> str:
-    return capability_name.replace(".", "_")
-
-
-def exposed_capabilities(registry: dict[str, Capability] | Iterable[Capability]) -> list[Capability]:
-    caps = registry.values() if isinstance(registry, dict) else registry
-    return sorted((cap for cap in caps if cap.level != "user_confirmed"), key=lambda cap: cap.name)
-
-
-def tool_description(cap: Capability) -> str:
-    when, when_not = TOOL_USAGE[cap.name]
-    return "\n\n".join([cap.summary, _LEVEL_TEXT[cap.level], f"什么时候用：{when}", f"什么时候不要用：{when_not}",
-                        _IDENTITY_TEXT])
 
 
 def _result(envelope: dict[str, Any], is_error: bool) -> types.CallToolResult:

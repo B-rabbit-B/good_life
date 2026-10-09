@@ -43,7 +43,7 @@ def test_capability_counts_and_levels():
     levels = {}
     for cap in REGISTRY.values():
         levels.setdefault(cap.level, set()).add(cap.name)
-    assert (len(REGISTRY), len(levels["read"]), len(levels["write"]), len(levels["user_confirmed"])) == (32, 21, 5, 6)
+    assert (len(REGISTRY), len(levels["read"]), len(levels["write"]), len(levels["user_confirmed"])) == (33, 22, 5, 6)
     assert levels["write"] == {"cycle.record_period", "medical.submit_order", "medical.propose_resolution",
                                "nutrition.log_meal", "fitness.log_workout"}
     assert {name.removeprefix("medical.") for name in levels["user_confirmed"]} == set(USER_ONLY_OPERATIONS)
@@ -213,3 +213,15 @@ def test_every_input_field_has_a_description():
                 if not str(prop.get("description", "")).strip():
                     missing.append(f"{owner}.{field}")
     assert checked > 50 and missing == []
+
+
+def test_get_profile_returns_advice_fields_without_free_text(client, sdk):
+    headers = ready_user(client, "alice", {**PROFILE, "food_avoidances": ["香菜"], "health_conditions": "秘密病史",
+                                            "notes": "秘密备注"})
+    profile = sdk.call(_token(client, headers, "read"), "profile.get_profile").data
+    rest = client.get("/api/profile", headers=headers).json()
+    for field in ("gender", "birth_year", "height_cm", "weight_kg", "activity_level", "goal", "diet_preferences",
+                  "food_avoidances", "cycle_tracking_opt_out", "updated_at"):
+        assert profile[field] == rest[field], field
+    assert "health_conditions" not in profile and "notes" not in profile
+    assert "秘密" not in json.dumps(profile, ensure_ascii=False)

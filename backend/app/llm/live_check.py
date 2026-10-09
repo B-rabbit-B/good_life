@@ -173,7 +173,7 @@ class _Runner:
             self.add(item, FAIL, None, f"{how}；预期 {wanted}，但服务没有报错", seconds)
 
 
-def _resolve(name: str, config: dict[str, str]) -> tuple[str, str] | str:
+def resolve_provider(name: str, config: dict[str, str]) -> tuple[str, str] | str:
     """返回（服务类型，地址）；配置有误时返回中文原因。"""
     base_url = config.get(f"{name}_BASE_URL", "").strip()
     if name == "CUSTOM":
@@ -207,7 +207,7 @@ def _check_provider(name: str, config: dict[str, str], factory: Factory, secrets
     if not api_key:
         _record(rows, CheckRow(display, "全部检查", SKIP, None, "未提供密钥", None), progress, secrets)
         return
-    resolved = _resolve(name, config)
+    resolved = resolve_provider(name, config)
     if isinstance(resolved, str):
         _record(rows, CheckRow(display, "配置", FAIL, None, resolved, None), progress, secrets)
         return

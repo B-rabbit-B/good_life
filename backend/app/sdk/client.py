@@ -19,13 +19,13 @@ from app.fitness.deps import require_fitness_user
 from app.medical.deps import require_medical_user
 from app.nutrition.deps import require_nutrition_user
 from app.sdk import audit
-from app.sdk.credentials import AgentGrantToken, UserAccessToken, authenticate
+from app.sdk.credentials import AgentCredential, AgentGrantToken, UserAccessToken, authenticate
 from app.sdk.errors import SdkError, from_app_error, from_validation_error
 from app.sdk.registry import REGISTRY, CallContext, Capability, Notice
 
 logger = logging.getLogger(__name__)
 
-SDK_VERSION = "1.0"
+SDK_VERSION = "1.1"
 
 CONFIRMATION_HINT = "这一步只能由用户本人在应用里操作；如需解除医嘱，可以调用 medical.propose_resolution 提出解除建议"
 WRITE_HINT = "当前授权只允许读取；需要写入时请让用户创建读写授权"
@@ -80,7 +80,7 @@ class GoodLife:
 
     def call(
         self,
-        credential: AgentGrantToken | UserAccessToken | None,
+        credential: AgentGrantToken | UserAccessToken | AgentCredential | None,
         capability: str,
         params: dict | None = None,
         *,
@@ -112,7 +112,7 @@ class GoodLife:
                 parsed = cap.input_model.model_validate(params or {})
             except ValidationError as err:
                 raise from_validation_error(err) from None
-            actor = "agent" if caller.credential_kind == "agent_grant" else "user"
+            actor = "agent" if caller.credential_kind in ("agent_grant", "agent") else "user"
             raw = cap.handler(CallContext(db, caller.user, today, actor), parsed)
             data = _serialize(cap, raw)
             notices = tuple(cap.notices(data)) if cap.notices is not None else ()

@@ -9,10 +9,10 @@ from mcp.client import Client
 from sqlalchemy import text
 
 from app.db import get_engine
-from app.mcp_server.server import INSTRUCTIONS, build_server, exposed_capabilities, tool_name
-from app.mcp_server.usage import TOOL_USAGE
+from app.mcp_server.server import INSTRUCTIONS, build_server
 from app.sdk import AgentGrantToken, GoodLife
 from app.sdk.registry import REGISTRY, Capability, NoParams, build_registry
+from app.sdk.tooling import TOOL_USAGE, exposed_capabilities, tool_name
 from tests.helpers import ready_user
 
 TODAY = date(2026, 10, 7)
@@ -29,7 +29,7 @@ def _server(token):
 
 def test_usage_covers_exactly_the_exposed_capabilities():
     exposed = {cap.name for cap in exposed_capabilities(REGISTRY)}
-    assert len(exposed) == 26 and set(TOOL_USAGE) == exposed
+    assert len(exposed) == 27 and set(TOOL_USAGE) == exposed
     assert not any(REGISTRY[name].level == "user_confirmed" for name in exposed)
 
 
@@ -38,7 +38,7 @@ async def test_tools_listed_without_confirmation_tools():
     async with Client(_server(None)) as mcp:
         tools = (await mcp.list_tools()).tools
     names = {tool.name for tool in tools}
-    assert len(names) == 26 and "medical_propose_resolution" in names
+    assert len(names) == 27 and "medical_propose_resolution" in names
     assert not {"medical_confirm_item", "medical_resolve_item", "medical_void_item"} & names
     for tool in tools:
         assert "什么时候用" in tool.description and "什么时候不要用" in tool.description
@@ -49,7 +49,7 @@ async def test_tools_listed_without_confirmation_tools():
 async def test_server_reports_version_and_instructions():
     async with Client(_server(None)) as mcp:
         info, instructions = mcp.server_info, mcp.instructions
-    assert (info.name, info.version) == ("good-life", "1.0")
+    assert (info.name, info.version) == ("good-life", "1.1")
     assert instructions == INSTRUCTIONS
     for phrase in ("medical_get_constraints", "medical_propose_resolution", "用户本人", "明确要求记录"):
         assert phrase in instructions

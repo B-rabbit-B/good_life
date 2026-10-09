@@ -1,9 +1,24 @@
-"""每个 MCP 工具的使用说明：（什么时候用，什么时候不要用）。只覆盖暴露给智能体的能力，绝不包含 user_confirmed 能力。"""
+"""协议无关的工具描述：能力名到工具名、对外暴露的能力、使用说明。MCP 服务与站内智能体共用。
+
+只覆盖暴露给智能体的能力，绝不包含 user_confirmed 能力。
+"""
+
+from collections.abc import Iterable
+
+from app.sdk.registry import REGISTRY, Capability
+
+_LEVEL_TEXT = {"read": "授权级别：只读", "write": "授权级别：写入（需要读写授权）"}
+_IDENTITY_TEXT = "所有工具都代表授权令牌对应的用户，不需要也不接受用户编号。"
 
 TOOL_USAGE: dict[str, tuple[str, str]] = {
     "profile.get_capabilities": (
         "对话开始时、或调用其他工具返回模块未开放时用，先弄清用户开放了经期、医嘱、饮食、健身中的哪些模块",
-        "已经知道模块开放情况时不要反复调用；它不返回用户档案详情，也不能用来开通模块",
+        "已经知道模块开放情况时不要反复调用；想看档案详情时改用 profile_get_profile；它不能用来开通模块",
+    ),
+    "profile.get_profile": (
+        "给饮食、运动建议前想了解用户的目标、身高体重、活动水平、饮食偏好与忌口食物时用；档案缺项时如实告知，并请用户在应用里补充",
+        "只想知道哪些模块开放时改用 profile_get_capabilities；它不能修改档案；档案里的忌口是用户自填的口味取舍，"
+        "医嘱约束要用 medical_get_constraints 读取",
     ),
     "cycle.list_periods": (
         "用户想回顾自己记录过的经期，或你要核对某次经期是否已经记过、避免重复记录时用",
@@ -106,3 +121,31 @@ TOOL_USAGE: dict[str, tuple[str, str]] = {
         "想回顾过去的训练时不要用，改用 fitness_list_workouts 或 fitness_get_week_summary",
     ),
 }
+
+
+def tool_name(capability_name: str) -> str:
+    return capability_name.replace(".", "_")
+
+
+def exposed_capabilities(registry: dict[str, Capability] | Iterable[Capability]) -> list[Capability]:
+    caps = registry.values() if isinstance(registry, dict) else registry
+    return sorted((cap for cap in caps if cap.level != "user_confirmed"), key=lambda cap: cap.name)
+
+
+def tool_description(cap: Capability) -> str:
+    when, when_not = TOOL_USAGE[cap.name]
+    return "\n\n".join([cap.summary, _LEVEL_TEXT[cap.level], f"什么时候用：{when}", f"什么时候不要用：{when_not}",
+                        _IDENTITY_TEXT])
+
+
+def agent_registry() -> dict[str, Capability]:
+    """站内智能体可用的能力表：REGISTRY 去掉所有需本人确认的能力。"""
+    return {cap.name: cap for cap in exposed_capabilities(REGISTRY)}
+
+
+def capability_for_tool(name: str) -> Capability | None:
+    """按工具名查暴露的能力；查不到（包括任何 user_confirmed 能力）返回 None。"""
+    for cap in exposed_capabilities(REGISTRY):
+        if tool_name(cap.name) == name:
+            return cap
+    return None

@@ -1,5 +1,6 @@
 """汇总导入全部 ORM 模型，让 Base.metadata 完整。Alembic 和测试都依赖这里。"""
 
+from app.agent import models as agent_models  # noqa: F401
 from app.agent_grants import models as agent_grants_models  # noqa: F401
 from app.auth import models as auth_models  # noqa: F401
 from app.cycle import models as cycle_models  # noqa: F401

@@ -94,7 +94,7 @@ def _reasons(evaluation: dict[str, Any], source: str) -> list[str]:
 async def run_story(story: Story) -> None:
     tools = (await story.session.list_tools()).tools
     caps = await story.data("profile_get_capabilities")
-    story.step("连接与能力", len(tools) == 26 and caps["cycle"],
+    story.step("连接与能力", len(tools) == 27 and caps["cycle"],
                f"通用 MCP 客户端连上服务，看到 {len(tools)} 个工具；按档案开放的模块：{caps}")
 
     for days_ago in CYCLE_STARTS_DAYS_AGO:
