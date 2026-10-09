@@ -61,14 +61,15 @@ def _workout(client, headers, day: date) -> None:
     assert response.status_code == 201, response.text
 
 
-def _review_item(client, headers, content="每天少盐，复查前继续遵守") -> None:
+def _review_item(client, headers, content="每天少盐，复查前继续遵守", review_date=TODAY) -> dict:
     order = client.post("/api/medical/orders", json={"text": "饮食清淡。"}, headers=headers)
     assert order.status_code == 201, order.text
     item = client.post(f"/api/medical/orders/{order.json()['id']}/items", headers=headers, json={
-        "category": "diet_avoid", "content": content, "subjects": ["盐"], "review_date": TODAY.isoformat()})
+        "category": "diet_avoid", "content": content, "subjects": ["盐"], "review_date": review_date.isoformat()})
     assert item.status_code == 201, item.text
     confirmed = client.post(f"/api/medical/items/{item.json()['id']}/confirm", headers=headers)
-    assert confirmed.json()["status"] == "pending_review", confirmed.text
+    assert confirmed.status_code == 200, confirmed.text
+    return confirmed.json()
 
 
 def _period_user(client, username, days_until: int):
@@ -94,14 +95,15 @@ def _user_id(username: str) -> uuid.UUID:
         return db.scalars(select(User).where(User.username == username)).one().id
 
 
-def _kinds(client, headers) -> list[str]:
-    """反复取开场直到没有新的，返回依次得到的类别。"""
+def _kinds(client, headers, action="decline") -> list[str]:
+    """取开场、拒绝（或回答）、再取……直到没有新的，返回依次得到的类别。"""
     got = []
     for _ in range(len(OPENING_KINDS) + 1):
         opening = client.get("/api/agent/opening", headers=headers).json()["opening"]
         if opening is None:
             break
         got.append(opening["kind"])
+        assert client.post(f"/api/agent/opening/{opening['id']}/{action}", headers=headers).status_code == 204
     return got
 
 
@@ -128,7 +130,7 @@ def test_quiet_user_gets_no_opening(client):
 def test_review_due(client):
     headers = _quiet_user(client, "rita")
     assert _kinds(client, headers) == []
-    _review_item(client, headers)
+    assert _review_item(client, headers)["status"] == "pending_review"
     opening = _get(client, headers)
     assert opening["kind"] == "review_due"
     assert opening["question"] == TEMPLATES["review_due"].format(content="每天少盐，复查前继续遵守")
@@ -144,6 +146,16 @@ def test_review_due_does_not_fire_without_review(client):
     assert _get(client, headers) is None
 
 
+def test_review_item_not_yet_due_does_not_fire(client):
+    headers = _quiet_user(client, "rex")
+    item = _review_item(client, headers, review_date=TODAY + timedelta(days=10))
+    assert item["status"] == "active"
+    assert _get(client, headers) is None
+    clock["today"] = TODAY + timedelta(days=10)  # 到了复查日就触发
+    _meal(client, headers, clock["today"])
+    assert _get(client, headers)["kind"] == "review_due"
+
+
 @pytest.mark.parametrize(("days", "fires"), [(0, True), (1, True), (PERIOD_SOON_DAYS, True),
                                               (PERIOD_SOON_DAYS + 1, False)])
 def test_period_soon_window(client, days, fires):
@@ -156,6 +168,14 @@ def test_period_soon_window(client, days, fires):
             when={0: "今天", 1: "明天"}.get(days, f"{days} 天后"))
     else:
         assert opening is None
+
+
+def test_period_soon_with_a_predicted_start_in_the_past_does_not_fire(client):
+    headers = _period_user(client, "pat", -2)
+    _meal(client, headers, TODAY)
+    prediction = client.get("/api/cycle/prediction", headers=headers).json()
+    assert prediction["status"] == "ok" and prediction["next_period_start"] < TODAY.isoformat()
+    assert _get(client, headers) is None
 
 
 def test_period_soon_needs_the_cycle_module_and_a_sound_prediction(client):
@@ -197,6 +217,15 @@ def test_no_meal_today(client):
     assert opening["question"] == TEMPLATES["no_meal_today"]
 
 
+@pytest.mark.parametrize(("days", "fires"), [(PROFILE_STALE_DAYS - 1, False), (PROFILE_STALE_DAYS, True)])
+def test_profile_stale_boundary(client, days, fires):
+    headers = _quiet_user(client, f"bnd{days}")
+    clock["today"] = TODAY + timedelta(days=days)  # 档案更新日期（服务器本地日期）与 today 同一个基准
+    _meal(client, headers, clock["today"])
+    opening = _get(client, headers)
+    assert (opening is not None and opening["kind"] == "profile_stale") is fires
+
+
 def test_profile_stale_by_age_and_by_missing_fields(client):
     headers = _quiet_user(client, "pete")
     assert _get(client, headers) is None
@@ -218,12 +247,12 @@ def test_profile_stale_by_age_and_by_missing_fields(client):
 # ---------- 优先级、每日一次、拒绝、次日 ----------
 
 
-def test_priority_and_second_get_gives_the_next_kind(client):
+def test_priority_order_when_each_one_is_declined(client):
     headers = ready_user(client, "olga", {"gender": "female", "birth_year": 1990})  # 档案不全 + 今天没吃
     _review_item(client, headers)
     _workout(client, headers, YESTERDAY)
     assert _kinds(client, headers) == ["review_due", "trained_no_meal_yesterday", "no_meal_today", "profile_stale"]
-    assert _get(client, headers) is None
+    assert _get(client, headers) is None  # 都拒绝过了，今天不再问
     assert [row.kind for row in _rows()] == ["review_due", "trained_no_meal_yesterday", "no_meal_today",
                                              "profile_stale"]
 
@@ -233,6 +262,29 @@ def test_period_soon_ranks_between_review_and_training(client):
     _workout(client, headers, YESTERDAY)
     _review_item(client, headers)
     assert _kinds(client, headers)[:3] == ["review_due", "period_soon", "trained_no_meal_yesterday"]
+
+
+def test_second_get_returns_the_pending_opening_without_a_new_row_or_model_call(client, scripted):
+    headers = ready_user(client, "pen", {"gender": "male", "birth_year": 1990})  # no_meal_today + profile_stale
+    connect(client, headers)
+    scripted.add(say("你好，今天还没记录饮食，要不要现在记一下？"))
+    first = _get(client, headers)
+    assert first["kind"] == "no_meal_today"
+    assert _get(client, headers) == first
+    assert _get(client, headers) == first
+    assert len(scripted.requests) == 1 and len(_rows()) == 1
+
+
+@pytest.mark.parametrize("action", ["decline", "answer"])
+def test_next_kind_comes_only_after_the_pending_one_is_handled(client, action):
+    headers = ready_user(client, f"nxt{action}", {"gender": "male", "birth_year": 1990})
+    first = _get(client, headers)
+    assert client.post(f"/api/agent/opening/{first['id']}/{action}", headers=headers).status_code == 204
+    second = _get(client, headers)
+    assert (first["kind"], second["kind"]) == ("no_meal_today", "profile_stale")
+    assert _get(client, headers) == second
+    assert [(row.kind, row.status) for row in _rows()] == [
+        ("no_meal_today", "declined" if action == "decline" else "answered"), ("profile_stale", "asked")]
 
 
 def test_decline_blocks_the_kind_for_the_day_and_next_day_can_ask_again(client):
@@ -281,20 +333,32 @@ def test_unreadable_rule_does_not_fire_and_others_still_do(client, monkeypatch):
 # ---------- 并发 ----------
 
 
-def test_losing_the_race_for_a_kind_moves_to_the_next_one(client, monkeypatch):
-    headers = ready_user(client, "ron", {"gender": "male", "birth_year": 1990})  # no_meal_today + profile_stale
+def _race(client, monkeypatch, status):
+    """另一个请求在我们看完规则之后占了第一类（状态为 status）。"""
     real = openings.candidate_kinds
 
     def stale_view(user_id, today, skip=()):
         found = real(user_id, today, skip=skip)
-        with get_sessionmaker()() as other:  # 另一个请求在我们看完规则之后占了第一类
-            other.add(AgentOpening(user_id=user_id, day=today, kind=found[0][0], status="asked", question="别人先问的"))
+        with get_sessionmaker()() as other:
+            other.add(AgentOpening(user_id=user_id, day=today, kind=found[0][0], status=status, question="别人先问的"))
             other.commit()
         return found
 
     monkeypatch.setattr(openings, "candidate_kinds", stale_view)
+
+
+def test_losing_the_race_returns_the_opening_the_winner_just_asked(client, monkeypatch):
+    headers = ready_user(client, "ron", {"gender": "male", "birth_year": 1990})  # no_meal_today + profile_stale
+    _race(client, monkeypatch, "asked")
     opening = _get(client, headers)
-    assert opening["kind"] == "profile_stale"
+    assert (opening["kind"], opening["question"]) == ("no_meal_today", "别人先问的")
+    assert [row.kind for row in _rows()] == ["no_meal_today"]  # 没有再多建一条
+
+
+def test_losing_the_race_to_an_already_handled_opening_moves_to_the_next_kind(client, monkeypatch):
+    headers = ready_user(client, "rob", {"gender": "male", "birth_year": 1990})
+    _race(client, monkeypatch, "declined")
+    assert _get(client, headers)["kind"] == "profile_stale"
     assert sorted(row.kind for row in _rows()) == ["no_meal_today", "profile_stale"]
 
 
@@ -321,14 +385,91 @@ def test_wording_uses_the_model_without_tools_and_keeps_the_question(client, scr
     assert [row.question for row in _rows()] == [opening["question"]]  # 改写后的问题存进开场记录
 
 
-def test_wording_keeps_review_content_or_falls_back(client, scripted):
-    headers = _quiet_user(client, "wanda")
-    connect(client, headers)
+def _setup_review(client, name):
+    headers = _quiet_user(client, name)
     _review_item(client, headers)
-    scripted.add(say("你好呀，有条医嘱到复查日了，要不要看看？"))  # 丢了医嘱内容
-    template = TEMPLATES["review_due"].format(content="每天少盐，复查前继续遵守")
-    assert _get(client, headers)["question"] == template
-    assert template in scripted.requests[0].text()
+    return headers
+
+
+def _setup_period(client, name):
+    headers = _period_user(client, name, 2)
+    _meal(client, headers, TODAY)
+    return headers
+
+
+def _setup_trained(client, name):
+    headers = _quiet_user(client, name)
+    _workout(client, headers, YESTERDAY)
+    return headers
+
+
+def _setup_no_meal(client, name):
+    return ready_user(client, name, FULL_PROFILE)
+
+
+def _setup_stale(client, name):
+    headers = ready_user(client, name, {"gender": "male", "birth_year": 1990, "height_cm": 175})
+    _meal(client, headers, TODAY)
+    return headers
+
+
+# (类别, 准备数据, 保留了关键事实的改写, 丢了关键事实的改写)
+FACT_CASES = [
+    ("review_due", _setup_review, "你好，医嘱“每天少盐，复查前继续遵守”到复查日了，要不要看看？", "你好，有条医嘱到复查日了，要不要看看？"),
+    ("period_soon", _setup_period, "你好，你的经期预计 2 天后开始，要不要看看安排？", "你好，你的经期快到了，要不要看看安排？"),
+    ("trained_no_meal_yesterday", _setup_trained, "昨天训练完还没记录饮食，现在补一下？", "你昨天练得不错，要不要补记一下？"),
+    ("no_meal_today", _setup_no_meal, "早上好，今天还没记录饮食，要不要记一下？", "早上好，要不要记一下吃了什么？"),
+    ("profile_stale", _setup_stale, "你好，档案还缺少体重和活动水平，补一下？", "你好，档案有点旧了，要不要更新一下？"),
+]
+
+
+@pytest.mark.parametrize(("kind", "setup", "good", "bad"), FACT_CASES, ids=[c[0] for c in FACT_CASES])
+def test_wording_keeps_the_key_facts_of_every_kind_or_falls_back(client, scripted, kind, setup, good, bad):
+    headers = setup(client, f"fact_{kind}")
+    connect(client, headers)
+    scripted.add(say(bad))
+    opening = _get(client, headers)
+    assert opening["kind"] == kind
+    template = opening["question"]
+    assert template != bad and template in scripted.requests[0].text()  # 丢了事实，回到模板
+
+    # 另一天（同类别可以再问）：保留了事实的改写被采用
+    clock["today"] = TODAY
+    with get_sessionmaker()() as db:
+        row = db.scalars(select(AgentOpening)).one()
+        row.day = TODAY - timedelta(days=1)
+        db.commit()
+    scripted.add(say(good))
+    assert _get(client, headers)["question"] == good
+
+
+def test_wording_with_the_stale_age_fact(client, scripted):
+    headers = _quiet_user(client, "stalefact")
+    connect(client, headers)
+    clock["today"] = TODAY + timedelta(days=PROFILE_STALE_DAYS + 1)
+    _meal(client, headers, clock["today"])
+    scripted.add(say("你的档案好久没更新了，要不要更新一下？"))
+    assert _get(client, headers)["question"] == TEMPLATES["profile_stale"].format(
+        detail=f"已经超过 {PROFILE_STALE_DAYS} 天没更新了")
+
+
+def test_wording_that_mentions_the_cycle_falls_back_when_the_template_does_not(client, scripted):
+    headers = ready_user(client, "cyc", FULL_PROFILE)  # 男性，没有开放经期
+    connect(client, headers)
+    scripted.add(say("你好，今天还没记录饮食，经期前后要注意营养，要不要记一下？"))
+    assert _get(client, headers)["question"] == TEMPLATES["no_meal_today"]
+
+
+def test_wording_exception_of_any_kind_falls_back_and_keeps_the_slot(client, monkeypatch):
+    headers = ready_user(client, "boom", FULL_PROFILE)
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("意外")
+
+    monkeypatch.setattr(openings, "resolve_target", explode)
+    opening = _get(client, headers)
+    assert opening["question"] == TEMPLATES["no_meal_today"]
+    assert [(row.kind, row.status) for row in _rows()] == [("no_meal_today", "asked")]
 
 
 @pytest.mark.parametrize("reply", ["", "   ", "你" * 121])
