@@ -1,0 +1,454 @@
+import uuid
+from datetime import date
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+
+from app.agent.assembly import (
+    REMEMBER_TOOL,
+    AgentContext,
+    Intake,
+    UNAVAILABLE,
+    build_system_prompt,
+    load_context,
+    select_tools,
+    tool_specs,
+)
+from app.agent.clues import detect_resolution_clue
+from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES, SAFE_REPLIES, classify_risk
+from app.auth.models import User
+from app.common.clock import get_today
+from app.db import get_sessionmaker
+from app.llm.adapters.base import sanitize_schema_for_gemini
+from app.main import create_app
+from app.sdk import AgentCredential, GoodLife, SdkError
+from app.sdk.tooling import agent_registry, tool_description, tool_name
+from tests.helpers import ready_user
+
+TODAY = date(2026, 10, 7)
+USER_CONFIRMED_TOOLS = {
+    "medical_confirm_item", "medical_update_item", "medical_resolve_item", "medical_void_item",
+    "medical_continue_item", "medical_cancel_resolution_proposal",
+}
+FITNESS_QUERY_TOOLS = {
+    "fitness_list_workouts", "fitness_get_week_summary", "fitness_get_exercise_trend", "fitness_get_training_signal",
+}
+PERIODS = [
+    ("2026-06-01", "2026-06-05"),
+    ("2026-06-29", "2026-07-03"),
+    ("2026-07-27", "2026-07-31"),
+    ("2026-08-24", "2026-08-28"),
+    ("2026-09-21", "2026-09-25"),
+]
+
+
+# ---------- 风险话题 ----------
+
+RISK_CASES = {
+    "self_harm": [
+        "我不想活了",
+        "最近总有自杀的念头",
+        "我控制不住想伤害自己",
+        "活着没意思，真的活不下去了",
+        "有时候想自残",
+    ],
+    "severe_symptom": [
+        "胸口很痛喘不上气",
+        "刚才突然晕倒了",
+        "今天大便带血",
+        "早上呕血了",
+        "剧烈腹痛一个小时了",
+        "孩子高烧不退怎么办",
+        "跑步时胸痛，还呼吸困难",
+    ],
+    "pregnancy": [
+        "怀孕两个月出血了怎么办",
+        "孕早期见红正常吗",
+        "孕期肚子痛怎么办",
+        "怀孕了下面流血",
+        "孕妇腹痛要紧吗",
+    ],
+    "medication": [
+        "我能不能把降压药停了",
+        "感冒了吃什么药好",
+        "布洛芬饭前吃还是饭后吃",
+        "胰岛素剂量要不要调",
+        "这个一次吃几片",
+        "医生开的药可以换药吗",
+        "避孕药会导致出血吗",
+    ],
+    "extreme_diet": [
+        "我想一天只吃一个苹果减肥",
+        "准备断食三天",
+        "这周打算不吃饭了",
+        "每天吃 400 千卡可以吗",
+        "每天控制在500大卡以下行不行",
+        "吃完饭催吐会不会瘦",
+        "减肥药有用吗",
+    ],
+}
+
+NOT_RISK = [
+    # 用药类容易误判
+    "我想吃点辣的",
+    "药膳汤可以喝吗",
+    "山药可以天天吃吗",
+    "早上吃几片全麦面包合适",
+    "蔬菜上的农药怎么洗干净",
+    "芍药花茶能喝吗",
+    # 孕期类容易误判
+    "孕妇可以吃西瓜吗",
+    "怀孕了能喝咖啡吗",
+    "备孕吃什么好",
+    "孕吐吃什么能缓解",
+    # 严重症状类容易误判
+    "鸡胸肉怎么做好吃",
+    "练完胸肌酸痛正常吗",
+    "高烧退了以后吃什么恢复快",
+    "猪血可以常吃吗",
+    "顺便血压也量了，正常",
+    "肚子有点饿",
+    # 极端节食类容易误判
+    "今天不吃早饭了，午饭吃什么",
+    "一天只吃一次甜食可以吗",
+    "这个面包 300 千卡多吗",
+    "每天 1800 千卡够吗",
+    "今天跑步一天消耗 300 千卡",
+    # 自伤类容易误判
+    "热死了想喝冰的",
+    "笑死我了",
+    "不想活动，散步算运动吗",
+    "吃太辣会不会伤害自己的胃",
+]
+
+
+@pytest.mark.parametrize(("category", "text"), [(c, t) for c, texts in RISK_CASES.items() for t in texts])
+def test_risk_positive(category, text):
+    hit = classify_risk(text)
+    assert hit is not None, text
+    assert hit.category == category, (text, hit)
+    assert hit.matched
+
+
+@pytest.mark.parametrize("text", NOT_RISK)
+def test_risk_negative(text):
+    assert classify_risk(text) is None, (text, classify_risk(text))
+
+
+def test_risk_priority():
+    # 自伤优先于一切；严重症状优先于孕期与用药；孕期优先于用药；用药优先于极端节食
+    assert classify_risk("胸痛得不想活了").category == "self_harm"
+    assert classify_risk("怀孕了胸痛还呼吸困难").category == "severe_symptom"
+    assert classify_risk("怀孕出血了能吃什么药").category == "pregnancy"
+    assert classify_risk("断食期间能吃布洛芬吗").category == "medication"
+
+
+def test_risk_normalizes_spaces_and_full_width():
+    assert classify_risk("我 不 想 活 了").category == "self_harm"
+    assert classify_risk("每天吃４００千卡").category == "extreme_diet"
+    assert classify_risk("醫生開的藥能停嗎").category == "medication"
+
+
+def test_safe_replies_cover_every_category():
+    assert set(SAFE_REPLIES) == set(RISK_CATEGORIES)
+    for category, reply in SAFE_REPLIES.items():
+        assert "医生" in reply or "就医" in reply or "热线" in reply, category
+        assert "120" in reply, category
+    assert "12356" in SAFE_REPLIES["self_harm"]
+    assert HEALTH_DISCLAIMER == "以上内容仅供日常生活参考，不能替代医生的诊断和建议。"
+
+
+# ---------- 医嘱线索 ----------
+
+CLUES = [
+    "医生说我已经好了，可以吃辣了",
+    "医生说我好了",
+    "复查正常了",
+    "复查结果都正常",
+    "可以不用忌口了",
+    "医生说不用再忌辣了",
+    "胃炎已经痊愈",
+    "医生让我恢复正常饮食",
+    "现在可以吃海鲜了",
+]
+NOT_CLUES = [
+    "我想吃辣",
+    "什么时候可以吃辣？",
+    "可以吃辣了吗",
+    "复查是哪天",
+    "医生说要忌口一周",
+    "医生说要少吃盐",
+    "晚饭吃什么好",
+    "这周要去复查",
+]
+
+
+@pytest.mark.parametrize("text", CLUES)
+def test_resolution_clue_positive(text):
+    assert detect_resolution_clue(text), text
+
+
+@pytest.mark.parametrize("text", NOT_CLUES)
+def test_resolution_clue_negative(text):
+    assert not detect_resolution_clue(text), text
+
+
+# ---------- 按档案装配 ----------
+
+
+@pytest.fixture
+def client():
+    app = create_app()
+    app.dependency_overrides[get_today] = lambda: TODAY
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def _user_id(username):
+    with get_sessionmaker()() as db:
+        return db.scalar(select(User.id).where(User.username == username))
+
+
+def _sdk():
+    return GoodLife(registry=agent_registry(), today=lambda: TODAY)
+
+
+def _context(username):
+    return load_context(_sdk(), AgentCredential(_user_id(username)), TODAY)
+
+
+def _names(ctx):
+    return {tool_name(cap.name) for cap in select_tools(ctx)}
+
+
+def _spec_text(ctx):
+    return "\n".join(f"{spec.name}\n{spec.description}\n{spec.parameters}" for spec in tool_specs(ctx))
+
+
+def _bench(client, headers, day):
+    exercise = client.get("/api/fitness/exercises/search", params={"q": "卧推"}, headers=headers).json()
+    body = {"performed_on": day, "duration_minutes": 60, "rpe": 7,
+            "strength": [{"exercise_id": exercise["results"][0]["id"], "sets": [{"weight_kg": 60, "reps": 8}]}]}
+    response = client.post("/api/fitness/workouts", json=body, headers=headers)
+    assert response.status_code == 201, response.text
+
+
+def _confirmed_order(client, headers, text):
+    order = client.post("/api/medical/orders", json={"text": text}, headers=headers)
+    assert order.status_code == 201, order.text
+    for item in order.json()["items"]:
+        assert client.post(f"/api/medical/items/{item['id']}/confirm", headers=headers).status_code == 200
+
+
+def _assert_never_user_confirmed(ctx):
+    assert not _names(ctx) & USER_CONFIRMED_TOOLS
+    assert not {spec.name for spec in tool_specs(ctx)} & USER_CONFIRMED_TOOLS
+
+
+@pytest.mark.parametrize("profile", [{"gender": "male"}, {"gender": "female", "cycle_tracking_opt_out": True}])
+def test_users_without_cycle_get_no_cycle_tools_and_no_mention(client, profile):
+    ready_user(client, "bob", profile)
+    ctx = _context("bob")
+    assert ctx.capabilities["cycle"] is False
+    assert ctx.phase is None
+    assert not any(name.startswith("cycle_") for name in _names(ctx))
+    assert not any(spec.name.startswith("cycle_") for spec in tool_specs(ctx))
+    for clue in (False, True):
+        assert "经期" not in build_system_prompt(ctx, resolution_clue=clue)
+    assert "经期" not in _spec_text(ctx)
+    _assert_never_user_confirmed(ctx)
+
+
+def test_cycle_user_gets_cycle_tools_and_phase(client):
+    headers = ready_user(client, "carol", {"gender": "female"})
+    for start, end in PERIODS:
+        response = client.post("/api/cycle/periods", json={"start_date": start, "end_date": end}, headers=headers)
+        assert response.status_code == 201, response.text
+    ctx = _context("carol")
+    assert ctx.capabilities["cycle"] is True
+    assert ctx.phase is not None and ctx.phase.phase in ("menstrual", "follicular", "ovulation", "luteal")
+    names = _names(ctx)
+    assert {"cycle_get_phase", "cycle_get_tips", "cycle_record_period", "cycle_get_prediction"} <= names
+    prompt = build_system_prompt(ctx, resolution_clue=False)
+    assert "经期阶段" in prompt
+    assert {"follicular": "卵泡期", "ovulation": "排卵期", "luteal": "黄体期", "menstrual": "月经期"}[
+        ctx.phase.phase] in prompt
+    assert "经期" in tool_description(agent_registry()["nutrition.evaluate_food"])  # MCP 描述保持原样
+    _assert_never_user_confirmed(ctx)
+
+
+def test_fitness_query_tools_depend_on_workout_records(client):
+    ready_user(client, "dave", {"gender": "male", "weight_kg": 70})
+    ctx = _context("dave")
+    assert ctx.has_workouts is False and ctx.training is None
+    assert {name for name in _names(ctx) if name.startswith("fitness_")} == {
+        "fitness_log_workout", "fitness_search_exercises"}
+
+    headers = ready_user(client, "erin", {"gender": "male", "weight_kg": 70})
+    _bench(client, headers, "2026-10-07")
+    ctx = _context("erin")
+    assert ctx.has_workouts is True
+    assert ctx.training is not None and ctx.training.trained is True
+    assert {name for name in _names(ctx) if name.startswith("fitness_")} == {
+        "fitness_log_workout", "fitness_search_exercises", *FITNESS_QUERY_TOOLS}
+    assert "力量" in build_system_prompt(ctx, resolution_clue=False)
+    _assert_never_user_confirmed(ctx)
+
+
+def test_old_workout_counts_but_today_is_a_rest_day(client):
+    headers = ready_user(client, "fred", {"gender": "male", "weight_kg": 70})
+    _bench(client, headers, "2026-09-20")
+    ctx = _context("fred")
+    assert ctx.has_workouts is True
+    assert ctx.training is not None and ctx.training.trained is False
+    assert FITNESS_QUERY_TOOLS <= _names(ctx)
+
+
+def test_workouts_older_than_30_days_do_not_count(client):
+    headers = ready_user(client, "gina", {"gender": "male"})
+    _bench(client, headers, "2026-09-01")
+    ctx = _context("gina")
+    assert ctx.has_workouts is False and ctx.training is None
+    assert not _names(ctx) & FITNESS_QUERY_TOOLS
+
+
+def test_active_orders_are_listed_one_by_one(client):
+    headers = ready_user(client, "hank", {"gender": "male"})
+    _confirmed_order(client, headers, "一周内忌食辛辣、油腻食物，禁酒。")
+    _confirmed_order(client, headers, "两周内避免剧烈运动。")
+    constraints = client.get("/api/medical/constraints", headers=headers).json()["constraints"]
+    assert len(constraints) >= 2
+    ctx = _context("hank")
+    assert len(ctx.constraints) == len(constraints)
+    prompt = build_system_prompt(ctx, resolution_clue=False)
+    for constraint in constraints:
+        assert constraint["content"] in prompt
+        assert constraint["item_id"] in prompt
+    assert "不得推荐违反硬约束的食物或运动，不得替用户确认或解除医嘱" in prompt
+    assert "medical_propose_resolution" not in prompt
+    clue_prompt = build_system_prompt(ctx, resolution_clue=True)
+    assert "用户提到医生的新意见：只能用 medical_propose_resolution 提出解除建议，并告诉用户需要在应用里确认" in clue_prompt
+    _assert_never_user_confirmed(ctx)
+
+
+def test_prompt_core_sections_and_preferences(client):
+    headers = ready_user(client, "ivy", {"gender": "male", "birth_year": 1990, "height_cm": 175, "weight_kg": 70,
+                                        "activity_level": "moderate"})
+    assert client.post("/api/agent/preferences", json={"content": "喜欢吃辣"}, headers=headers).status_code == 201
+    ctx = _context("ivy")
+    assert ctx.preferences == ("喜欢吃辣",)
+    assert ctx.intake is not None and ctx.intake.need_energy_kcal is not None
+    prompt = build_system_prompt(ctx, resolution_clue=False)
+    for text in ("不做诊断", "喜欢吃辣", "nutrition_evaluate_food", "nutrition_evaluate_meal", "明确要求记录",
+                 "依据由系统附上", "2026-10-07", "目前没有生效的医嘱约束", "千卡"):
+        assert text in prompt, text
+    assert UNAVAILABLE not in prompt
+
+
+def test_profile_missing_fields_are_reported(client):
+    ready_user(client, "jack", {"gender": "male"})
+    ctx = _context("jack")
+    assert ctx.intake is not None and ctx.intake.need_energy_kcal is None
+    assert "身高" in build_system_prompt(ctx, resolution_clue=False)
+
+
+def test_reads_are_audited_as_agent(client):
+    headers = ready_user(client, "kate", {"gender": "female"})
+    _context("kate")
+    audit = client.get("/api/agent-grants/audit", headers=headers).json()
+    agent_rows = [row for row in audit if row["client_name"] == "agent"]
+    assert {row["capability"] for row in agent_rows} >= {
+        "profile.get_capabilities", "medical.get_constraints", "cycle.get_phase", "nutrition.get_daily_summary",
+        "fitness.list_workouts"}
+    assert {row["credential_kind"] for row in agent_rows} == {"agent"}
+
+
+class _FailingSdk(GoodLife):
+    def __init__(self, failing):
+        super().__init__(registry=agent_registry(), today=lambda: TODAY)
+        self._failing = failing
+
+    def call(self, credential, capability, params=None, *, client_name="sdk"):
+        if capability in self._failing:
+            raise SdkError("internal", "internal_error", "服务内部出错")
+        return super().call(credential, capability, params, client_name=client_name)
+
+
+def test_a_failed_read_does_not_fail_the_turn(client):
+    headers = ready_user(client, "liam", {"gender": "male"})
+    _confirmed_order(client, headers, "一周内忌食辛辣。")
+    _bench(client, headers, "2026-10-07")
+    sdk = _FailingSdk({"medical.get_constraints", "nutrition.get_daily_summary", "fitness.get_training_signal"})
+    ctx = load_context(sdk, AgentCredential(_user_id("liam")), TODAY)
+    assert {"constraints", "intake", "training"} <= set(ctx.unavailable)
+    assert ctx.has_workouts is True
+    prompt = build_system_prompt(ctx, resolution_clue=False)
+    assert prompt.count(UNAVAILABLE) >= 3
+    assert "medical_get_constraints" in prompt  # 读不到约束时提醒先读取
+
+
+def test_unreadable_capabilities_fall_back_to_no_cycle(client):
+    ready_user(client, "mia", {"gender": "female"})
+    ctx = load_context(_FailingSdk({"profile.get_capabilities"}), AgentCredential(_user_id("mia")), TODAY)
+    assert "capabilities" in ctx.unavailable
+    assert ctx.capabilities["cycle"] is False
+    assert not any(name.startswith("cycle_") for name in _names(ctx))
+    assert "经期" not in build_system_prompt(ctx, resolution_clue=False)
+
+
+def test_unknown_user_context_is_all_unavailable():
+    ctx = load_context(_sdk(), AgentCredential(uuid.uuid4()), TODAY)
+    assert "capabilities" in ctx.unavailable and "constraints" in ctx.unavailable
+    build_system_prompt(ctx, resolution_clue=False)
+
+
+# ---------- 工具声明 ----------
+
+
+def test_remember_tool_spec():
+    assert REMEMBER_TOOL.name == "remember_preference"
+    assert REMEMBER_TOOL.parameters["required"] == ["text"]
+    assert REMEMBER_TOOL.parameters["properties"]["text"]["type"] == "string"
+    for word in ("口味", "习惯", "医嘱", "用药", "过敏", "病情"):
+        assert word in REMEMBER_TOOL.description
+
+
+def test_tool_specs_use_agent_wording_and_include_remember(client):
+    ready_user(client, "nina", {"gender": "female"})
+    specs = tool_specs(_context("nina"))
+    assert specs[-1] == REMEMBER_TOOL
+    assert len({spec.name for spec in specs}) == len(specs)
+    for spec in specs[:-1]:
+        assert "授权令牌" not in spec.description
+        assert "当前用户" in spec.description
+
+
+def _object_nodes_without_properties(node, path="$"):
+    found = []
+    if isinstance(node, dict):
+        if node.get("type") == "object" and path != "$" and not node.get("properties"):
+            found.append(path)
+        for key, value in node.items():
+            found += _object_nodes_without_properties(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            found += _object_nodes_without_properties(value, f"{path}[{index}]")
+    return found
+
+
+def test_no_agent_tool_has_a_property_less_nested_object_for_gemini():
+    for cap in agent_registry().values():
+        sanitized = sanitize_schema_for_gemini(cap.input_model.model_json_schema())
+        assert _object_nodes_without_properties(sanitized) == [], cap.name
+    assert _object_nodes_without_properties(sanitize_schema_for_gemini(REMEMBER_TOOL.parameters)) == []
+
+
+def test_prompt_reports_overshoot_instead_of_negative_remaining():
+    intake = Intake(2300, 80, 70, 250, 1900, 1700, 2100, 60, (), -400, -20)
+    ctx = AgentContext(capabilities={"cycle": False, "medical": True, "nutrition": True, "fitness": True},
+                       profile_summary="已开放的模块：医嘱、饮食、健身", constraints=(), phase=None, intake=intake,
+                       training=None, has_workouts=False, preferences=(), today=TODAY)
+    prompt = build_system_prompt(ctx, resolution_clue=False)
+    assert "已超出约 400 千卡" in prompt and "已超出约 20 克" in prompt
+    assert "-400" not in prompt
