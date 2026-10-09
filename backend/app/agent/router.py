@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.agent import conversations, loop, preferences
+from app.agent import conversations, loop, openings, preferences
 from app.agent import settings as agent_settings
 from app.agent.models import AgentPreference
 from app.agent.schemas import (
@@ -17,6 +17,8 @@ from app.agent.schemas import (
     ConversationOut,
     MessageCreate,
     MessageOut,
+    OpeningOut,
+    OpeningResponse,
     PreferenceCreate,
     PreferenceOut,
     SettingsOut,
@@ -147,3 +149,22 @@ def get_settings(user: AgentUser, db: DbSession) -> SettingsOut:
 @router.put("/settings", response_model=SettingsOut)
 def put_settings(body: SettingsUpdate, user: AgentUser, db: DbSession) -> SettingsOut:
     return SettingsOut.model_validate(agent_settings.set_openings_enabled(db, user.id, body.openings_enabled))
+
+
+@router.get("/opening", response_model=OpeningResponse)
+def get_opening(user: AgentUser, db: DbSession, today: Today, factory: Factory) -> OpeningResponse:
+    """今天最该问的一个问题；今天没有该问的、已问完或设置关闭时是 null。pick_opening 在调用模型之前结束读事务。"""
+    opening = openings.pick_opening(db, user.id, today, factory=factory)
+    return OpeningResponse(opening=None if opening is None else OpeningOut.model_validate(opening))
+
+
+@router.post("/opening/{opening_id}/decline", status_code=204)
+def decline_opening(opening_id: uuid.UUID, user: AgentUser, db: DbSession) -> Response:
+    openings.decline(db, user.id, opening_id)
+    return Response(status_code=204)
+
+
+@router.post("/opening/{opening_id}/answer", status_code=204)
+def answer_opening(opening_id: uuid.UUID, user: AgentUser, db: DbSession) -> Response:
+    openings.answer(db, user.id, opening_id)
+    return Response(status_code=204)

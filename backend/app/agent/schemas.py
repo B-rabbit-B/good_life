@@ -82,3 +82,15 @@ class SettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     openings_enabled: bool
+
+
+class OpeningOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    kind: str
+    question: str
+
+
+class OpeningResponse(BaseModel):
+    opening: OpeningOut | None
