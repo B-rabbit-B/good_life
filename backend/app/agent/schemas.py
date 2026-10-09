@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
@@ -8,6 +8,7 @@ from app.agent.preferences import MAX_PREFERENCE_CHARS
 
 TitleText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 PreferenceSource = Literal["agent", "user"]
+MAX_MESSAGE_CHARS = 2000
 
 
 class ConversationCreate(BaseModel):
@@ -30,9 +31,26 @@ class MessageOut(BaseModel):
 
     role: Literal["user", "assistant"]
     text: str
-    evidence: list[Any]
+    evidence: str  # 依据段（evidence_section 的结果），没有时为空串
     flags: list[str]
     created_at: datetime
+
+
+class MessageCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_MESSAGE_CHARS)]
+    stream: bool = True
+
+
+class TurnOut(BaseModel):
+    """一轮对话的结果；流式时 done 事件里是除 text 以外的字段。"""
+
+    message_id: uuid.UUID
+    text: str
+    evidence: str
+    flags: list[str]
+    tools_used: list[str]
 
 
 class ConversationDetailOut(ConversationOut):

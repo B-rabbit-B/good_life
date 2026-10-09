@@ -145,7 +145,7 @@ def test_content_and_title_are_encrypted_at_rest(db):
     conversation = conversations.create_conversation(db, uid, "秘密标题XYZ")
     message = conversations.append_message(
         db, uid, conversation.id, "assistant",
-        {"text": "秘密正文XYZ", "provider_state": {"sig": "秘密状态XYZ"}, "evidence": [], "flags": []},
+        {"text": "秘密正文XYZ", "provider_state": {"sig": "秘密状态XYZ"}, "evidence": "", "flags": []},
     )
     preferences.add_preference(db, uid, "我不吃香菜XYZ", "user")
     db.add(AgentOpening(user_id=uid, day=date(2026, 10, 9), kind="review", status="asked", question="秘密问题XYZ"))
@@ -417,7 +417,7 @@ def test_conversation_api_hides_tool_messages_and_provider_state(client, db):
     )
     conversations.append_message(
         db, uid, cuid, "assistant",
-        {"text": "可以吃清蒸鱼", "evidence": [{"source": "医嘱"}], "flags": ["guard_rewritten"],
+        {"text": "可以吃清蒸鱼", "evidence": "清蒸鱼：适合。", "flags": ["guard_rewritten"],
          "provider_state": {"thought_signature": "SECRET-STATE"}, "tool_calls": []},
     )
     response = client.get(f"/api/agent/conversations/{cid}", headers=headers)
@@ -425,8 +425,8 @@ def test_conversation_api_hides_tool_messages_and_provider_state(client, db):
     body = response.json()
     assert body["title"] == "今天吃什么"
     assert [(m["role"], m["text"]) for m in body["messages"]] == [("user", "晚饭吃什么"), ("assistant", "可以吃清蒸鱼")]
-    assert body["messages"][0]["evidence"] == [] and body["messages"][0]["flags"] == []
-    assert body["messages"][1]["evidence"] == [{"source": "医嘱"}]
+    assert body["messages"][0]["evidence"] == "" and body["messages"][0]["flags"] == []
+    assert body["messages"][1]["evidence"] == "清蒸鱼：适合。"
     assert body["messages"][1]["flags"] == ["guard_rewritten"]
     assert set(body["messages"][1]) == {"role", "text", "evidence", "flags", "created_at"}
     assert "SECRET" not in response.text and "tool" not in {m["role"] for m in body["messages"]}

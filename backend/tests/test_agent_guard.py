@@ -312,6 +312,13 @@ def test_overlapping_longer_name_does_not_hide_a_blocked_food():
     assert check_answer("回锅肉丝炒面", _spicy_blocked()) == GuardVerdict(False, ("回锅肉",), (TWICE_COOKED,))
 
 
+def test_mentioned_food_ids_include_overlapping_and_split_names():
+    # 循环用它挑出要请引擎判断的食物：最长匹配藏起来的回锅肉也要判断，check_answer 才拦得住
+    assert guard.mentioned_food_ids("回锅肉丝炒面", CATALOG) == [TWICE_COOKED, "dish:fried_noodles"]
+    assert guard.mentioned_food_ids("麻·婆·豆·腐", CATALOG)[0] == MAPO
+    assert guard.mentioned_food_ids("今天天气不错，记得多走走", CATALOG) == []
+
+
 def test_squeezed_hits_are_ordered_by_position():
     verdict = check_answer("火\n锅、宫保鸡丁，还有麻·婆·豆·腐", _spicy_blocked())
     assert verdict == GuardVerdict(False, ("火锅", "宫保鸡丁", "麻婆豆腐"), (HOT_POT, KUNG_PAO, MAPO))

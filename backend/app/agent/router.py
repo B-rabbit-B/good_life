@@ -1,30 +1,43 @@
+import json
 import uuid
+from collections.abc import Iterator
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.agent import conversations, preferences
+from app.agent import conversations, loop, preferences
 from app.agent import settings as agent_settings
 from app.agent.models import AgentPreference
 from app.agent.schemas import (
     ConversationCreate,
     ConversationDetailOut,
     ConversationOut,
+    MessageCreate,
     MessageOut,
     PreferenceCreate,
     PreferenceOut,
     SettingsOut,
     SettingsUpdate,
+    TurnOut,
 )
 from app.auth.models import User
+from app.common.clock import get_today
 from app.db import get_db
 from app.disclaimer.deps import require_disclaimer_user
+from app.errors import AppError
+from app.llm.service import AdapterFactory, get_adapter_factory
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 AgentUser = Annotated[User, Depends(require_disclaimer_user)]
 DbSession = Annotated[Session, Depends(get_db)]
+Today = Annotated[date, Depends(get_today)]
+Factory = Annotated[AdapterFactory, Depends(get_adapter_factory)]
+
+SSE_CHUNK_CHARS = 20
 
 
 def _visible_messages(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID) -> list[MessageOut]:
@@ -41,7 +54,7 @@ def _visible_messages(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUI
             MessageOut(
                 role=message.role,
                 text=text,
-                evidence=content.get("evidence") or [],
+                evidence=content.get("evidence") or "",
                 flags=content.get("flags") or [],
                 created_at=message.created_at,
             )
@@ -72,6 +85,42 @@ def get_conversation(conversation_id: uuid.UUID, user: AgentUser, db: DbSession)
 def delete_conversation(conversation_id: uuid.UUID, user: AgentUser, db: DbSession) -> Response:
     conversations.delete_conversation(db, user.id, conversation_id)
     return Response(status_code=204)
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _stream_turn(turn: TurnOut) -> Iterator[str]:
+    """回答已经通过输出检查，再按段（每段约 20 个字）推送，最后推送 done。"""
+    for start in range(0, len(turn.text), SSE_CHUNK_CHARS):
+        yield _sse("delta", {"text": turn.text[start:start + SSE_CHUNK_CHARS]})
+    yield _sse("done", turn.model_dump(mode="json", exclude={"text"}))
+
+
+@router.post("/conversations/{conversation_id}/messages", response_model=TurnOut)
+def post_message(
+    conversation_id: uuid.UUID, body: MessageCreate, user: AgentUser, db: DbSession, today: Today, factory: Factory
+) -> TurnOut | StreamingResponse:
+    """发一条消息并得到助手的回答。stream 为真时返回 text/event-stream：若干 delta，最后 done 或 error。
+
+    先确认会话属于本人，然后结束自己的读事务再跑一轮（run_turn 用自己的短会话，调用模型期间不占事务）。
+    """
+    conversations.get_conversation(db, user.id, conversation_id)
+    user_id = user.id
+    db.close()
+    try:
+        result = loop.run_turn(user_id, conversation_id, body.text, today=today, factory=factory)
+    except AppError as err:
+        if not body.stream:
+            raise
+        error = _sse("error", {"code": err.code, "message": err.message})
+        return StreamingResponse(iter([error]), status_code=err.status_code, media_type="text/event-stream")
+    turn = TurnOut(message_id=result.message_id, text=result.text, evidence=result.evidence,
+                   flags=list(result.flags), tools_used=list(result.tools_used))
+    if body.stream:
+        return StreamingResponse(_stream_turn(turn), media_type="text/event-stream")
+    return turn
 
 
 @router.get("/preferences", response_model=list[PreferenceOut])

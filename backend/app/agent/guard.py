@@ -203,6 +203,26 @@ def find_foods(text: str, catalog: Catalog) -> list[FoodMention]:
     return mentions
 
 
+def mentioned_food_ids(text: str, catalog: Catalog | None = None) -> list[str]:
+    """文字里出现过任何一个说法的食物编号，按首次出现排序；不取最长匹配，重叠的说法都算，归一文字与只留汉字的压缩文字都查。
+
+    供调用方挑出要请引擎判断的食物：find_foods 的最长匹配会让“回锅肉丝炒面”只剩肉丝炒面，而 check_answer 只认识
+    已经判断过的食物，回锅肉不判断就拦不住。
+    """
+    index = _index(catalog or load_catalog())
+    norm, _ = _normalize(text)
+    squeezed, kept = _squeeze(norm)
+    first: dict[str, int] = {}
+    for haystack, positions in ((norm, range(len(norm))), (squeezed, kept)):
+        for start in range(len(haystack)):
+            for length in index.lengths:
+                name = haystack[start:start + length]
+                if len(name) == length and name in index.names:
+                    food_id = index.names[name]
+                    first[food_id] = min(first.get(food_id, positions[start]), positions[start])
+    return sorted(first, key=lambda food_id: first[food_id])
+
+
 def mostly_latin(text: str) -> bool:
     """去掉单位、常见缩写和不到 3 个字母的词后，拉丁字母占（拉丁字母 + 汉字）的比例超过 LATIN_SHARE。"""
     text = _normalize(text)[0]  # 全角字母变成常规拉丁字母
