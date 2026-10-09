@@ -2,8 +2,10 @@
 
 命中只会让系统指令多一句提示：智能体只能提出解除建议，确认与解除由用户本人在应用里完成。
 按分句判断（逗号、句号、问号等分开），以下分句不算线索：
-- 问句：以 吗、么、嘛、呢 结尾或后面跟着问号，或含 什么时候、能不能、是不是 这类疑问说法（“医生说可以吃辣吗”）；
-- 否定句：含 不能、不可以、不行、不要、别、还没、禁止 这类说法（“医生说还不能吃辣”“医生说一个月内不能吃辣”）。
+- 问句：以 吗、么、嘛、呢、吧 结尾或后面跟着问号，或含 什么时候、能不能、是不是 这类疑问说法（“医生说可以吃辣吗”）；
+- 否定句：含 不能、不可以、不行、不要、别吃、还没、禁止，以及 不正常、不太、不好、一般 这类说法
+  （“医生说还不能吃辣”“医生说恢复得一般”“医生说复查结果不太正常”）；
+- 条件句与将来时：含 等、如果、要是、的话、到时候、一个月后 这类说法（“等复查正常了就可以吃辣了”）。
 “可以吃……了”只在整句话里有医疗相关的词（医生、复查、医嘱、忌口、病、炎等）时才算，
 “今天中午能吃火锅了”“终于能吃饭了”这类日常说法不算。复查结果可以跨分句（“复查结果出来了，一切正常”）。
 """
@@ -27,9 +29,14 @@ _CLAUSE_CLUES = re.compile(
 _CAN_EAT_AGAIN = re.compile(r"(可以|能)(正常)?吃[^,.!?;，。！？；]{0,8}?了")
 _MEDICAL_ANCHOR = re.compile(r"医生|大夫|医师|复查|医嘱|忌口|忌|病|炎|伤口|术后|指标|检查|痊愈|康复")
 _RECHECK_NORMAL = re.compile(r"复查([^?]{0,12}?)(正常|没问题|合格|通过|没事)")
-_NEGATION = re.compile(r"不能|不可以|不可|不行|不准|不许|不宜|不要|别(吃|喝|碰)|还没|没好|禁止|暂时不|还不")
+_NEGATION = re.compile(
+    r"不能|不可以|不可|不行|不准|不许|不宜|不要|别(吃|喝|碰)|还没|没好|禁止|暂时不|还不"
+    r"|不正常|不太|不好|一般|不理想|欠佳|没恢复|没有恢复"
+)
+# 条件句与将来时：说的是“到时候才可以”，现在还不是医生的新意见
+_CONDITIONAL = re.compile(r"等|如果|要是|假如|假设|万一|的话|到时候|(天|周|月|年|星期|礼拜|阵子)(后|以后|之后)")
 _QUESTION_WORDS = re.compile(r"什么时候|何时|多久|能不能|是不是|会不会|可不可以|可以不可以|有没有|行不行")
-_QUESTION_END = re.compile(r"(吗|么|嘛|呢|没|没有)$")
+_QUESTION_END = re.compile(r"(吗|么|嘛|呢|吧|没|没有)$")
 
 
 def _clauses(text: str) -> list[tuple[str, bool]]:
@@ -48,13 +55,13 @@ def detect_resolution_clue(text: str) -> bool:
     normalized = normalize(text)
     anchored = bool(_MEDICAL_ANCHOR.search(normalized))
     for clause, question in _clauses(normalized):
-        if question or _NEGATION.search(clause):
+        if question or _NEGATION.search(clause) or _CONDITIONAL.search(clause):
             continue
         if _DOCTOR_SAID.search(clause) or _CLAUSE_CLUES.search(clause):
             return True
         if anchored and _CAN_EAT_AGAIN.search(clause):
             return True
     recheck = _RECHECK_NORMAL.search(normalized)
-    if recheck is None or re.search(r"不|没|未|吗|么", recheck.group(1)):
+    if recheck is None or re.search(r"不|没|未|吗|么|太", recheck.group(1)) or _CONDITIONAL.search(normalized):
         return False
-    return not re.match(r"了?(吗|么|嘛|没|\?)", normalized[recheck.end():])
+    return not re.match(r"了?(吗|么|嘛|吧|呢|没|\?)", normalized[recheck.end():])

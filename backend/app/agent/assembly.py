@@ -207,13 +207,18 @@ def _profile_text(data: dict) -> str:
     return "\n".join(lines)
 
 
-def _profile_summary(capabilities: dict[str, bool] | None, profile: str | None) -> str:
+def _profile_summary(capabilities: dict[str, bool] | None, profile: str | None, intake: Intake | None) -> str:
+    if profile is None:
+        profile = f"档案{UNAVAILABLE}。"
+        if intake is not None and intake.missing_fields:  # 读不到档案时，用当日汇总给出的缺项
+            missing = "、".join(PROFILE_FIELD_NAMES.get(f, f) for f in intake.missing_fields)
+            profile += f"档案缺少{missing}，暂时无法估算每日需求。"
     if capabilities is None:
         modules = f"模块开放情况{UNAVAILABLE}。"
     else:
         opened = [MODULE_NAMES[m] for m in MODULE_NAMES if capabilities.get(m)]
         modules = "已开放的模块：" + ("、".join(opened) if opened else "无") + "。"
-    return "\n".join([profile if profile is not None else f"档案{UNAVAILABLE}。", modules])
+    return "\n".join([profile, modules])
 
 
 def load_context(sdk: GoodLife, credential: AgentCredential, today: date) -> AgentContext:
@@ -260,7 +265,7 @@ def load_context(sdk: GoodLife, credential: AgentCredential, today: date) -> Age
 
     return AgentContext(
         capabilities=capabilities,
-        profile_summary=_profile_summary(read_caps, profile),
+        profile_summary=_profile_summary(read_caps, profile, intake),
         constraints=constraints,
         phase=phase,
         intake=intake,
@@ -440,6 +445,16 @@ def _preferences_section(ctx: AgentContext) -> list[str]:
     return lines
 
 
+SAFETY_SECTION = (
+    "【安全边界】",
+    "- 不就用药给出具体指导：该吃什么药、剂量、停药换药、药物之间或药与酒和食物的相互作用，都请用户咨询医生或药师。",
+    "- 孕期出血、见红、腹痛等异常，以及胸痛、呼吸困难、晕厥、便血呕血、剧烈腹痛、高烧不退等严重症状，不做判断，"
+    "提醒用户尽快就医，情况紧急时拨打 120。",
+    "- 不提供断食、极低热量、催吐、减肥药等极端节食的做法，建议咨询医生或注册营养师。",
+    "- 用户流露自伤或轻生的想法时，先表达关心，请对方拨打 12356 心理援助热线，有危险时立即拨打 120 或去最近的医院急诊。",
+)
+
+
 def _principles_section(ctx: AgentContext, resolution_clue: bool) -> list[str]:
     record_tools = ["nutrition_log_meal", "fitness_log_workout"]
     if ctx.capabilities.get("cycle"):
@@ -470,6 +485,7 @@ def build_system_prompt(ctx: AgentContext, *, resolution_clue: bool) -> str:
         _intake_section(ctx),
         _training_section(ctx),
         _preferences_section(ctx),
+        list(SAFETY_SECTION),
         _principles_section(ctx, resolution_clue),
     ]
     return "\n\n".join("\n".join(section) for section in sections if section)

@@ -61,6 +61,12 @@ RISK_CASES = {
         "觉得没有活下去的意义",
         "感觉人生没有意义",
         "攒了一瓶安眠药",
+        "不如死掉算了",
+        "活着有什么意思",
+        "想从楼上跳下去",
+        "我死了也没人在乎",
+        "想结束这一切",
+        "我真的撑不下去了",
     ],
     "severe_symptom": [
         "胸口很痛喘不上气",
@@ -86,6 +92,22 @@ RISK_CASES = {
         "嘴歪了说话不清楚",
         "嘴唇发紫",
         "上次过敏性休克了",
+        "早上吐了血",
+        "这几天大便发黑",
+        "拉黑色的大便",
+        "胸口很闷",
+        "胸口刺痛",
+        "呕吐带血",
+        "突然看不清东西",
+        "剧烈头痛",
+        "头痛欲裂",
+        "手脚突然没力气",
+        "突然一边脸麻",
+        "过敏喉咙肿了",
+        "心慌得厉害",
+        "心跳特别快",
+        "呼吸急促",
+        "有点意识模糊",
     ],
     "pregnancy": [
         "怀孕两个月出血了怎么办",
@@ -108,6 +130,14 @@ RISK_CASES = {
         "我想把药减量",
         "停掉降压药会怎样",
         "断食期间能吃布洛芬吗",
+        "头孢能喝酒吗",
+        "吃了头孢能喝酒吗",
+        "喝酒前吃头孢可以吗",
+        "吃降压药能喝酒吗",
+        "我在吃降压药，西柚能吃吗",
+        "能不能不吃降压药了",
+        "降压药不想吃了",
+        "降压药吃了头晕怎么办",
     ],
     "extreme_diet": [
         "我想一天只吃一个苹果减肥",
@@ -119,6 +149,9 @@ RISK_CASES = {
         "减肥药有用吗",
         "一天只吃一顿",
         "每天500千卡以下",
+        "连续三天不吃东西",
+        "我准备饿三天",
+        "轻断食三天",
     ],
 }
 
@@ -179,6 +212,25 @@ NOT_RISK = [
     # 孕期的普通出血
     "孕期牙龈出血吃什么好",
     "怀孕了鼻出血怎么办",
+    # 第二轮：俚语与日常说法
+    "这家店要跳楼价甩卖",
+    "老板说要跳楼大甩卖",
+    "吐血整理减脂食谱",
+    "吐血推荐这几款零食",
+    "便宜到吐血",
+    "炖汤加药材",
+    "鸡汤里加药材好吗",
+    "想死磕这个减脂计划",
+    "练完腿半边身体酸",
+    "今天不吃饭了，晚上去吃大餐",
+    "晚饭不吃饭只吃菜",
+    "晚上也不吃饭能瘦吗",
+    "二甲双胍可以喝粥吗",
+    "打胰岛素的人早餐吃什么好",
+    "减肥减到撑不下去了",
+    "训练计划想结束这一切重新开始",
+    "一边吃麻辣烫一边看剧",
+    "突然想吃麻辣烫",
 ]
 
 
@@ -256,6 +308,15 @@ NOT_CLUES = [
     "终于能吃饭了",
     "什么都可以吃了",
     "现在可以吃海鲜了",
+    "医生说复查不正常",
+    "医生说恢复得不太好",
+    "医生说恢复得一般",
+    "医生说复查结果不太正常",
+    "等复查正常了就可以吃辣了",
+    "如果复查正常就能吃了",
+    "医生说一个月后可以吃辣",
+    "复查正常的话告诉我",
+    "复查没问题吧",
 ]
 
 
@@ -513,6 +574,24 @@ def test_unreadable_profile_is_reported(client):
     ctx = load_context(_FailingSdk({"profile.get_profile"}), AgentCredential(_user_id("quin")), TODAY)
     assert "profile" in ctx.unavailable
     assert "档案" + UNAVAILABLE in build_system_prompt(ctx, resolution_clue=False)
+
+
+def test_unreadable_profile_keeps_missing_fields_from_intake(client):
+    ready_user(client, "rita", {"gender": "male"})
+    ctx = load_context(_FailingSdk({"profile.get_profile"}), AgentCredential(_user_id("rita")), TODAY)
+    assert "档案" + UNAVAILABLE in ctx.profile_summary
+    assert "身高" in ctx.profile_summary and "体重" in ctx.profile_summary
+
+
+@pytest.mark.parametrize("profile", [{"gender": "male"}, {"gender": "female"}])
+def test_prompt_states_the_safety_boundaries(client, profile):
+    ready_user(client, "sam", profile)
+    prompt = build_system_prompt(_context("sam"), resolution_clue=False)
+    assert "【安全边界】" in prompt
+    for text in ("用药", "剂量", "停药", "相互作用", "孕期", "严重症状", "极端节食", "自伤", "12356", "120", "就医"):
+        assert text in prompt, text
+    if profile["gender"] == "male":
+        assert "经期" not in prompt
 
 
 def test_unknown_user_context_is_all_unavailable():
