@@ -384,6 +384,8 @@ def _sanitize(node: Any, definitions: dict, seen: tuple[str, ...]) -> dict:
     fmt = node.get("format")
     if isinstance(kind, str) and fmt in _GEMINI_FORMATS.get(kind, ()):
         out["format"] = fmt
+    # 自由键值的对象（例如 dict[str, X]）没有 properties，保留为 {"type": "object"}：Gemini 文档里 properties 是可选的，
+    # 值的结构（additionalProperties）Gemini 不认，只能去掉
     if isinstance(node.get("properties"), dict):
         out["properties"] = {name: _sanitize(sub, definitions, seen) for name, sub in node["properties"].items()}
         required = [name for name in node.get("required") or () if name in out["properties"]]

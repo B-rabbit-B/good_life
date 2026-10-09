@@ -156,6 +156,24 @@ def test_openai_tool_calls_with_stop_reason_report_tool_calls():
         "qwen-plus", [ChatMessage("user", "天气")], tools=[WEATHER]).finish_reason == "tool_calls"
 
 
+def test_openai_tool_calls_without_ids_get_synthetic_ids():
+    # 个别兼容服务的工具调用不带 id；合成一个本次回复内唯一的编号，历史才能原样回传
+    reply = {"choices": [{"finish_reason": "tool_calls", "message": {"content": None, "tool_calls": [
+        {"type": "function", "function": {"name": "get_weather", "arguments": "{\"city\": \"北京\"}"}},
+        {"id": "call_x", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}},
+        {"id": "", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}},
+    ]}}]}
+    result = _adapter("openai_compatible", Recorder(200, reply)).chat(
+        "qwen-plus", [ChatMessage("user", "天气")], tools=[WEATHER])
+    assert [call.call_id for call in result.tool_calls] == ["call-1", "call_x", "call-3"]
+    rec = Recorder(200, OPENAI_TEXT)
+    _adapter("openai_compatible", rec).chat("qwen-plus", [
+        ChatMessage("user", "天气"), ChatMessage("assistant", "", tool_calls=result.tool_calls[:1]),
+        ChatMessage("tool", "晴", tool_call_id="call-1", tool_name="get_weather")])
+    assert rec.body["messages"][1]["tool_calls"][0]["id"] == "call-1"
+    assert rec.body["messages"][2] == {"role": "tool", "tool_call_id": "call-1", "content": "晴"}
+
+
 # ---------- Claude ----------
 
 def test_anthropic_parses_tool_use_and_finish_reason():
@@ -203,6 +221,35 @@ def test_anthropic_sends_tool_use_blocks_and_merges_tool_results():
         {"role": "assistant", "content": "都查好了。"},
         {"role": "user", "content": "谢谢"},
     ]
+
+
+def test_anthropic_merges_tool_results_with_following_user_text():
+    rec = Recorder(200, CLAUDE_TEXT)
+    _adapter("anthropic", rec).chat("claude-sonnet-4-5", [
+        ChatMessage("user", "北京天气"),
+        ChatMessage("assistant", "", tool_calls=(ToolCall("get_weather", {"city": "北京"}, "toolu_1"),)),
+        ChatMessage("tool", "{\"temp\": 20}", tool_call_id="toolu_1", tool_name="get_weather"),
+        ChatMessage("user", "顺便说一下明天呢"),
+        ChatMessage("user", "看这张图", (IMAGE,)),
+    ], tools=[WEATHER])
+    assert rec.body["messages"] == [
+        {"role": "user", "content": "北京天气"},
+        {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "toolu_1", "name": "get_weather", "input": {"city": "北京"}}]},
+        {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "toolu_1", "content": "{\"temp\": 20}"},
+            {"type": "text", "text": "顺便说一下明天呢"},
+            {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}},
+            {"type": "text", "text": "看这张图"},
+        ]},
+    ]
+
+
+def test_anthropic_merges_consecutive_plain_user_messages():
+    rec = Recorder(200, CLAUDE_TEXT)
+    _adapter("anthropic", rec).chat("claude-sonnet-4-5", [ChatMessage("user", "第一句"), ChatMessage("user", "第二句")])
+    assert rec.body["messages"] == [{"role": "user", "content": [
+        {"type": "text", "text": "第一句"}, {"type": "text", "text": "第二句"}]}]
 
 
 @pytest.mark.parametrize("raw, expected", [
@@ -270,6 +317,50 @@ def test_gemini_sends_function_call_signature_and_function_responses_back():
     ]
 
 
+def test_gemini_merges_function_responses_with_following_user_text():
+    rec = Recorder(200, GEMINI_TEXT)
+    _adapter("gemini", rec).chat("gemini-2.5-flash", [
+        ChatMessage("user", "北京天气"),
+        ChatMessage("assistant", "", tool_calls=(ToolCall("get_weather", {"city": "北京"}, "gemini-call-1"),)),
+        ChatMessage("tool", "{\"temp\": 20}", tool_call_id="gemini-call-1", tool_name="get_weather"),
+        ChatMessage("user", "顺便说一下明天呢"),
+        ChatMessage("user", "再看看这张", (IMAGE,)),
+    ], tools=[WEATHER])
+    assert rec.body["contents"] == [
+        {"role": "user", "parts": [{"text": "北京天气"}]},
+        {"role": "model", "parts": [{"functionCall": {"name": "get_weather", "args": {"city": "北京"}}}]},
+        {"role": "user", "parts": [
+            {"functionResponse": {"name": "get_weather", "response": {"result": {"temp": 20}}}},
+            {"text": "顺便说一下明天呢"},
+            {"text": "再看看这张"},
+            {"inline_data": {"mime_type": "image/png", "data": "iVBORw0KGgo="}},
+        ]},
+    ]
+
+
+def test_gemini_echoes_real_call_ids_but_not_synthetic_ones():
+    rec = Recorder(200, GEMINI_TEXT)
+    calls = (ToolCall("get_weather", {"city": "北京"}, "fc-9", {"thoughtSignature": "sig-A"}),
+             ToolCall("get_weather", {"city": "上海"}, "gemini-call-2"))
+    _adapter("gemini", rec).chat("gemini-3-flash", [
+        ChatMessage("user", "天气"),
+        ChatMessage("assistant", "", tool_calls=calls),
+        ChatMessage("tool", "{\"temp\": 20}", tool_call_id="fc-9", tool_name="get_weather"),
+        ChatMessage("tool", "{\"temp\": 25}", tool_call_id="gemini-call-2", tool_name="get_weather"),
+    ], tools=[WEATHER])
+    assert rec.body["contents"][1:] == [
+        {"role": "model", "parts": [
+            {"functionCall": {"id": "fc-9", "name": "get_weather", "args": {"city": "北京"}},
+             "thoughtSignature": "sig-A"},
+            {"functionCall": {"name": "get_weather", "args": {"city": "上海"}}},
+        ]},
+        {"role": "user", "parts": [
+            {"functionResponse": {"id": "fc-9", "name": "get_weather", "response": {"result": {"temp": 20}}}},
+            {"functionResponse": {"name": "get_weather", "response": {"result": {"temp": 25}}}},
+        ]},
+    ]
+
+
 @pytest.mark.parametrize("raw, expected", [
     ("STOP", "stop"), ("MAX_TOKENS", "length"), ("SAFETY", "content_filter"), ("RECITATION", "content_filter"),
     ("PROHIBITED_CONTENT", "content_filter"), ("SPII", "content_filter"), ("BLOCKLIST", "content_filter"),
@@ -299,6 +390,7 @@ class _MealArgs(BaseModel):
     eaten_at: datetime.datetime
     kind: Literal["早餐", "午餐"] = "午餐"
     title: str = Field(default="", description="名为 title 的参数不能被当作关键字去掉")
+    tags: dict[str, int] = Field(default_factory=dict, description="自由键值")
 
 
 _SANITIZED_MEAL = {
@@ -321,6 +413,7 @@ _SANITIZED_MEAL = {
         "eaten_at": {"type": "string", "format": "date-time"},
         "kind": {"type": "string", "enum": ["早餐", "午餐"]},
         "title": {"type": "string", "description": "名为 title 的参数不能被当作关键字去掉"},
+        "tags": {"type": "object", "description": "自由键值"},  # 自由键值对象：保留为没有 properties 的 object
     },
     "required": ["food", "main", "eaten_at"],
 }

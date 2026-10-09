@@ -1,6 +1,7 @@
 """Gemini（Generative Language API v1beta）。密钥放在 x-goog-api-key 请求头里，不放进地址。"""
 
 import json
+import re
 from collections.abc import Sequence
 from typing import Any
 from urllib.parse import quote
@@ -28,6 +29,12 @@ from app.llm.adapters.base import (
 
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 _ROLES = {"user": "user", "assistant": "model"}
+_SYNTHETIC_ID = re.compile(r"gemini-call-\d+")  # 解析时为没有 id 的 functionCall 合成的编号，回传时不发出去
+
+
+def _real_id(call_id: str | None) -> dict:
+    """Gemini 自己给过 id 的调用，回传时在 functionCall 与 functionResponse 上带回同一个 id；合成的编号不发。"""
+    return {"id": call_id} if call_id and not _SYNTHETIC_ID.fullmatch(call_id) else {}
 
 
 def _parts(message: ChatMessage) -> list[dict]:
@@ -41,7 +48,7 @@ def _model_parts(message: ChatMessage) -> list[dict]:
     """助手的工具调用变成 functionCall 片段；thoughtSignature 必须放回原来那个片段里（Gemini 3 缺了会报 400）。"""
     parts: list[dict] = [{"text": message.text}] if message.text else []
     for call in message.tool_calls:
-        part: dict[str, Any] = {"functionCall": {"name": call.name, "args": call.arguments}}
+        part: dict[str, Any] = {"functionCall": {**_real_id(call.call_id), "name": call.name, "args": call.arguments}}
         signature = (call.provider_state or {}).get("thoughtSignature")
         if signature is not None:
             part["thoughtSignature"] = signature
@@ -55,26 +62,31 @@ def _function_response(message: ChatMessage) -> dict:
         result = json.loads(message.text)
     except ValueError:
         result = message.text
-    return {"functionResponse": {"name": message.tool_name, "response": {"result": result}}}
+    return {"functionResponse": {**_real_id(message.tool_call_id), "name": message.tool_name,
+                                 "response": {"result": result}}}
 
 
 def _contents(messages: Sequence[ChatMessage]) -> list[dict]:
-    """连续的工具结果合并成一条 user 内容（并行调用的结果要放在一起，不能与调用交错）。"""
+    """相邻的 user 内容（工具结果、后面紧跟的用户消息）合并成一条，functionResponse 片段排在最前面。
+
+    并行调用的结果要放在一起，不能与调用交错。
+    """
     out: list[dict] = []
-    previous: ChatMessage | None = None
     for message in messages:
         if message.role == "system":
             continue
         if message.role == "tool":
-            if previous is not None and previous.role == "tool":
-                out[-1]["parts"].append(_function_response(message))
-            else:
-                out.append({"role": "user", "parts": [_function_response(message)]})
+            entry = {"role": "user", "parts": [_function_response(message)]}
         elif message.tool_calls:
-            out.append({"role": "model", "parts": _model_parts(message)})
+            entry = {"role": "model", "parts": _model_parts(message)}
         else:
-            out.append({"role": _ROLES[message.role], "parts": _parts(message)})
-        previous = message
+            entry = {"role": _ROLES[message.role], "parts": _parts(message)}
+        if entry["role"] == "user" and out and out[-1]["role"] == "user":
+            merged = out[-1]["parts"] + entry["parts"]
+            out[-1]["parts"] = ([p for p in merged if "functionResponse" in p]
+                                + [p for p in merged if "functionResponse" not in p])
+        else:
+            out.append(entry)
     return out
 
 

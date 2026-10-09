@@ -43,25 +43,33 @@ def _content(message: ChatMessage) -> str | list[dict]:
     return parts
 
 
+def _blocks(content: str | list[dict]) -> list[dict]:
+    return [{"type": "text", "text": content}] if isinstance(content, str) else content
+
+
 def _messages(conversation: Sequence[ChatMessage]) -> list[dict]:
-    """助手的工具调用变成 tool_use 块；连续的工具结果合并成一条用户消息里的多个 tool_result 块。"""
+    """助手的工具调用变成 tool_use 块；工具结果变成用户消息里的 tool_result 块。
+
+    相邻的用户消息（工具结果、后面紧跟的用户文字或图片）合并成一条，tool_result 块排在最前面（Claude 要求如此）。
+    """
     out: list[dict] = []
-    previous: ChatMessage | None = None
     for message in conversation:
         if message.role == "tool":
-            block = {"type": "tool_result", "tool_use_id": message.tool_call_id, "content": message.text}
-            if previous is not None and previous.role == "tool":
-                out[-1]["content"].append(block)
-            else:
-                out.append({"role": "user", "content": [block]})
+            entry: dict = {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": message.tool_call_id, "content": message.text}]}
         elif message.tool_calls:
             blocks: list[dict] = [{"type": "text", "text": message.text}] if message.text else []
             blocks.extend({"type": "tool_use", "id": call.call_id, "name": call.name, "input": call.arguments}
                           for call in message.tool_calls)
-            out.append({"role": "assistant", "content": blocks})
+            entry = {"role": "assistant", "content": blocks}
         else:
-            out.append({"role": message.role, "content": _content(message)})
-        previous = message
+            entry = {"role": message.role, "content": _content(message)}
+        if entry["role"] == "user" and out and out[-1]["role"] == "user":
+            merged = _blocks(out[-1]["content"]) + _blocks(entry["content"])
+            out[-1]["content"] = ([b for b in merged if b["type"] == "tool_result"]
+                                  + [b for b in merged if b["type"] != "tool_result"])
+        else:
+            out.append(entry)
     return out
 
 

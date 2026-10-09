@@ -102,9 +102,11 @@ class OpenAICompatibleAdapter(HttpAdapter):
         text = message.get("content") or ""
         if not isinstance(text, str):
             raise TypeError("message content must be a string")
+        # 个别兼容服务的工具调用不带 id：按出现顺序合成一个本次回复内唯一的编号，历史才能原样回传
         calls = tuple(
-            ToolCall(call["function"]["name"], _arguments(call["function"].get("arguments", "")), call.get("id"))
-            for call in message.get("tool_calls") or ()
+            ToolCall(call["function"]["name"], _arguments(call["function"].get("arguments", "")),
+                     call.get("id") or f"call-{index}")
+            for index, call in enumerate(message.get("tool_calls") or (), start=1)
         )
         usage = data.get("usage") or {}
         model = data.get("model")
