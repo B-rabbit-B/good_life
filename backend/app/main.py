@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.agent.router import router as agent_router
 from app.agent_grants.router import router as agent_grants_router
 from app.auth.router import router as auth_router
 from app.common.body_limit import EvidenceBodyLimitMiddleware
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(fitness_router)
     app.include_router(agent_grants_router)
     app.include_router(llm_router)
+    app.include_router(agent_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
