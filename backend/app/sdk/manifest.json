@@ -7132,7 +7132,145 @@
         "type": "object"
       },
       "summary": "查看当前用户开放了哪些业务模块（经期、医嘱、饮食、健身）"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "profile",
+      "name": "profile.get_profile",
+      "output_schema": {
+        "description": "给智能体与 SDK 调用方的档案内容：只含生活方式建议用得上的字段，不含健康状况与备注这类自由文字。",
+        "properties": {
+          "activity_level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sedentary",
+                  "light",
+                  "moderate",
+                  "active",
+                  "very_active"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Level"
+          },
+          "birth_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Year"
+          },
+          "cycle_tracking_opt_out": {
+            "title": "Cycle Tracking Opt Out",
+            "type": "boolean"
+          },
+          "diet_preferences": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Diet Preferences",
+            "type": "array"
+          },
+          "food_avoidances": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Food Avoidances",
+            "type": "array"
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lose_fat",
+                  "gain_muscle",
+                  "maintain",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          }
+        },
+        "required": [
+          "gender",
+          "birth_year",
+          "height_cm",
+          "weight_kg",
+          "activity_level",
+          "goal",
+          "diet_preferences",
+          "food_avoidances",
+          "cycle_tracking_opt_out",
+          "updated_at"
+        ],
+        "title": "ProfileBasicsOut",
+        "type": "object"
+      },
+      "summary": "查看当前用户档案里与生活方式建议有关的内容：性别、出生年份、身高、体重、活动水平、目标、饮食偏好、忌口食物、可选功能的开关与档案更新时间；不含健康状况与备注"
     }
   ],
-  "sdk_version": "1.0"
+  "sdk_version": "1.1"
 }

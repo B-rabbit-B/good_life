@@ -50,6 +50,23 @@ class ProfileUpdate(BaseModel):
         return value
 
 
+class ProfileBasicsOut(BaseModel):
+    """给智能体与 SDK 调用方的档案内容：只含生活方式建议用得上的字段，不含健康状况与备注这类自由文字。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    gender: Gender | None
+    birth_year: int | None
+    height_cm: float | None
+    weight_kg: float | None
+    activity_level: ActivityLevel | None
+    goal: Goal | None
+    diet_preferences: list[str]
+    food_avoidances: list[str]
+    cycle_tracking_opt_out: bool
+    updated_at: datetime
+
+
 class ProfileChangeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -22,7 +22,7 @@ from app.common.clock import get_today
 from app.db import get_sessionmaker
 from app.llm.adapters.base import sanitize_schema_for_gemini
 from app.main import create_app
-from app.sdk import AgentCredential, GoodLife, SdkError
+from app.sdk import AgentCredential, GoodLife, SdkError, SdkResult
 from app.sdk.tooling import agent_registry, tool_description, tool_name
 from tests.helpers import ready_user
 
@@ -52,6 +52,15 @@ RISK_CASES = {
         "我控制不住想伤害自己",
         "活着没意思，真的活不下去了",
         "有时候想自残",
+        "我想去死",
+        "真想死了算了",
+        "不如死了算了",
+        "我想跳楼",
+        "想过上吊",
+        "想一了百了",
+        "觉得没有活下去的意义",
+        "感觉人生没有意义",
+        "攒了一瓶安眠药",
     ],
     "severe_symptom": [
         "胸口很痛喘不上气",
@@ -61,6 +70,22 @@ RISK_CASES = {
         "剧烈腹痛一个小时了",
         "孩子高烧不退怎么办",
         "跑步时胸痛，还呼吸困难",
+        "呼吸很困难",
+        "喘不上来气",
+        "最近总是胸闷",
+        "胸闷气短",
+        "胸口压得慌",
+        "可能是心绞痛",
+        "心脏好疼",
+        "心口疼",
+        "刚才吐血了",
+        "这两天是黑便",
+        "刚才晕过去了",
+        "半边身子麻了",
+        "突然说不出话",
+        "嘴歪了说话不清楚",
+        "嘴唇发紫",
+        "上次过敏性休克了",
     ],
     "pregnancy": [
         "怀孕两个月出血了怎么办",
@@ -77,6 +102,12 @@ RISK_CASES = {
         "这个一次吃几片",
         "医生开的药可以换药吗",
         "避孕药会导致出血吗",
+        "布洛芬一次吃几片",
+        "消炎药能和牛奶一起吃吗",
+        "降压药和中药有冲突吗",
+        "我想把药减量",
+        "停掉降压药会怎样",
+        "断食期间能吃布洛芬吗",
     ],
     "extreme_diet": [
         "我想一天只吃一个苹果减肥",
@@ -86,6 +117,8 @@ RISK_CASES = {
         "每天控制在500大卡以下行不行",
         "吃完饭催吐会不会瘦",
         "减肥药有用吗",
+        "一天只吃一顿",
+        "每天500千卡以下",
     ],
 }
 
@@ -120,6 +153,32 @@ NOT_RISK = [
     "笑死我了",
     "不想活动，散步算运动吗",
     "吃太辣会不会伤害自己的胃",
+    "想死你了",
+    "这件衣服跳楼价",
+    "感动得说不出话",
+    "气得吐血",
+    # 只是提到在吃药，交给模型按医嘱回答
+    "我在吃降压药，晚饭吃什么好",
+    "医生开了药让我忌辣，今天能吃什么",
+    "最近在吃消炎药，能喝奶茶吗",
+    "枸杞是中药吗",
+    "中药材炖鸡",
+    "火锅底料里有中药材吗",
+    "楼下药店买的蜂蜜",
+    # 普通的少吃一餐或规律饮食
+    "一天只吃两顿饭",
+    "一天只吃三顿",
+    "每天只吃两餐",
+    "一天只吃早餐和午餐",
+    "轻断食",
+    "间歇性断食可以吗",
+    "168断食",
+    "16:8断食",
+    "晚上不吃饭能瘦吗",
+    "不吃晚饭能瘦吗",
+    # 孕期的普通出血
+    "孕期牙龈出血吃什么好",
+    "怀孕了鼻出血怎么办",
 ]
 
 
@@ -170,7 +229,11 @@ CLUES = [
     "医生说不用再忌辣了",
     "胃炎已经痊愈",
     "医生让我恢复正常饮食",
-    "现在可以吃海鲜了",
+    "医生说现在可以吃海鲜了",
+    "复查结果出来了，一切正常",
+    "医生说指标正常了",
+    "医生说现在可以正常吃了",
+    "大夫说忌口可以结束了",
 ]
 NOT_CLUES = [
     "我想吃辣",
@@ -181,6 +244,18 @@ NOT_CLUES = [
     "医生说要少吃盐",
     "晚饭吃什么好",
     "这周要去复查",
+    "医生说还不能吃辣",
+    "医生说一个月内不能吃辣",
+    "医生说现在还不可以吃海鲜",
+    "医生说不能吃了",
+    "医生说可以吃辣吗",
+    "医生说我好了吗？",
+    "复查正常吗",
+    "今天中午能吃火锅了",
+    "晚饭可以吃饺子了",
+    "终于能吃饭了",
+    "什么都可以吃了",
+    "现在可以吃海鲜了",
 ]
 
 
@@ -395,6 +470,49 @@ def test_unreadable_capabilities_fall_back_to_no_cycle(client):
     assert ctx.capabilities["cycle"] is False
     assert not any(name.startswith("cycle_") for name in _names(ctx))
     assert "经期" not in build_system_prompt(ctx, resolution_clue=False)
+
+
+class _MalformedSdk(GoodLife):
+    """返回结构不对的数据：解析出错也只让那一项读不到。"""
+
+    def __init__(self, malformed):
+        super().__init__(registry=agent_registry(), today=lambda: TODAY)
+        self._malformed = malformed
+
+    def call(self, credential, capability, params=None, *, client_name="sdk"):
+        if capability in self._malformed:
+            return SdkResult({"unexpected": True})
+        return super().call(credential, capability, params, client_name=client_name)
+
+
+def test_malformed_output_degrades_only_that_section(client):
+    ready_user(client, "omar", {"gender": "male"})
+    names = {"profile.get_capabilities", "profile.get_profile", "medical.get_constraints",
+             "nutrition.get_daily_summary"}
+    ctx = load_context(_MalformedSdk(names), AgentCredential(_user_id("omar")), TODAY)
+    assert {"capabilities", "profile", "constraints", "intake"} <= set(ctx.unavailable)
+    assert ctx.capabilities["cycle"] is False
+    build_system_prompt(ctx, resolution_clue=False)
+
+
+def test_profile_summary_includes_goal_avoidances_and_preferences(client):
+    ready_user(client, "pia", {"gender": "female", "cycle_tracking_opt_out": True, "birth_year": 1992,
+                               "height_cm": 165, "weight_kg": 58, "activity_level": "light", "goal": "lose_fat",
+                               "diet_preferences": ["清淡"], "food_avoidances": ["香菜"],
+                               "health_conditions": "秘密病史", "notes": "秘密备注"})
+    ctx = _context("pia")
+    for text in ("减脂", "香菜", "清淡", "165", "58", "轻度活动", "1992"):
+        assert text in ctx.profile_summary, text
+    prompt = build_system_prompt(ctx, resolution_clue=False)
+    assert "香菜" in prompt and "秘密" not in prompt and "经期" not in prompt
+    assert "profile_get_profile" in _names(ctx)
+
+
+def test_unreadable_profile_is_reported(client):
+    ready_user(client, "quin", {"gender": "male"})
+    ctx = load_context(_FailingSdk({"profile.get_profile"}), AgentCredential(_user_id("quin")), TODAY)
+    assert "profile" in ctx.unavailable
+    assert "档案" + UNAVAILABLE in build_system_prompt(ctx, resolution_clue=False)
 
 
 def test_unknown_user_context_is_all_unavailable():

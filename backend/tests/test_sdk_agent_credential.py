@@ -17,7 +17,7 @@ def _user_id(username):
 
 def test_agent_registry_excludes_every_user_confirmed_capability():
     agent = agent_registry()
-    assert len(agent) == 26
+    assert len(agent) == 27
     assert all(cap.level != "user_confirmed" for cap in agent.values())
     for name in ("medical_confirm_item", "medical_resolve_item", "medical.confirm_item", "medical_void_item"):
         assert capability_for_tool(name) is None

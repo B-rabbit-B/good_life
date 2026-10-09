@@ -303,7 +303,7 @@ uv run python -m app.mcp_server
 npx @modelcontextprotocol/inspector
 ```
 
-在打开的页面里：传输方式选 STDIO；Command 填 uv 的完整路径（`Get-Command uv` 可以查到）；Arguments 填 `--directory 后端目录的完整路径 run python -m app.mcp_server`；Environment Variables 添加 `GOODLIFE_AGENT_TOKEN`（值为令牌），可选 `GOODLIFE_CLIENT_NAME`。点 Connect，在 Tools 页签点 List Tools，应看到 26 个工具，选中一个填参数后 Run Tool。Inspector 的界面会随版本变化，以其官方说明为准。Claude Desktop 的配置同理，详见《接入使用说明》。
+在打开的页面里：传输方式选 STDIO；Command 填 uv 的完整路径（`Get-Command uv` 可以查到）；Arguments 填 `--directory 后端目录的完整路径 run python -m app.mcp_server`；Environment Variables 添加 `GOODLIFE_AGENT_TOKEN`（值为令牌），可选 `GOODLIFE_CLIENT_NAME`。点 Connect，在 Tools 页签点 List Tools，应看到 27 个工具，选中一个填参数后 Run Tool。Inspector 的界面会随版本变化，以其官方说明为准。Claude Desktop 的配置同理，详见《接入使用说明》。
 
 ### 六个场景
 

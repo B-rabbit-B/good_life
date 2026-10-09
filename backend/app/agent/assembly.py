@@ -44,6 +44,11 @@ CATEGORY_NAMES = {
 }
 PHASE_NAMES = {"menstrual": "月经期", "follicular": "卵泡期", "ovulation": "排卵期", "luteal": "黄体期"}
 PROFILE_FIELD_NAMES = {"birth_year": "出生年份", "height_cm": "身高", "weight_kg": "体重", "activity_level": "活动水平"}
+GENDER_NAMES = {"female": "女", "male": "男", "other": "其他"}
+ACTIVITY_NAMES = {
+    "sedentary": "久坐少动", "light": "轻度活动", "moderate": "中等活动", "active": "活跃", "very_active": "非常活跃",
+}
+GOAL_NAMES = {"lose_fat": "减脂", "gain_muscle": "增肌", "maintain": "保持体重", "none": "没有特别目标"}
 KIND_NAMES = {"strength": "力量", "cardio": "有氧"}
 INTENSITY_NAMES = {"none": "无", "light": "低", "moderate": "中等", "vigorous": "高"}
 MUSCLE_NAMES = {
@@ -110,7 +115,8 @@ class AgentContext:
     has_workouts: bool
     preferences: tuple[str, ...]
     today: date
-    unavailable: tuple[str, ...] = ()  # 读不到的部分：capabilities、constraints、phase、intake、workouts、training、preferences
+    # 读不到的部分：capabilities、profile、constraints、phase、intake、workouts、training、preferences
+    unavailable: tuple[str, ...] = ()
 
 
 def _read(sdk: GoodLife, credential: AgentCredential, capability: str, params: dict | None = None) -> Any:
@@ -171,59 +177,90 @@ def _read_preferences(user_id: uuid.UUID) -> tuple[str, ...]:
         return tuple(p.content for p in list_preferences(db, user_id))
 
 
-def _profile_summary(capabilities: dict[str, bool] | None, intake: Intake | None) -> str:
+def _capabilities(data: dict) -> dict[str, bool]:
+    return {module: bool(data[module]) for module in FALLBACK_CAPABILITIES}
+
+
+def _profile_text(data: dict) -> str:
+    """档案里与建议有关的内容写成一句话；不写经期开关，经期是否开放只看模块开放情况。"""
+    parts = []
+    if data["gender"]:
+        parts.append(f"性别{GENDER_NAMES.get(data['gender'], data['gender'])}")
+    if data["birth_year"]:
+        parts.append(f"{data['birth_year']} 年出生")
+    if data["height_cm"]:
+        parts.append(f"身高 {_num(data['height_cm'])} 厘米")
+    if data["weight_kg"]:
+        parts.append(f"体重 {_num(data['weight_kg'])} 千克")
+    if data["activity_level"]:
+        parts.append(f"活动水平{ACTIVITY_NAMES.get(data['activity_level'], data['activity_level'])}")
+    if data["goal"]:
+        parts.append(f"目标{GOAL_NAMES.get(data['goal'], data['goal'])}")
+    lines = ["档案：" + ("，".join(parts) if parts else "还没有填写") + "。"]
+    if data["diet_preferences"]:
+        lines.append(f"档案里的饮食偏好：{'、'.join(data['diet_preferences'])}。")
+    if data["food_avoidances"]:
+        lines.append(f"档案里的忌口食物（用户自填的口味取舍，不是医嘱）：{'、'.join(data['food_avoidances'])}。")
+    missing = [name for field, name in PROFILE_FIELD_NAMES.items() if not data[field]]
+    if missing:
+        lines.append(f"档案缺少{'、'.join(missing)}，暂时无法估算每日需求。")
+    return "\n".join(lines)
+
+
+def _profile_summary(capabilities: dict[str, bool] | None, profile: str | None) -> str:
     if capabilities is None:
-        modules = f"模块开放情况{UNAVAILABLE}"
+        modules = f"模块开放情况{UNAVAILABLE}。"
     else:
         opened = [MODULE_NAMES[m] for m in MODULE_NAMES if capabilities.get(m)]
-        modules = "已开放的模块：" + ("、".join(opened) if opened else "无")
-    if intake is not None and intake.missing_fields:
-        missing = "、".join(PROFILE_FIELD_NAMES.get(f, f) for f in intake.missing_fields)
-        return f"{modules}；档案缺少{missing}，暂时无法估算每日需求"
-    return modules
+        modules = "已开放的模块：" + ("、".join(opened) if opened else "无") + "。"
+    return "\n".join([profile if profile is not None else f"档案{UNAVAILABLE}。", modules])
 
 
 def load_context(sdk: GoodLife, credential: AgentCredential, today: date) -> AgentContext:
-    """读取本轮上下文。sdk 应使用 agent_registry()，其“今天”应与 today 一致。"""
+    """读取本轮上下文。读取与解析都在保护里：任何一项出错只让那一项记为读不到。
+
+    sdk 应使用 agent_registry()，且它的“今天”必须与 today 一致：医嘱约束（medical.get_constraints）与今日训练信号
+    （fitness.get_training_signal）没有日期参数，只按 SDK 的今天读取；经期阶段、当日汇总与训练列表显式传入 today。
+    """
     unavailable: list[str] = []
 
     def attempt(section: str, read: Callable[[], Any]) -> Any:
         return _attempt(section, unavailable, read)
 
-    caps = attempt("capabilities", lambda: _read(sdk, credential, "profile.get_capabilities"))
-    capabilities = {**FALLBACK_CAPABILITIES, **caps} if isinstance(caps, dict) else dict(FALLBACK_CAPABILITIES)
+    def call(capability: str, params: dict | None = None) -> Any:
+        return _read(sdk, credential, capability, params)
+
+    day = {"day": today.isoformat()}
+    read_caps = attempt("capabilities", lambda: _capabilities(call("profile.get_capabilities")))
+    capabilities = read_caps if read_caps is not None else dict(FALLBACK_CAPABILITIES)
+    profile = attempt("profile", lambda: _profile_text(call("profile.get_profile")))
 
     constraints: tuple[Constraint, ...] = ()
     if capabilities["medical"]:
-        data = attempt("constraints", lambda: _read(sdk, credential, "medical.get_constraints"))
-        constraints = _constraints(data) if data is not None else ()
+        constraints = attempt("constraints", lambda: _constraints(call("medical.get_constraints"))) or ()
 
     phase = None
     if capabilities["cycle"]:
-        data = attempt("phase", lambda: _read(sdk, credential, "cycle.get_phase", {"day": today.isoformat()}))
-        phase = _phase(data) if data is not None else None
+        phase = attempt("phase", lambda: _phase(call("cycle.get_phase", day)))
 
     intake = None
     if capabilities["nutrition"]:
-        data = attempt("intake", lambda: _read(sdk, credential, "nutrition.get_daily_summary",
-                                                {"day": today.isoformat()}))
-        intake = _intake(data) if data is not None else None
+        intake = attempt("intake", lambda: _intake(call("nutrition.get_daily_summary", day)))
 
     has_workouts, training = False, None
     if capabilities["fitness"]:
         start = today - timedelta(days=WORKOUT_LOOKBACK_DAYS - 1)
-        workouts = attempt("workouts", lambda: _read(sdk, credential, "fitness.list_workouts",
-                                                     {"start": start.isoformat(), "end": today.isoformat()}))
+        workouts = attempt("workouts", lambda: len(call("fitness.list_workouts",
+                                                        {"start": start.isoformat(), "end": today.isoformat()})))
         has_workouts = bool(workouts)
         if has_workouts:
-            data = attempt("training", lambda: _read(sdk, credential, "fitness.get_training_signal"))
-            training = _training(data) if data is not None else None
+            training = attempt("training", lambda: _training(call("fitness.get_training_signal")))
 
     preferences = attempt("preferences", lambda: _read_preferences(credential.user_id)) or ()
 
     return AgentContext(
         capabilities=capabilities,
-        profile_summary=_profile_summary(caps if isinstance(caps, dict) else None, intake),
+        profile_summary=_profile_summary(read_caps, profile),
         constraints=constraints,
         phase=phase,
         intake=intake,
