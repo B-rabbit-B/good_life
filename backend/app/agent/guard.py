@@ -2,8 +2,9 @@
 
 本模块是纯函数，不访问数据库也不调用模型；引擎判断结果（nutrition.evaluate_food 的 data）由调用方传入。
 
-归一：匹配前去掉不可见格式字符（零宽空格等）、去掉夹在两个汉字之间的空格与制表符（换行保留），并把
-TRADITIONAL_TO_SIMPLIFIED 里的常见繁体字换成简体；位置映射回原文，FoodMention 的位置与说法都是原文的。
+归一：逐字做 NFKC（康熙部首、兼容汉字、全角字母与括号变成常规写法），去掉不可见格式字符（零宽空格等）和组合附加符号
+（Mn、Me），去掉夹在两个汉字之间的空格与制表符（换行保留），并把 TRADITIONAL_TO_SIMPLIFIED 里的常见繁体字换成简体；
+营养库的说法也按同样方式归一。位置映射回原文，FoodMention 的位置与说法都是原文的。
 
 识别食物：
 - 用全部食物的名称、去掉括号限定后的基本名称、别名与常用名做匹配，只用不少于 2 个字的说法；
@@ -15,7 +16,12 @@ TRADITIONAL_TO_SIMPLIFIED 里的常见繁体字换成简体；位置映射回原
 - 索引在首次使用时构建并缓存，匹配时按位置查表，不对每个食物跑一遍文本。
 
 输出检查（不许提到）：回答里只要提到医嘱阻断的食物（结论为不建议、且依据里有来源为医嘱、作用为阻断的条目），
-不论语气，一律算违反——推荐、放宽、反话、表格、提醒避免都一样。语气无法用规则可靠地分辨，所以模型的回答里不许出现
+不论语气，一律算违反——推荐、放宽、反话、表格、提醒避免都一样。check_answer 不用 find_foods 的最长匹配，而是对每个
+医嘱阻断食物的每个说法做子串查找（“回锅肉丝炒面”里的回锅肉也算），并且同时在只保留汉字的压缩文字里查找（去掉标点、
+符号、表情、Markdown、空白、换行、数字与拉丁字母），所以“麻·婆·豆·腐”“麻婆\n豆腐”“**麻婆**豆腐”都算提到；
+压缩带来的误判只会多一次重写。
+check_answer 只认识 evaluations 里有的食物：调用方（Task 6 的循环）必须对 find_foods 从回答里（以及从用户消息里）
+找出的每个食物都调用引擎判断并放进 evaluations，不能只判断智能体自己搜索过的食物。语气无法用规则可靠地分辨，所以模型的回答里不许出现
 这些食物；需要提醒时由程序在回答后面附上 medical_notice（只取引擎的医嘱阻断说明）。违反时调用方用 rewrite_instruction
 让模型重写一次（不许提到、暗示或指代这些食物），仍然提到就换成 SAFE_FALLBACK。
 经期、目标、训练、当日摄入、偏好的提示，以及没有医嘱阻断的“不建议”都不算违反。
@@ -48,12 +54,12 @@ LATIN_ALLOWED_WORDS = frozenset({
 _FOOD_TRADITIONAL = (
     "鍋雞豬魚腸麵餅湯醬燒涼蝦飯鴨鵝鮮蔔蘿薑蔥葉筍麥穀餃餛飩饅頭捲燉滷鹵鹹臘蠔貝鮑鱸鯉鯽鰻鱈鮭蠣紅綠黃藍蘭蘋檸鳳棗櫻"
     "雜鬆蓮馬鈴乾絲條塊圓團魷參窩宮盤漿燙熱凍餡鬚銀薺莧蘆糰麩蕎秈糝鱔鯧鰱鱅鯿鱘鱖鯖鯊螄蜆蟶鴿鵪鶉驢燻籠線東門廣濃雙"
-    "細鈣鐵鋅維纖帶"
+    "細鈣鐵鋅維纖帶荳"
 )
 _FOOD_SIMPLIFIED = (
     "锅鸡猪鱼肠面饼汤酱烧凉虾饭鸭鹅鲜卜萝姜葱叶笋麦谷饺馄饨馒头卷炖卤卤咸腊蚝贝鲍鲈鲤鲫鳗鳕鲑蛎红绿黄蓝兰苹柠凤枣樱"
     "杂松莲马铃干丝条块圆团鱿参窝宫盘浆烫热冻馅须银荠苋芦团麸荞籼糁鳝鲳鲢鳙鳊鲟鳜鲭鲨蛳蚬蛏鸽鹌鹑驴熏笼线东门广浓双"
-    "细钙铁锌维纤带"
+    "细钙铁锌维纤带豆"
 )
 FOOD_TRADITIONAL_TO_SIMPLIFIED = dict(zip(_FOOD_TRADITIONAL, _FOOD_SIMPLIFIED, strict=True))
 TRADITIONAL_TO_SIMPLIFIED = {**PREFERENCE_TRADITIONAL, **FOOD_TRADITIONAL_TO_SIMPLIFIED}
@@ -95,22 +101,30 @@ class _Hit:  # 归一文字里的一处出现
 
 @dataclass(frozen=True)
 class _Index:
-    names: dict[str, str]  # 说法 → 食物编号
+    names: dict[str, str]  # 归一后的说法 → 食物编号
     lengths: tuple[int, ...]  # 出现过的说法长度，从长到短
+    food_names: dict[str, tuple[tuple[str, str, str], ...]]  # 食物编号 → （营养库说法, 归一说法, 只留汉字的说法）
 
 
 @lru_cache(maxsize=4)
 def _index(catalog: Catalog) -> _Index:
     owners: dict[str, set[str]] = {}
+    originals: dict[str, str] = {}
+    food_names = {}
     for food in catalog.foods.values():
+        variants = []
         for name in catalog.match_names_of(food):
             if len(name) >= MIN_NAME_LENGTH and name not in EXCLUDED_NAMES:
-                owners.setdefault(name, set()).add(food.id)
+                plain = _normalize(name)[0]
+                owners.setdefault(plain, set()).add(food.id)
+                originals.setdefault(plain, name)
+                variants.append((name, plain, _squeeze(plain)[0]))
+        food_names[food.id] = tuple(variants)
     names = {
-        name: next(iter(ids)) if len(ids) == 1 else catalog.search(name, 1)[0].food.id
+        name: next(iter(ids)) if len(ids) == 1 else catalog.search(originals[name], 1)[0].food.id
         for name, ids in owners.items()
     }
-    return _Index(names, tuple(sorted({len(name) for name in names}, reverse=True)))
+    return _Index(names, tuple(sorted({len(name) for name in names}, reverse=True)), food_names)
 
 
 def _is_cjk(ch: str) -> bool:
@@ -121,22 +135,41 @@ def _invisible(ch: str) -> bool:
     return unicodedata.category(ch) == "Cf"
 
 
+def _fold(ch: str) -> str:
+    """单个字归一：NFKC、去掉不可见格式字符与组合附加符号、繁体换简体；结果可能为空，也可能多于一个字。"""
+    if _invisible(ch):
+        return ""
+    folded = unicodedata.normalize("NFKC", ch)
+    return "".join(c for c in folded if unicodedata.category(c) not in ("Mn", "Me")).translate(_TO_SIMPLIFIED)
+
+
+def _horizontal_space(piece: str) -> bool:
+    return piece.isspace() and "\n" not in piece
+
+
 def _normalize(text: str) -> tuple[str, list[int]]:
     """归一后的文字，以及每个字在原文里的位置。"""
+    folded = [_fold(ch) for ch in text]
     chars: list[str] = []
     positions: list[int] = []
-    for i, ch in enumerate(text):
-        if _invisible(ch):
+    for i, piece in enumerate(folded):
+        if not piece:
             continue
-        if ch.isspace() and ch != "\n" and chars and _is_cjk(chars[-1]):
+        if _horizontal_space(piece) and chars and _is_cjk(chars[-1]):
             j = i + 1
-            while j < len(text) and (_invisible(text[j]) or (text[j].isspace() and text[j] != "\n")):
+            while j < len(text) and (not folded[j] or _horizontal_space(folded[j])):
                 j += 1
-            if j < len(text) and _is_cjk(text[j].translate(_TO_SIMPLIFIED)):
+            if j < len(text) and _is_cjk(folded[j][0]):
                 continue
-        chars.append(ch.translate(_TO_SIMPLIFIED))
-        positions.append(i)
+        chars.extend(piece)
+        positions.extend([i] * len(piece))
     return "".join(chars), positions
+
+
+def _squeeze(norm: str) -> tuple[str, list[int]]:
+    """只保留汉字的压缩文字（标点、符号、表情、空白、换行、数字、拉丁字母都去掉），以及每个字在归一文字里的位置。"""
+    kept = [i for i, ch in enumerate(norm) if _is_cjk(ch)]
+    return "".join(norm[i] for i in kept), kept
 
 
 def _scan(norm: str, catalog: Catalog) -> list[_Hit]:
@@ -172,6 +205,7 @@ def find_foods(text: str, catalog: Catalog) -> list[FoodMention]:
 
 def mostly_latin(text: str) -> bool:
     """去掉单位、常见缩写和不到 3 个字母的词后，拉丁字母占（拉丁字母 + 汉字）的比例超过 LATIN_SHARE。"""
+    text = _normalize(text)[0]  # 全角字母变成常规拉丁字母
     latin = sum(
         len(word) for word in _LATIN_WORD_RE.findall(text)
         if len(word) >= MIN_LATIN_WORD and word.lower() not in LATIN_ALLOWED_WORDS
@@ -188,23 +222,47 @@ def _medical_blocks(evaluation: dict | None) -> list[str]:
     return list(dict.fromkeys(messages))
 
 
+def _first_mention(norm: str, squeezed: str, kept: list[int],
+                   variants: tuple[tuple[str, str, str], ...]) -> tuple[int, int, str] | None:
+    """某个食物在回答里最早的一处：（归一文字里的位置, -说法长度, 营养库说法）；没提到返回 None。"""
+    best = None
+    for name, plain, tight in variants:
+        found = [norm.find(plain)]
+        if len(tight) >= MIN_NAME_LENGTH and (k := squeezed.find(tight)) >= 0:
+            found.append(kept[k])
+        for pos in found:
+            if pos >= 0 and (best is None or (pos, -len(plain)) < best[:2]):
+                best = (pos, -len(plain), name)
+    return best
+
+
+# Task 6：check_answer 只认识 evaluations 里有的食物。循环必须对 find_foods 从回答里（以及从用户消息里）找到的每个食物
+# 都调用引擎判断并放进 evaluations，不能只判断智能体自己搜索过的食物。
 def check_answer(text: str, evaluations: dict[str, dict], catalog: Catalog | None = None) -> GuardVerdict:
-    """回答里提到的医嘱阻断食物一律算违反，不看语气。"""
-    found: dict[str, str] = {}
+    """回答里提到的医嘱阻断食物一律算违反，不看语气：对每个医嘱阻断食物的每个说法，在归一文字和只留汉字的压缩文字里做子串查找。"""
+    food_names = _index(catalog or load_catalog()).food_names
     norm, _ = _normalize(text)
-    for hit in _scan(norm, catalog or load_catalog()):
-        if hit.food_id not in found and _medical_blocks(evaluations.get(hit.food_id)):
-            found[hit.food_id] = hit.name
-    return GuardVerdict(not found, tuple(found.values()), tuple(found))
+    squeezed, kept = _squeeze(norm)
+    found = []
+    for food_id, evaluation in evaluations.items():
+        if food_id in food_names and _medical_blocks(evaluation):
+            first = _first_mention(norm, squeezed, kept, food_names[food_id])
+            if first is not None:
+                found.append((*first, food_id))
+    found.sort()
+    return GuardVerdict(not found, tuple(name for _, _, name, _ in found), tuple(food_id for *_, food_id in found))
 
 
 def rewrite_instruction(violations: tuple[str, ...], evaluations: dict[str, dict],
                         catalog: Catalog | None = None) -> str:
     """填好 REWRITE_INSTRUCTION：逐个列出违反的食物与引擎给出的医嘱阻断说明。"""
-    names = _index(catalog or load_catalog()).names
+    index = _index(catalog or load_catalog())
     lines = []
     for name in dict.fromkeys(violations):
-        messages = _medical_blocks(evaluations.get(names.get(_normalize(name)[0], "")))
+        plain = _normalize(name)[0]
+        owners = [food_id for food_id, evaluation in evaluations.items() if _medical_blocks(evaluation)
+                  and any(variant[1] == plain for variant in index.food_names.get(food_id, ()))]
+        messages = _medical_blocks(evaluations.get(owners[0] if owners else index.names.get(plain, "")))
         lines.append(f"{name}：{' '.join(messages)}" if messages else name)
     return REWRITE_INSTRUCTION.format(details="\n".join(lines))
 

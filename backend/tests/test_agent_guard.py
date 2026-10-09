@@ -123,8 +123,23 @@ def test_food_traditional_table_maps_to_catalog_characters():
     assert set("鍋雞豬魚腸麵餅湯醬燒涼蝦飯") <= guard.FOOD_TRADITIONAL_TO_SIMPLIFIED.keys()
 
 
-def test_newlines_still_split_names():
-    assert _ids("麻婆\n豆腐") != [MAPO]
+def test_newlines_split_names_for_display_but_not_for_the_blocked_check():
+    assert _ids("麻婆\n豆腐") != [MAPO]  # find_foods 只用于依据与提到的食物，换行仍然断开
+    assert check_answer("麻婆\n豆腐", _spicy_blocked()).food_ids == (MAPO,)
+
+
+def test_compatibility_forms_and_combining_marks_are_folded():
+    assert _ids("⿇婆豆腐") == [MAPO]  # 康熙部首 ⿇
+    assert _ids("麻́婆豆腐") == [MAPO]
+    assert _ids("麻婆荳腐") == [MAPO]
+    text = "来份⿇́婆豆腐"
+    assert find_foods(text, CATALOG)[0] == FoodMention(MAPO, "⿇́婆豆腐", 2, 7)
+    assert _ids("豆腐干（香干）") == _ids("豆腐干(香干)")  # 营养库说法里的全角括号与回答一样归一
+
+
+def test_fullwidth_latin_counts_as_latin():
+    assert guard.mostly_latin("麻婆ＴＯＦＵ")
+    assert guard.mostly_latin("麻婆ｄｏｕｆｕ")
 
 
 def test_mostly_latin():
@@ -258,7 +273,16 @@ LATIN_ONLY = [
 ]
 
 
-@pytest.mark.parametrize("text", RECOMMENDING + PROHIBITING + SILENT_PASSES + STILL_BLOCKED + FRESH)
+# 第四轮复审：更长的重叠说法、字间插入标点符号表情 Markdown 或换行、兼容字形与组合符号、荳
+BYPASSES = [
+    "回锅肉丝炒面", "今晚推荐回锅肉丝炒面",
+    "麻·婆·豆·腐", "麻、婆、豆、腐", "麻-婆豆腐", "麻婆-豆腐", "麻婆，豆腐", "麻婆(豆腐)", "麻婆【豆腐】", "麻婆*豆腐*",
+    "**麻婆**豆腐", "麻婆🥢豆腐", "麻婆\n豆腐", "火\r\n锅", "火\n锅", "宫保·鸡丁", "回/锅/肉", "麻婆2豆腐", "麻婆Tofu豆腐",
+    "| 麻婆 | 豆腐 |", "⿇婆豆腐", "麻́婆豆腐", "麻婆荳腐", "麻婆ＴＯＦＵ豆腐",
+]
+
+
+@pytest.mark.parametrize("text", RECOMMENDING + PROHIBITING + SILENT_PASSES + STILL_BLOCKED + FRESH + BYPASSES)
 def test_any_mention_of_a_blocked_food_is_a_violation(text):
     evaluations = _spicy_blocked()
     verdict = check_answer(text, evaluations)
@@ -275,10 +299,22 @@ def test_latin_answers_without_chinese_names_are_flagged(text):
 
 @pytest.mark.parametrize("text", [
     "推荐清蒸鱼，可以多吃点", "今晚清蒸鱼配米饭，再来一杯牛奶", "按医嘱，辛辣的菜这几天先别吃，清蒸鱼更合适。",
-    "今天天气不错，早点休息", "",
+    "今天天气不错，早点休息", "", "清蒸鱼、米饭", "清蒸鱼\n米饭\n西兰花",
+    "**晚饭**：清蒸鱼（约200g）+ 米饭，饭后喝点水。\n- 西兰花\n- 番茄炒蛋",
+    "豆腐汤也不错，再来一份炒面", "肉丝炒面配清蒸鱼",
 ])
 def test_answers_without_blocked_foods_pass(text):
     assert check_answer(text, _spicy_blocked()) == GuardVerdict(True, (), ())
+
+
+def test_overlapping_longer_name_does_not_hide_a_blocked_food():
+    assert _ids("回锅肉丝炒面") == ["dish:fried_noodles"]  # 展示用的最长匹配不变
+    assert check_answer("回锅肉丝炒面", _spicy_blocked()) == GuardVerdict(False, ("回锅肉",), (TWICE_COOKED,))
+
+
+def test_squeezed_hits_are_ordered_by_position():
+    verdict = check_answer("火\n锅、宫保鸡丁，还有麻·婆·豆·腐", _spicy_blocked())
+    assert verdict == GuardVerdict(False, ("火锅", "宫保鸡丁", "麻婆豆腐"), (HOT_POT, KUNG_PAO, MAPO))
 
 
 def test_violation_names_ids_and_order():
