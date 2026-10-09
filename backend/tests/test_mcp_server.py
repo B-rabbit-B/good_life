@@ -9,10 +9,10 @@ from mcp.client import Client
 from sqlalchemy import text
 
 from app.db import get_engine
-from app.mcp_server.server import INSTRUCTIONS, build_server, exposed_capabilities, tool_name
-from app.mcp_server.usage import TOOL_USAGE
+from app.mcp_server.server import INSTRUCTIONS, build_server
 from app.sdk import AgentGrantToken, GoodLife
 from app.sdk.registry import REGISTRY, Capability, NoParams, build_registry
+from app.sdk.tooling import TOOL_USAGE, exposed_capabilities, tool_name
 from tests.helpers import ready_user
 
 TODAY = date(2026, 10, 7)
