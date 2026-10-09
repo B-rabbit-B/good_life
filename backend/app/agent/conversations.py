@@ -52,6 +52,7 @@ def append_message(
     )
     if conversation is None:
         get_owned_or_404(db, AgentConversation, user_id, conversation_id)  # 统一抛 404
+        raise AssertionError("unreachable: get_owned_or_404 raises when the conversation is missing")
     last = db.scalar(select(func.max(AgentMessage.position)).where(AgentMessage.conversation_id == conversation_id))
     message = AgentMessage(
         user_id=user_id, conversation_id=conversation_id, position=(last or 0) + 1, role=role, content=content

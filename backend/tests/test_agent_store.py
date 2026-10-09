@@ -208,8 +208,46 @@ REJECTED = [
     "I am allergic to peanuts",
     "my Doctor said no salt",
     "   ",
+    "我乳糖不耐受，不喝牛奶",
+    "对海鲜不耐受",
+    "我对海鲜敏感",
+    "遵嘱少盐",
+    "遵照营养师建议少油",
+    "我有哮喘",
+    "胃溃疡，少吃辣",
+    "脂肪肝",
+    "尿毒症",
+    "我有三高",
+    "我肾不好，少吃盐",
+    "控糖，不吃甜食",
+    "降压期间少盐",
+    "正在化疗",
+    "住院期间吃流食",
+    "在吃二甲双胍",
+    "每天吃阿司匹林",
+    "吃他汀",
+    "吃华法林不吃菠菜",
+    "我對花生過敏",
+    "醫生說少吃鹽",
+    "我对\u200b花\u200c生过\u200d敏",  # 零宽字符
+    "我对花生过\u2060敏\ufeff",
+    "我 对 花 生 过 敏",
+    "I have an INTOLERANCE to lactose",
+    "on insulin, no sugar",
+    "taking Metformin",
+    "I take a statin",
+    "hypertension diet",
+    "high cholesterol",
+    "胃炎，少吃辣",
+    "有肿瘤，吃清淡",
+    "肾结石不喝浓茶",
+    "毛病不大但在吃药",  # 例外只去掉“毛病”，其余词照样命中
+    "药膳之外我每天服药",
+    "爱吃猪肝，但肝不好",
 ]
-ACCEPTED = ["我喜欢吃辣", "早餐习惯喝豆浆", "我不吃香菜", "晚饭想清淡一点", "不爱吃内脏", "周末喜欢做饭", "忌口：不吃折耳根"]
+ACCEPTED = ["我喜欢吃辣", "早餐习惯喝豆浆", "我不吃香菜", "晚饭想清淡一点", "不爱吃内脏", "周末喜欢做饭", "忌口：不吃折耳根",
+    "有个坏毛病，爱吃夜宵", "我是慢性子，吃饭慢", "喜欢中药膳", "爱喝芍药花茶", "周末在医院食堂吃饭",
+    "爱吃猪肝", "夏天炎热爱吃冰西瓜"]
 
 
 @pytest.mark.parametrize("text_value", REJECTED)
@@ -232,7 +270,10 @@ def test_check_preference_rejects_overlong_text():
 
 def test_hard_info_words_cover_the_required_terms():
     required = {"医嘱", "医生", "处方", "用药", "服药", "药", "剂量", "过敏", "病", "确诊", "术后",
-                "忌口（因医嘱）", "血糖", "血压", "孕", "怀孕"}
+                "忌口（因医嘱）", "血糖", "血压", "孕", "怀孕", "耐受", "敏感", "遵嘱", "营养师", "哮喘", "溃疡", "炎",
+                "肿瘤", "结石", "脂肪肝", "三高", "肾", "肝", "控糖", "降糖", "降压", "降脂", "化疗", "透析", "住院",
+                "出院", "二甲双胍", "阿司匹林", "他汀", "华法林", "胰岛素", "intoleran", "insulin", "metformin",
+                "statin", "hypertens", "cholesterol"}
     assert required <= set(preferences.HARD_INFO_WORDS)
 
 
@@ -265,6 +306,48 @@ def test_preference_limit(db):
     assert (error.value.status_code, error.value.code) == (409, "agent_too_many_preferences")
     assert preferences.add_preference(db, uid, "口味偏好3", "user").content == "口味偏好3"  # 重复的仍然返回已有的
     assert len(preferences.list_preferences(db, uid)) == preferences.MAX_PREFERENCES
+
+
+def test_add_preference_waits_for_the_user_row_lock(db):
+    """添加偏好先锁用户行：别的事务锁着该用户行时会排队，放锁后正常添加。"""
+    uid = _make_user(db, "alice")
+    results: list[uuid.UUID] = []
+
+    def add() -> None:
+        with get_sessionmaker()() as session:
+            results.append(preferences.add_preference(session, uid, "我喜欢吃辣", "user").id)
+
+    with get_sessionmaker()() as holder:
+        holder.execute(select(User.id).where(User.id == uid).with_for_update())
+        thread = threading.Thread(target=add)
+        thread.start()
+        thread.join(timeout=0.5)
+        assert thread.is_alive() and results == []
+        holder.rollback()
+    thread.join(timeout=10)
+    assert len(results) == 1
+    assert [p.id for p in preferences.list_preferences(db, uid)] == results
+
+
+def test_concurrent_identical_adds_store_one_preference(db):
+    uid = _make_user(db, "alice")
+    ids: list[uuid.UUID] = []
+
+    def add() -> None:
+        with get_sessionmaker()() as session:
+            ids.append(preferences.add_preference(session, uid, "我喜欢吃辣", "user").id)
+
+    threads = [threading.Thread(target=add) for _ in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+    assert len(ids) == 6 and len(set(ids)) == 1
+    assert len(preferences.list_preferences(db, uid)) == 1
+
+
+def test_traditional_mapping_table_is_consistent():
+    assert all(len(src) == 1 and len(dst) == 1 for src, dst in preferences.TRADITIONAL_TO_SIMPLIFIED.items())
 
 
 def test_rejected_preference_is_not_stored(db):
@@ -347,6 +430,26 @@ def test_conversation_api_hides_tool_messages_and_provider_state(client, db):
     assert body["messages"][1]["flags"] == ["guard_rewritten"]
     assert set(body["messages"][1]) == {"role", "text", "evidence", "flags", "created_at"}
     assert "SECRET" not in response.text and "tool" not in {m["role"] for m in body["messages"]}
+
+
+def test_conversation_api_hides_assistant_messages_that_carry_tool_calls_even_with_text(client, db):
+    headers = ready_user(client, "alice")
+    cid = client.post("/api/agent/conversations", json={}, headers=headers).json()["id"]
+    uid = db.scalar(select(User.id).where(User.username == "alice"))
+    cuid = uuid.UUID(cid)
+    conversations.append_message(db, uid, cuid, "user", {"text": "查一下订单"})
+    conversations.append_message(
+        db, uid, cuid, "assistant",
+        {"text": "我先查一下SECRET-NARRATION", "tool_calls": [{"id": "c1", "name": "list_orders", "arguments": {}}]},
+    )
+    conversations.append_message(db, uid, cuid, "tool", {"tool_call_id": "c1", "tool_name": "list_orders", "text": "r"})
+    conversations.append_message(db, uid, cuid, "assistant", {"text": "查到了", "tool_calls": []})
+    conversations.append_message(db, uid, cuid, "assistant", {"text": "没有工具调用字段"})
+    body = client.get(f"/api/agent/conversations/{cid}", headers=headers).json()
+    assert [(m["role"], m["text"]) for m in body["messages"]] == [
+        ("user", "查一下订单"), ("assistant", "查到了"), ("assistant", "没有工具调用字段"),
+    ]
+    assert "SECRET" not in str(body)
 
 
 def test_conversation_api_list_isolation_and_delete(client):

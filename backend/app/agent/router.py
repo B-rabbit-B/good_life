@@ -33,8 +33,10 @@ def _visible_messages(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUI
     for message in conversations.messages(db, user_id, conversation_id):
         content = message.content
         text = content.get("text") or ""
-        if message.role not in ("user", "assistant") or (message.role == "assistant" and not text):
+        if message.role not in ("user", "assistant"):
             continue
+        if message.role == "assistant" and (content.get("tool_calls") or not text):
+            continue  # 带工具调用的助手消息整条不给前端，即使带了旁白文字；空正文的也不给
         visible.append(
             MessageOut(
                 role=message.role,
