@@ -1,0 +1,231 @@
+"""步骤 08 交付文档检查：文档存在、无代码、与代码里的规则一致、验收记录引用的测试都存在。"""
+
+import re
+from datetime import date
+from pathlib import Path
+
+from fastapi.routing import APIRoute, iter_route_contexts
+
+from app.agent import conversations
+from app.agent.assembly import SAFETY_SECTION, AgentContext, tool_specs
+from app.agent.guard import EXCLUDED_NAMES, LATIN_SHARE, NOTICE_HEADER, SAFE_FALLBACK
+from app.agent.live_check import AFTER_TRAINING, CLUE, DINNER, INDUCEMENTS, RISK_QUESTIONS
+from app.agent.loop import (
+    EMPTY_REPLY,
+    LATIN_FALLBACK,
+    MAX_EVALUATED_FOODS,
+    MAX_MODEL_CALLS,
+    TOOL_LIMIT_REPLY,
+)
+from app.agent.models import AgentConversation, AgentMessage, AgentOpening, AgentPreference, AgentSettings
+from app.agent.openings import (
+    MAX_CONTENT_CHARS,
+    MAX_OPENING_CHARS,
+    MAX_TOKENS,
+    OPENING_KINDS,
+    PERIOD_SOON_DAYS,
+    PROFILE_STALE_DAYS,
+    TEMPLATES,
+)
+from app.agent.preferences import MAX_PREFERENCE_CHARS, MAX_PREFERENCES
+from app.agent.router import SSE_CHUNK_CHARS
+from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES, SAFE_REPLIES
+from app.agent.schemas import MAX_MESSAGE_CHARS
+from app.main import create_app
+from app.nutrition.engine import SOURCE_NAMES
+from app.sdk.tooling import agent_registry
+
+ROOT = Path(__file__).resolve().parents[2]
+DOCS = ROOT / "docs" / "08-交付物"
+TESTS = ROOT / "backend" / "tests"
+AGENT_SOURCES = ROOT / "backend" / "app" / "agent"
+EXPECTED_DOCS = {"智能体行为设计.md", "主动开场规则表.md", "安全边界清单.md", "输出检查规则说明.md", "端到端场景脚本.md",
+                 "接口清单.md", "验收记录.md"}
+RISK_ORDER = ["self_harm", "severe_symptom", "pregnancy", "medication", "extreme_diet"]
+
+
+def _read(name: str) -> str:
+    return (DOCS / name).read_text(encoding="utf-8")
+
+
+def _segments(template: str) -> list[str]:
+    """模板里除占位符以外的固定文字。"""
+    return [part for part in re.split(r"\{\w+\}", template) if part.strip()]
+
+
+def _acceptance_rows() -> list[list[str]]:
+    record = _read("验收记录.md").split("## 自动化验证记录")[0]
+    return [[cell.strip() for cell in line.split("|")[1:-1]] for line in record.splitlines()
+            if line.startswith("| ") and line.split("|")[1].strip().isdigit()]
+
+
+def test_delivery_docs_exist_and_contain_no_code_blocks_or_inline_code():
+    docs = list(DOCS.glob("*.md"))
+    assert {doc.name for doc in docs} == EXPECTED_DOCS
+    for doc in docs:
+        content = doc.read_text(encoding="utf-8")
+        assert "```" not in content, doc.name
+        assert "`" not in content, doc.name
+
+
+def test_acceptance_record_has_nine_rows_with_existing_tests_and_an_empty_user_column():
+    rows = _acceptance_rows()
+    assert [row[0] for row in rows] == [str(n) for n in range(1, 10)]
+    for row in rows:
+        assert len(row) == 6 and row[1] and row[2] and row[3] and row[4], row[0]
+        assert row[5] == "", row[0]  # “用户验收”列由用户本人填写，目前为空
+    references = {(match.group(1), match.group(2)) for row in rows
+                  for match in re.finditer(r"(test_\w+\.py)::(test_\w+)", row[2])}
+    assert len(references) >= 60
+    for file_name, test_name in sorted(references):
+        source = (TESTS / file_name).read_text(encoding="utf-8")
+        assert re.search(rf"^(async )?def {test_name}\(", source, re.MULTILINE), (file_name, test_name)
+    for row in rows:  # 每一行都至少引用一个本行相关的自动化测试
+        assert re.search(r"test_\w+\.py::test_\w+", row[2]), row[0]
+
+
+def test_criteria_1_2_and_9_are_marked_as_needing_the_users_live_run_and_the_others_are_not():
+    rows = {row[0]: row for row in _acceptance_rows()}
+    for number in ("1", "2", "9"):
+        assert "需要用户实测" in rows[number][4], number
+        assert "实测脚本" in rows[number][3], number
+    for number in ("3", "4", "5", "6", "7", "8"):
+        assert "需要用户实测" not in rows[number][4], number
+    record = _read("验收记录.md")
+    assert "第 1、2、9 条" in record and "不能视为通过" in record
+    for word in ("TESTS_TOTAL", "待填写"):
+        assert word not in record
+
+
+def test_acceptance_record_counts_match_the_code():
+    record = _read("验收记录.md")
+    assert f"共 {len(agent_registry()) + 6} 项能力" in record and "MCP 工具 27 个" in record
+    assert "迁移版本到 0014" in record and "共二十六张表" in record
+    for model in (AgentConversation, AgentMessage, AgentPreference, AgentOpening, AgentSettings):
+        assert model.__tablename__ in record, model.__tablename__
+    assert f"新增 {len(_agent_routes())} 个接口" in record
+    assert "能力表 27 项加站内的“记住偏好”，一轮最多提供 28 个、最少 18 个" in record
+    assert len(agent_registry()) == 27
+
+
+def test_opening_rule_table_lists_five_kinds_in_priority_order_with_the_code_constants():
+    doc = _read("主动开场规则表.md")
+    assert len(OPENING_KINDS) == 5
+    for priority, kind in enumerate(OPENING_KINDS, start=1):
+        assert f"| {priority} | {kind}（" in doc, kind
+        for segment in _segments(TEMPLATES[kind]):
+            assert segment in doc, (kind, segment)
+    assert f"在今天起 0 到 {PERIOD_SOON_DAYS} 天之内" in doc
+    assert f"档案距上次更新已满 {PROFILE_STALE_DAYS} 天" in doc
+    assert f"超过 {MAX_CONTENT_CHARS} 个字" in doc
+    assert f"不超过 {MAX_OPENING_CHARS} 个字" in doc and f"最多 {MAX_TOKENS} 个 token" in doc
+    for word in ("一天一类一次", "正在问", "拒绝", "整体开关", "唯一约束"):
+        assert word in doc, word
+
+
+def test_safety_doc_lists_five_topics_with_every_fixed_reply_and_the_prompt_section_verbatim():
+    doc = _read("安全边界清单.md")
+    assert sorted(RISK_ORDER) == sorted(RISK_CATEGORIES) and set(SAFE_REPLIES) == set(RISK_CATEGORIES)
+    for order, category in enumerate(RISK_ORDER, start=1):
+        assert f"| {order} | {category} |" in doc, category
+        assert SAFE_REPLIES[category] in doc, category
+    assert HEALTH_DISCLAIMER in doc
+    for line in SAFETY_SECTION[1:]:
+        assert line[2:] in doc, line  # 去掉行首的“- ”
+    for word in ("120", "12356", "不调用模型", "第二道防线"):
+        assert word in doc, word
+
+
+def test_output_check_doc_quotes_the_fixed_texts_and_numbers():
+    doc = _read("输出检查规则说明.md")
+    for template in (SAFE_FALLBACK, NOTICE_HEADER):
+        for segment in _segments(template):
+            assert segment in doc, segment
+    for text in (LATIN_FALLBACK, HEALTH_DISCLAIMER):
+        assert text in doc, text
+    assert f"每轮最多核对 {MAX_EVALUATED_FOODS} 种" in doc
+    assert f"超过 {round(LATIN_SHARE * 100)}%" in doc
+    assert f"{MAX_MODEL_CALLS} 次模型调用" in doc
+    for name in EXCLUDED_NAMES:
+        assert name in doc, name
+    for name in SOURCE_NAMES.values():
+        assert name in doc, name
+    for word in ("guard_rewritten", "guard_fallback", "权衡", "不许提到", "失败时关闭"):
+        assert word in doc, word
+
+
+def _agent_routes():
+    return [ctx for ctx in iter_route_contexts(create_app().routes)
+            if isinstance(ctx.original_route, APIRoute) and ctx.path.startswith("/api/agent/")]
+
+
+def test_interface_doc_lists_every_agent_route_and_every_error_code():
+    doc = _read("接口清单.md")
+    routes = _agent_routes()
+    assert len(routes) == 13
+    for route in routes:
+        for method in route.methods:
+            assert f"{method} {route.path}" in doc, (method, route.path)
+    sources = "\n".join(path.read_text(encoding="utf-8") for path in AGENT_SOURCES.glob("*.py"))
+    codes = set(re.findall(r'AppError\(\d+, "(agent_[a-z_]+)"', sources))
+    assert codes == {"agent_model_error", "agent_model_not_configured", "agent_preference_rejected",
+                     "agent_too_many_preferences"}
+    assert [code for code in sorted(codes) if code not in doc] == []
+    for flag in ("guard_rewritten", "guard_fallback", "resolution_clue", "tool_limit", *RISK_CATEGORIES):
+        assert flag in doc, flag
+    for number in (MAX_MESSAGE_CHARS, MAX_PREFERENCES, MAX_PREFERENCE_CHARS, SSE_CHUNK_CHARS, MAX_MODEL_CALLS):
+        assert str(number) in doc, number
+    for event in ("delta", "done", "error"):
+        assert event in doc, event
+
+
+def test_behavior_doc_numbers_and_fixed_texts_match_the_code():
+    doc = _read("智能体行为设计.md")
+    everything = AgentContext(capabilities={"cycle": True, "medical": True, "nutrition": True, "fitness": True,
+                                            "profile": True},
+                              profile_summary="", constraints=(), phase=None, intake=None, training=None,
+                              has_workouts=True, preferences=(), today=date(2026, 10, 9))
+    minimal = AgentContext(capabilities={"cycle": False, "medical": True, "nutrition": True, "fitness": True},
+                           profile_summary="", constraints=(), phase=None, intake=None, training=None,
+                           has_workouts=False, preferences=(), today=date(2026, 10, 9))
+    most, fewest = len(tool_specs(everything)), len(tool_specs(minimal))
+    assert (most, fewest) == (28, 18) and len(agent_registry()) == 27
+    assert f"最多拿到 {most} 个工具" in doc and f"最少 {fewest} 个" in doc and "共 27 项" in doc
+    assert f"最多调用 {MAX_MODEL_CALLS} 次模型" in doc
+    assert f"最近 {conversations.HISTORY_LIMIT} 条" in doc and f"每段约 {SSE_CHUNK_CHARS} 个字" in doc
+    assert TOOL_LIMIT_REPLY in doc and EMPTY_REPLY in doc
+    for model in (AgentConversation, AgentMessage, AgentPreference, AgentOpening, AgentSettings):
+        assert model.__tablename__ in doc, model.__tablename__
+    assert "迁移版本 0014" in doc
+    for word in ("tool_limit", "resolution_clue", "agent_model_not_configured", "agent_model_error",
+                 "agent_preference_rejected", "agent_too_many_preferences", "没有这个工具", "agent.remember_preference"):
+        assert word in doc, word
+
+
+def test_scenario_script_covers_the_five_user_kinds_and_the_live_check_inputs():
+    doc = _read("端到端场景脚本.md")
+    for heading in ("场景一：健康用户", "场景二：经期用户", "场景三：有忌口医嘱的用户", "场景四：健身用户",
+                    "场景五：医嘱待复核用户"):
+        assert heading in doc, heading
+    for text in (DINNER, *INDUCEMENTS, AFTER_TRAINING, CLUE, *RISK_QUESTIONS):
+        assert text in doc, text
+    assert "python -m" not in doc and "uv run" not in doc  # 文档里没有命令
+
+
+def test_readme_and_overview_record_step_08_as_awaiting_acceptance():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "## 17. 智能体" in readme and "共二十六张表" in readme
+    assert "uv run python -m app.agent.live_check" in readme and "agent_live_result.md" in readme
+    assert "步骤 08" in readme.split("定位声明")[0]
+    overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8")
+    assert "| 08 | 智能体层 | 08-智能体层.md | 06、07 | 待验收（见 08-交付物/验收记录.md） |" in overview
+
+
+def test_step_06_records_note_the_new_capability_without_changing_old_numbers_and_the_audit_doc_has_kind_agent():
+    for name in ("06-交付物/验收记录.md", "第一阶段整体验收记录.md"):
+        text = (ROOT / "docs" / name).read_text(encoding="utf-8")
+        assert "补充说明（步骤 08）" in text and "profile.get_profile" in text and "1.1" in text, name
+    assert "MCP 工具 26 个" in (ROOT / "docs" / "06-交付物" / "验收记录.md").read_text(encoding="utf-8")
+    assert "看到 26 个工具" in (ROOT / "docs" / "第一阶段整体验收记录.md").read_text(encoding="utf-8")
+    audit = (ROOT / "docs" / "06-交付物" / "调用审计说明.md").read_text(encoding="utf-8")
+    assert "agent（站内智能体的服务端凭证" in audit and "agent.remember_preference" in audit
