@@ -45,14 +45,15 @@ def _number(token: str) -> float:
     return float(_DIGITS[token])
 
 
-def parse_portion(text: str) -> Portion | None:
+def parse_portion(text: str, *, extra_units: frozenset[str] = frozenset()) -> Portion | None:
     """“一碗”“两个”“半盘”“1.5 碗”“大半碗”“一小碗”“半个手掌”→ 数量与单位；认不出返回 None。
 
     数量前的“大”“小”（如大半碗）作用在数量上；紧贴单位的“大”“小”与单位连成一个单位（一小碗→小碗），
     表里没有这样的单位时作用在数量上；“半”按表里的系数计。
+    extra_units 是食物自带的份量单位（罐、瓶、盒、两、小勺等），与换算表里的单位一起识别，连成的长单位优先（小勺先于勺）。
     """
-    data = load_units()
-    units, modifiers = data["units"], data["modifiers"]
+    modifiers = load_units()["modifiers"]
+    units = set(load_units()["units"]) | extra_units
     cleaned = _NOISE_RE.sub("", text or "")
     if cleaned in units:
         return Portion(1.0, cleaned)
@@ -103,9 +104,9 @@ def food_group(food: Food | None) -> str | None:
 def portion_grams(food: Food | None, portion_text: str, grams_estimate: float | None) -> tuple[float, str]:
     """返回（克数，来源）。来源是 food_portion、unit_table、model_estimate、group_default 之一，克数取整。"""
     data = load_units()
-    portion = parse_portion(portion_text)
+    own = dict(food.portions) if food else {}
+    portion = parse_portion(portion_text, extra_units=frozenset(own))
     if portion is not None:
-        own = dict(food.portions) if food else {}
         if portion.unit in own:
             return float(round_half_up(own[portion.unit] * portion.quantity)), GRAMS_FROM_FOOD
         unit = data["units"][portion.unit]

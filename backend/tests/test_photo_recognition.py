@@ -123,7 +123,7 @@ def test_parse_ignores_calorie_and_nutrient_fields():
     }
     out = parse_output(json.dumps(raw))
     assert set(vars(out.items[0])) == {"name", "portion_text", "grams_estimate", "confidence"}
-    assert "500" not in repr(out) and "999" not in repr(out)
+    assert set(vars(out)) == {"status", "items", "note"}
 
 
 def test_prompts_forbid_nutrition_numbers_and_ask_for_json_only():
@@ -178,6 +178,24 @@ def test_unit_table_scales_by_quantity_and_rounds_to_whole_grams():
 def test_model_estimate_when_no_portion_text():
     assert portion_grams(TOMATO_EGG, "", 183.4) == (183.0, "model_estimate")
     assert portion_grams(TOMATO_EGG, "一些", 120) == (120.0, "model_estimate")
+
+
+def test_foods_own_units_outside_the_table_are_recognised():
+    cola, salt, milk = CATALOG.get("supplement:cola"), CATALOG.get("supplement:salt"), CATALOG.get("cfcd:101101x")
+    assert portion_grams(cola, "一罐", None) == (330.0, "food_portion")
+    assert portion_grams(CATALOG.get("supplement:beer"), "一瓶", None) == (500.0, "food_portion")
+    assert portion_grams(CATALOG.get("supplement:baijiu"), "一两", None) == (50.0, "food_portion")
+    assert portion_grams(salt, "一小勺", None) == (5.0, "food_portion")
+    assert portion_grams(milk, "半盒", None) == (125.0, "food_portion")
+    assert portion_grams(cola, "一瓶", 400) == (400.0, "model_estimate")  # 可乐没有“瓶”
+
+
+def test_extra_units_in_parse_portion_prefer_the_longer_unit():
+    assert parse_portion("一瓶") is None
+    assert parse_portion("一瓶", extra_units=frozenset({"瓶"})) == Portion(1.0, "瓶")
+    assert parse_portion("一小勺", extra_units=frozenset({"小勺"})) == Portion(1.0, "小勺")
+    assert parse_portion("一小勺").unit == "勺"
+    assert parse_portion("两两", extra_units=frozenset({"两"})) == Portion(2.0, "两")
 
 
 def test_group_default_when_nothing_else():
@@ -241,8 +259,9 @@ def test_unknown_name_needs_confirmation_with_no_candidates():
 
 
 def test_candidates_are_capped():
+    assert len(CATALOG.search("鱼")) > MAX_CANDIDATES
     item = build_item("鱼", "", None, None, 0.9, catalog=CATALOG)
-    assert len(item["candidates"]) <= MAX_CANDIDATES
+    assert len(item["candidates"]) == MAX_CANDIDATES == 5
 
 
 def test_user_chosen_food_id_is_used_directly():
@@ -251,6 +270,14 @@ def test_user_chosen_food_id_is_used_directly():
     assert item["food_id"] == "dish:boiled_fish"
     assert item["food_name"] == "水煮鱼"
     assert item["nutrients"]["energy_kcal"] == round_one(CATALOG.get("dish:boiled_fish").nutrients.energy_kcal * 3)
+    assert item["review_reasons"] == []
+    assert item["match_type"] == "user_selected"
+    assert item["candidates"] == []
+
+
+def test_grams_without_a_source_are_marked_as_user_grams():
+    item = build_item("番茄炒蛋", "一盘", 300, None, 0.9, catalog=CATALOG)
+    assert (item["grams"], item["grams_source"]) == (300, "user")
     assert item["review_reasons"] == []
 
 
@@ -291,6 +318,13 @@ def test_each_review_reason_triggers_alone():
 def test_review_reasons_combine_in_a_fixed_order():
     item = build_item("zzqx不存在", "", 5, "model_estimate", 0.1, catalog=CATALOG)
     assert item["review_reasons"] == list(REVIEW_REASONS)
+
+
+def test_totals_round_once_from_unrounded_values():
+    items = [build_item("米饭", "", 11, "user", 0.9, catalog=CATALOG) for _ in range(3)]
+    assert sum(item["nutrients"]["energy_kcal"] for item in items) == pytest.approx(38.4)  # 逐项取整后相加会偏
+    unrounded = RICE.nutrients.energy_kcal * 11 * 3 / 100
+    assert totals(items, CATALOG)["energy_kcal"] == round_one(unrounded) == 38.3
 
 
 def test_needs_review_and_totals_only_count_matched():

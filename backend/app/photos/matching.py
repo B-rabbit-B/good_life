@@ -81,12 +81,14 @@ def build_item(
     }
 
 
-def totals(items: list[dict[str, Any]]) -> dict[str, float | None]:
-    """只合计已匹配的菜品；待确认的没有营养数字，不计入。"""
+def totals(items: list[dict[str, Any]], catalog: Catalog | None = None) -> dict[str, float | None]:
+    """只合计已匹配的菜品；待确认的没有营养数字，不计入。
+    按食物与克数重新计算、不取整地相加、最后只取整一次，与饮食日汇总（相加未取整的记录快照）一致。"""
+    catalog = catalog or load_catalog()
     total = Nutrients(**{name: 0.0 for name in NUTRIENT_FIELDS})
     for item in items:
         if item["status"] == "matched":
-            total = total.plus(Nutrients(**item["nutrients"]))
+            total = total.plus(catalog.foods[item["food_id"]].nutrients.scaled(item["grams"]))
     return nutrients_out(total).model_dump()
 
 
