@@ -21,8 +21,9 @@ from app.nutrition.catalog import Catalog, load_catalog
 from app.nutrition.context import build_context
 from app.nutrition.engine import evaluate_meal
 from app.photos.images import prepare_image
-from app.photos.matching import MATCH_USER_SELECTED, MAX_CANDIDATES, REVIEW_REASONS, build_item
+from app.photos.matching import GRAMS_FROM_USER, MATCH_USER_SELECTED, MAX_CANDIDATES, REVIEW_REASONS, build_item
 from app.photos.models import PhotoRecognition
+from app.photos.portions import GRAMS_FROM_MODEL
 from app.photos.recognition import (
     MAX_ITEMS,
     RECOGNITION_PROMPT,
@@ -38,8 +39,8 @@ RECOGNITION_MAX_TOKENS = 1500
 MEAL_NOTE = "拍照识别"
 USER_CONFIDENCE = 1.0
 MAX_NOTE_LENGTH = 200
-# 模型的补充说明里出现这些词就整句丢弃：热量与营养数字只能来自营养库。
-_NUTRITION_WORDS = ("热量", "卡", "cal", "能量", "蛋白", "脂肪", "碳水", "营养", "钠", "纤维")
+# 模型的补充说明里出现数字或这些词就整句丢弃：热量与营养数字只能来自营养库。
+_NUTRITION_WORDS = ("热量", "卡", "cal", "千焦", "kj", "能量", "蛋白", "脂肪", "碳水", "糖", "盐", "营养", "钠", "纤维")
 
 
 def _not_found() -> AppError:
@@ -76,7 +77,7 @@ def _ask_model(user_id: uuid.UUID, jpeg: bytes, target: ResolvedTarget, factory:
 
 def _safe_note(note: str) -> str | None:
     lowered = note.lower()
-    if not note or any(word in lowered for word in _NUTRITION_WORDS):
+    if not note or any(ch.isdigit() for ch in note) or any(word in lowered for word in _NUTRITION_WORDS):
         return None
     return note[:MAX_NOTE_LENGTH]
 
@@ -164,8 +165,9 @@ def _draft_for_update(db: Session, user_id: uuid.UUID, rec_id: uuid.UUID) -> Pho
 def _revise(change: dict[str, Any], previous: dict[str, Any] | None, catalog: Catalog) -> dict[str, Any]:
     """按修正请求重建一项。没改的项原样保留；改过的项把握程度记为 1。
 
-    原有的项没给克数时：份量说法没变就沿用原来的克数与来源（改名或改选食物后按原克数重新计算），
-    份量说法变了就按新说法重新换算。新增的项没给克数时按份量说法换算。
+    原有的项没给克数时：份量说法没变、且原来的克数是用户填的，就沿用这个克数；否则按新的菜名或食物重新换算
+    （食物自带份量 → 通用换算表 → 模型估计克数 → 类别默认），原克数来自模型估计时仍作为模型估计参与换算。
+    新增的项没给克数时按份量说法换算。
     """
     name, grams, food_id = change["name"], change.get("grams"), change.get("food_id")
     portion = change.get("portion_text")
@@ -177,11 +179,13 @@ def _revise(change: dict[str, Any], previous: dict[str, Any] | None, catalog: Ca
     )
     if grams is None and name == previous["name"] and portion == previous["portion_text"] and same_food:
         return previous
-    source = None
-    if grams is None and portion == previous["portion_text"]:
-        grams, source = previous["grams"], previous["grams_source"]
+    source, estimate = None, None
+    if grams is None and portion == previous["portion_text"] and previous["grams_source"] == GRAMS_FROM_USER:
+        grams, source = previous["grams"], GRAMS_FROM_USER
+    elif grams is None and previous["grams_source"] == GRAMS_FROM_MODEL:
+        estimate = previous["grams"]
     return build_item(name, portion, grams, source, USER_CONFIDENCE, food_id=food_id, catalog=catalog,
-                      item_id=previous["id"])
+                      item_id=previous["id"], grams_estimate=estimate)
 
 
 def update_items(db: Session, user_id: uuid.UUID, rec_id: uuid.UUID, items: list[dict[str, Any]]) -> PhotoRecognition:
@@ -210,6 +214,10 @@ def confirm(
     if any(item["status"] != "matched" for item in items):
         raise AppError(422, "photo_items_need_confirmation",
                        "还有待确认的菜品：请先从候选里选择对应的食物、改成营养库里有的名称，或删除这一项，再确认入库")
+    too_heavy = next((item for item in items if item["grams"] > meals.MAX_GRAMS), None)
+    if too_heavy is not None:
+        raise AppError(422, "photo_grams_out_of_range",
+                       f"“{too_heavy['name']}”的克数超过了 {meals.MAX_GRAMS} 克，请先修正这道菜的克数，再确认入库")
     try:
         entries = [
             meals.log_meal(db, user_id, eaten_on=eaten_on, meal_type=meal_type, food_id=item["food_id"],

@@ -11,7 +11,7 @@ from datetime import date
 
 import pytest
 from PIL import Image
-from sqlalchemy import select, text
+from sqlalchemy import inspect, select, text
 
 from app.common.clock import get_today
 from app.db import get_db, get_engine, get_sessionmaker
@@ -21,6 +21,7 @@ from app.nutrition.schemas import nutrients_out
 from app.photos import service as photo_service
 from app.photos.matching import totals
 from app.photos.models import PhotoRecognition
+from app.photos.portions import portion_grams
 from app.photos.recognition import RECOGNITION_PROMPT, RETRY_PROMPT
 from tests.agent_fake import BASE_URLS, SECRET, say, scripted  # noqa: F401
 from tests.helpers import ready_user
@@ -186,10 +187,18 @@ def test_nutrients_come_from_the_catalog_with_sources_and_ignore_model_numbers(c
     assert "98765" not in scrubbed and "8765.5" not in scrubbed
 
 
-def test_model_note_with_nutrition_numbers_is_dropped_and_plain_note_is_kept(client, model):
+@pytest.mark.parametrize("note", [
+    "这顿大约 98765 千卡", "约 1200 千焦", "含糖约 30 克", "盐有点多，约 5 克", "大约３碗的量", "油多糖多", "偏咸，盐重",
+    "热量偏高", "about 500 kcal", "约 2000 kJ",
+])
+def test_model_note_with_numbers_or_nutrition_words_is_dropped(client, model, note):
     headers = _user(client, "bea")
-    model.add(_reply(_dish("米饭"), note="这顿大约 98765 千卡"))
+    model.add(_reply(_dish("米饭"), note=note))
     assert _upload(client, headers).json()["note"] is None
+
+
+def test_plain_model_note_is_kept(client, model):
+    headers = _user(client, "bev")
     model.add(_reply(_dish("米饭"), note="碗边有一点反光"))
     assert _upload(client, headers).json()["note"] == "碗边有一点反光"
 
@@ -233,20 +242,21 @@ def test_corrections_recompute_nutrients_and_totals(client, model):
     assert rice2["grams"] == 200 and rice2["grams_source"] == "user" and rice2["confidence"] == 1.0
     assert rice2["nutrients"] == _expected_nutrients(rice2["food_id"], 200)
     assert fish2["status"] == "matched" and fish2["food_id"] == candidate and fish2["match_type"] == "user_selected"
-    assert fish2["grams"] == fish["grams"] and fish2["grams_source"] == fish["grams_source"]  # 没给克数：沿用原来的
-    assert fish2["nutrients"] == _expected_nutrients(candidate, fish["grams"])
+    # 没给克数、原克数不是用户填的：按选中的食物重新换算
+    assert (fish2["grams"], fish2["grams_source"]) == portion_grams(CATALOG.foods[candidate], "一份", None)
+    assert fish2["nutrients"] == _expected_nutrients(candidate, fish2["grams"])
     assert egg["status"] == "matched" and egg["confidence"] == 1.0 and egg["grams_source"] == "unit_table"
     assert body["totals"] == totals(body["items"], CATALOG)
     first_totals = body["totals"]
 
-    # 改名（不带克数：沿用原克数重新匹配）并删除米饭
+    # 改名（不带克数：按新菜名重新换算）并删除米饭
     response = _put(client, headers, body["id"], [_edit(fish2, name="麻婆豆腐", food_id=None), _edit(egg)])
     assert response.status_code == 200, response.text
     body = response.json()
     tofu, egg2 = body["items"]
     assert tofu["id"] == fish["id"] and tofu["food_name"] == "麻婆豆腐" and tofu["match_type"] != "user_selected"
-    assert tofu["grams"] == fish["grams"]
-    assert tofu["nutrients"] == _expected_nutrients(tofu["food_id"], fish["grams"])
+    assert (tofu["grams"], tofu["grams_source"]) == portion_grams(CATALOG.foods[tofu["food_id"]], "一份", None)
+    assert tofu["nutrients"] == _expected_nutrients(tofu["food_id"], tofu["grams"])
     assert egg2 == egg  # 没改的项原样保留
     assert body["totals"] == totals(body["items"], CATALOG) != first_totals
 
@@ -258,6 +268,36 @@ def test_unchanged_items_keep_model_values_and_changed_portion_is_reconverted(cl
     body = _put(client, headers, body["id"], [_edit(rice), _edit(egg, portion_text="两盘")]).json()
     assert body["items"][0] == rice
     assert body["items"][1]["grams"] == 2 * egg["grams"] and body["items"][1]["confidence"] == 1.0
+
+
+def test_choosing_a_food_reconverts_from_its_own_portion(client, model):
+    headers = _user(client, "dina")
+    body = _recognize(client, model, headers, _dish("酸菜鱼", "一份", 400, 0.8))
+    [fish] = body["items"]
+    assert fish["status"] == "needs_confirmation" and fish["grams_source"] == "unit_table"
+    [chosen] = _put(client, headers, body["id"], [_edit(fish, food_id="dish:boiled_fish")]).json()["items"]
+    assert chosen["status"] == "matched"
+    assert (chosen["grams"], chosen["grams_source"]) == (dict(CATALOG.foods["dish:boiled_fish"].portions)["份"],
+                                                         "food_portion")
+
+
+def test_model_estimate_is_reused_when_reconverting(client, model):
+    headers = _user(client, "dita")
+    body = _recognize(client, model, headers, _dish("外星菜", "", 180, 0.8))
+    [alien] = body["items"]
+    assert (alien["grams"], alien["grams_source"]) == (180, "model_estimate")
+    [chosen] = _put(client, headers, body["id"], [_edit(alien, food_id="dish:boiled_fish")]).json()["items"]
+    assert (chosen["status"], chosen["grams"], chosen["grams_source"]) == ("matched", 180, "model_estimate")
+
+
+def test_user_grams_survive_a_later_rename(client, model):
+    headers = _user(client, "dory")
+    body = _recognize(client, model, headers, _dish("米饭", "一碗", 180, 0.8))
+    [rice] = _put(client, headers, body["id"], [_edit(body["items"][0], grams=260)]).json()["items"]
+    [renamed] = _put(client, headers, body["id"], [_edit(rice, name="番茄炒蛋")]).json()["items"]
+    assert renamed["food_name"] == "番茄炒蛋"
+    assert (renamed["grams"], renamed["grams_source"]) == (260, "user")
+    assert renamed["nutrients"] == _expected_nutrients(renamed["food_id"], 260)
 
 
 def test_correction_rules(client, model):
@@ -348,6 +388,8 @@ def test_confirm_writes_nothing_when_one_entry_fails(client, model):
     assert _by_name(body, "番茄炒蛋")["grams"] == 6000
     refused = _confirm(client, headers, body["id"])
     assert refused.status_code == 422
+    assert refused.json()["error"]["code"] == "photo_grams_out_of_range"
+    assert "番茄炒蛋" in refused.json()["error"]["message"] and "修正" in refused.json()["error"]["message"]
     assert _meals(client, headers) == []
     assert client.get(f"{URL}/{body['id']}", headers=headers).json()["status"] == "draft"
 
@@ -462,6 +504,28 @@ def test_image_is_not_kept_by_default_and_items_are_encrypted(client, model):
     assert response.status_code == 404 and response.json()["error"]["code"] == "photo_image_not_kept"
     assert _raw(body["id"], "image") is None
     assert "番茄炒蛋" not in _raw(body["id"], "items")
+
+
+def test_explicit_keep_image_false_and_invalid_value(client, model):
+    headers = _user(client, "oona")
+    body = _recognize(client, model, headers, _dish("米饭"), keep_image=False)
+    assert body["image_kept"] is False
+    assert client.get(f"{URL}/{body['id']}/image", headers=headers).json()["error"]["code"] == "photo_image_not_kept"
+    files = {"file": ("meal.jpg", _meal_photo(), "image/jpeg")}
+    invalid = client.post(URL, files=files, data={"keep_image": "maybe"}, headers=headers)
+    assert invalid.status_code == 422 and invalid.json()["error"]["code"] == "validation_error"
+    assert len(model.requests) == 1
+
+
+def test_list_recognitions_does_not_load_images(client, model):
+    headers = _user(client, "omar")
+    _recognize(client, model, headers, _dish("米饭"), keep_image=True)
+    _recognize(client, model, headers, _dish("番茄炒蛋"))
+    with get_sessionmaker()() as session:
+        user_id = session.scalar(select(PhotoRecognition.user_id))
+        records = photo_service.list_recognitions(session, user_id)
+        assert len(records) == 2
+        assert all("image" in inspect(record).unloaded for record in records)
 
 
 def test_kept_image_is_encrypted_retrievable_and_deleted_with_the_record(client, model):
