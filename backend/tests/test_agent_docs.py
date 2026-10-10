@@ -239,7 +239,9 @@ def test_readme_step_06_section_uses_the_current_sdk_numbers():
 
 def test_readme_and_overview_record_step_08_status():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "## 17. 智能体" in readme and "共二十六张表" in readme
+    assert "## 17. 智能体" in readme  # 表的总数随后续步骤增加，由最新步骤的文档测试检查
+    for model in (AgentConversation, AgentMessage, AgentPreference, AgentOpening, AgentSettings):
+        assert model.__tablename__ in readme, model.__tablename__
     assert "uv run python -m app.agent.live_check" in readme and "agent_live_result.md" in readme
     assert "步骤 08" in readme.split("定位声明")[0]
     overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8")
