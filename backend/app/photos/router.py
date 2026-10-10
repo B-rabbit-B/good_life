@@ -33,7 +33,6 @@ def _fields(record: PhotoRecognition, items: list[dict[str, Any]], catalog: Cata
         "totals": totals(items, catalog),
         "needs_review": needs_review(items),
         "disclaimer": service.DISCLAIMER,
-        "note": record.note,
         "image_kept": record.image_kept,
         "model_id": record.model_id,
         "eaten_on": record.eaten_on,

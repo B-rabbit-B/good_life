@@ -14,7 +14,7 @@ from app.security.crypto import EncryptedBytes, EncryptedJSON
 class PhotoRecognition(UserOwnedMixin, Base):
     """一次拍照识别：草稿（可修正）→ 已确认（写入了饮食记录）或已放弃。
 
-    识别项与模型的补充说明加密存储；图片只在用户选择保留时保存（处理后的 JPEG，加密、延迟加载）。
+    识别项加密存储（模型的说明文字不保存）；图片只在用户选择保留时保存（处理后的 JPEG，加密、延迟加载）。
     """
 
     __tablename__ = "photo_recognitions"
@@ -23,7 +23,6 @@ class PhotoRecognition(UserOwnedMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     status: Mapped[str] = mapped_column(String(16))
     items: Mapped[list[dict[str, Any]]] = mapped_column(EncryptedJSON)
-    note: Mapped[str | None] = mapped_column(EncryptedJSON)
     image: Mapped[bytes | None] = mapped_column(EncryptedBytes, deferred=True)
     image_kept: Mapped[bool] = mapped_column(Boolean)
     model_id: Mapped[str] = mapped_column(String(200))

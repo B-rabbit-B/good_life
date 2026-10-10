@@ -84,6 +84,8 @@ class ItemEvaluationOut(BaseModel):
 
 class EvaluationOut(BaseModel):
     conclusion: Conclusion
+    unchecked_items: list[str]
+    unchecked_notice: str | None
     items: list[ItemEvaluationOut]
     disclaimer: str
 
@@ -95,7 +97,6 @@ class RecognitionSummaryOut(BaseModel):
     totals: NutrientsOut
     needs_review: bool
     disclaimer: str
-    note: str | None
     image_kept: bool
     model_id: str
     eaten_on: dt.date | None

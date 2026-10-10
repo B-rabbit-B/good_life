@@ -21,7 +21,6 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("status", sa.String(16), nullable=False),
         sa.Column("items", sa.Text(), nullable=False),
-        sa.Column("note", sa.Text()),
         sa.Column("image", sa.LargeBinary()),
         sa.Column("image_kept", sa.Boolean(), nullable=False),
         sa.Column("model_id", sa.String(200), nullable=False),

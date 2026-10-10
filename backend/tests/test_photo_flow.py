@@ -15,17 +15,19 @@ from sqlalchemy import inspect, select, text
 
 from app.common.clock import get_today
 from app.db import get_db, get_engine, get_sessionmaker
+from app.errors import AppError
 from app.llm import service as llm_service
-from app.nutrition.catalog import load_catalog
+from app.nutrition import meals as nutrition_meals
+from app.nutrition.catalog import NUTRIENT_FIELDS, load_catalog, round_one
 from app.nutrition.schemas import nutrients_out
 from app.photos import service as photo_service
-from app.photos.matching import totals
 from app.photos.models import PhotoRecognition
 from app.photos.portions import portion_grams
 from app.photos.recognition import RECOGNITION_PROMPT, RETRY_PROMPT
 from tests.agent_fake import BASE_URLS, SECRET, say, scripted  # noqa: F401
 from tests.helpers import ready_user
 
+UNCHECKED_NOTICE = photo_service.UNCHECKED_NOTICE
 TODAY = date(2026, 10, 10)
 CATALOG = load_catalog()
 URL = "/api/photos/recognitions"
@@ -137,6 +139,18 @@ def _expected_nutrients(food_id: str, grams: float) -> dict:
     return nutrients_out(CATALOG.foods[food_id].nutrients.scaled(grams)).model_dump()
 
 
+def _hand_totals(*pairs: tuple[str, float]) -> dict:
+    """手算合计：每 100 克数值 × 克数 ÷ 100，逐项相加（缺失按 0），最后保留一位小数。"""
+    result = {}
+    for field in NUTRIENT_FIELDS:
+        total = 0.0
+        for food_id, grams in pairs:
+            per_100g = getattr(CATALOG.foods[food_id].nutrients, field)
+            total += (per_100g or 0) * grams / 100
+        result[field] = round_one(total)
+    return result
+
+
 # ---------- 验收第 1、2 条：识别与营养计算 ----------
 
 
@@ -181,26 +195,34 @@ def test_nutrients_come_from_the_catalog_with_sources_and_ignore_model_numbers(c
         assert item["nutrients"] == _expected_nutrients(item["food_id"], item["grams"])
         assert item["source"] == {"dataset": food.source.dataset, "license_status": food.source.license_status,
                                   "note": food.source.note}
-    assert body["totals"] == totals(body["items"], CATALOG)
-    assert body["note"] is None
+    egg, rice = body["items"]
+    assert body["totals"] == _hand_totals((egg["food_id"], egg["grams"]), (rice["food_id"], rice["grams"]))
     scrubbed = json.dumps({k: v for k, v in body.items() if k not in ("id", "created_at", "updated_at")})
     assert "98765" not in scrubbed and "8765.5" not in scrubbed
 
 
-@pytest.mark.parametrize("note", [
-    "这顿大约 98765 千卡", "约 1200 千焦", "含糖约 30 克", "盐有点多，约 5 克", "大约３碗的量", "油多糖多", "偏咸，盐重",
-    "热量偏高", "about 500 kcal", "约 2000 kJ",
-])
-def test_model_note_with_numbers_or_nutrition_words_is_dropped(client, model, note):
+def test_model_note_appears_nowhere(client, model):
     headers = _user(client, "bea")
-    model.add(_reply(_dish("米饭"), note=note))
-    assert _upload(client, headers).json()["note"] is None
+    model.add(_reply(_dish("米饭"), note="可以配一杯啤酒解腻，大约 98765 千卡"))
+    response = _upload(client, headers)
+    assert response.status_code == 201, response.text
+    assert "note" not in response.json()
+    assert "啤酒" not in response.text and "98765" not in response.text
+    listed = client.get(URL, headers=headers)
+    assert "啤酒" not in listed.text and "note" not in listed.json()[0]
+    with get_engine().connect() as conn:
+        columns = conn.execute(text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'photo_recognitions'")).scalars()
+        assert "note" not in set(columns)
 
 
-def test_plain_model_note_is_kept(client, model):
+@pytest.mark.parametrize("grams", [0.3, 1e308, 0, -5])
+def test_out_of_range_model_estimates_are_ignored(client, model, grams):
     headers = _user(client, "bev")
-    model.add(_reply(_dish("米饭"), note="碗边有一点反光"))
-    assert _upload(client, headers).json()["note"] == "碗边有一点反光"
+    body = _recognize(client, model, headers, _dish("米饭", "", grams), _dish("外星菜", "", grams))
+    for item in body["items"]:
+        assert item["grams"] >= 1 and item["grams_source"] == "group_default"
+    assert _by_name(body, "米饭")["status"] == "matched"
 
 
 # ---------- 验收第 3 条：匹配不上的菜品待确认 ----------
@@ -217,7 +239,12 @@ def test_unmatched_dishes_need_confirmation_without_numbers(client, model):
     assert _by_name(body, "外星菜")["candidates"] == []
     assert body["needs_review"] is True
     assert all(value == 0 for value in body["totals"].values())
-    assert body["evaluation"] is None
+    # 一个都没核对：仍给出评价，结论至少是“注意”，列出未核对的菜品
+    evaluation = body["evaluation"]
+    assert evaluation["conclusion"] == "caution"
+    assert evaluation["items"] == []
+    assert evaluation["unchecked_items"] == ["酸菜鱼", "外星菜"]
+    assert evaluation["unchecked_notice"] == UNCHECKED_NOTICE.format(foods="酸菜鱼、外星菜")
 
 
 # ---------- 验收第 4 条：修正后重新计算 ----------
@@ -246,7 +273,8 @@ def test_corrections_recompute_nutrients_and_totals(client, model):
     assert (fish2["grams"], fish2["grams_source"]) == portion_grams(CATALOG.foods[candidate], "一份", None)
     assert fish2["nutrients"] == _expected_nutrients(candidate, fish2["grams"])
     assert egg["status"] == "matched" and egg["confidence"] == 1.0 and egg["grams_source"] == "unit_table"
-    assert body["totals"] == totals(body["items"], CATALOG)
+    assert body["totals"] == _hand_totals(("cfcd:012401x", 200), (candidate, fish2["grams"]),
+                                          ("dish:tomato_egg", egg["grams"]))
     first_totals = body["totals"]
 
     # 改名（不带克数：按新菜名重新换算）并删除米饭
@@ -258,7 +286,8 @@ def test_corrections_recompute_nutrients_and_totals(client, model):
     assert (tofu["grams"], tofu["grams_source"]) == portion_grams(CATALOG.foods[tofu["food_id"]], "一份", None)
     assert tofu["nutrients"] == _expected_nutrients(tofu["food_id"], tofu["grams"])
     assert egg2 == egg  # 没改的项原样保留
-    assert body["totals"] == totals(body["items"], CATALOG) != first_totals
+    assert body["totals"] == _hand_totals(("dish:mapo_tofu", tofu["grams"]), ("dish:tomato_egg", egg["grams"]))
+    assert body["totals"] != first_totals
 
 
 def test_unchanged_items_keep_model_values_and_changed_portion_is_reconverted(client, model):
@@ -353,8 +382,12 @@ def test_only_confirmation_writes_the_diary(client, model):
     for item in body["items"]:
         meal = by_food[item["food_id"]]
         assert meal["grams"] == item["grams"]
+        assert meal["nutrients"] == item["nutrients"]
         assert meal["note"] == "拍照识别"
         assert meal["meal_type"] == "dinner"
+    summary = client.get("/api/nutrition/summary", params={"date": TODAY.isoformat()}, headers=headers)
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["total"] == record["totals"] == body["totals"]
 
     for again in (_confirm(client, headers, rec_id), _put(client, headers, rec_id, []),
                   client.post(f"{URL}/{rec_id}/discard", headers=headers)):
@@ -382,16 +415,52 @@ def test_confirm_refuses_empty_and_future_and_discarded(client, model):
     assert client.get(f"{URL}/{body['id']}", headers=headers).json()["evaluation"] is None
 
 
-def test_confirm_writes_nothing_when_one_entry_fails(client, model):
+def _set_grams(name: str, grams: float) -> None:
+    """直接改库里某一项的克数（模拟旧数据或换算出的极端值）。"""
+    with get_sessionmaker()() as session:
+        record = session.scalar(select(PhotoRecognition))
+        record.items = [{**item, "grams": grams} if item["name"] == name else item for item in record.items]
+        session.commit()
+
+
+@pytest.mark.parametrize("too_much", [True, False])
+def test_confirm_rejects_grams_out_of_range_naming_the_dish(client, model, too_much):
     headers = _user(client, "gil")
-    body = _recognize(client, model, headers, _dish("米饭", "", 300), _dish("番茄炒蛋", "", 6000))
-    assert _by_name(body, "番茄炒蛋")["grams"] == 6000
+    portion = "九十碗" if too_much else "一盘"
+    body = _recognize(client, model, headers, _dish("米饭", "", 300), _dish("番茄炒蛋", portion))
+    if too_much:
+        assert _by_name(body, "番茄炒蛋")["grams"] > 5000
+    else:
+        _set_grams("番茄炒蛋", 0)
     refused = _confirm(client, headers, body["id"])
     assert refused.status_code == 422
     assert refused.json()["error"]["code"] == "photo_grams_out_of_range"
     assert "番茄炒蛋" in refused.json()["error"]["message"] and "修正" in refused.json()["error"]["message"]
     assert _meals(client, headers) == []
     assert client.get(f"{URL}/{body['id']}", headers=headers).json()["status"] == "draft"
+
+
+def test_confirm_writes_nothing_when_one_entry_fails(client, model, monkeypatch):
+    headers = _user(client, "gia")
+    body = _recognize(client, model, headers, _dish("米饭", "一碗"), _dish("番茄炒蛋", "一盘"))
+    original = nutrition_meals.log_meal
+    calls = []
+
+    def failing_second(*args, **kwargs):
+        calls.append(kwargs["food_id"])
+        if len(calls) == 2:
+            raise AppError(503, "test_failure", "第二条写入失败")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(nutrition_meals, "log_meal", failing_second)
+    refused = _confirm(client, headers, body["id"])
+    assert refused.status_code == 503
+    assert len(calls) == 2  # 第一条已经写入会话（flush），随后整体回滚
+    assert _meals(client, headers) == []
+    with get_engine().connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM meal_entries")).scalar_one() == 0
+    record = client.get(f"{URL}/{body['id']}", headers=headers).json()
+    assert record["status"] == "draft" and record["meal_entry_ids"] is None
 
 
 # ---------- 验收第 6 条：按医嘱评价 ----------
@@ -414,6 +483,25 @@ def test_evaluation_points_out_medical_avoidance(client, model):
     assert any(r["source"] == "medical" and r["ref"] == constraint["id"] for r in tofu_eval["reasons"])
     assert {"item_id", "food_name", "conclusion", "reasons", "tradeoff"} == set(tofu_eval)
     assert len(evaluation["items"]) == 2
+    assert evaluation["unchecked_items"] == [] and evaluation["unchecked_notice"] is None
+
+
+def test_unchecked_dishes_fail_closed_in_the_evaluation(client, model):
+    headers = _user(client, "hank")
+    order = client.post("/api/medical/orders", json={"text": "一周内忌食辛辣。"}, headers=headers).json()
+    for item in order["items"]:
+        assert client.post(f"/api/medical/items/{item['id']}/confirm", headers=headers).status_code == 200
+
+    body = _recognize(client, model, headers, _dish("米饭", "一碗"), _dish("香辣干锅", "一盘", 400))
+    assert _by_name(body, "香辣干锅")["status"] == "needs_confirmation"
+    evaluation = body["evaluation"]
+    [rice_eval] = evaluation["items"]
+    assert rice_eval["item_id"] == _by_name(body, "米饭")["id"] and rice_eval["conclusion"] == "suitable"
+    assert evaluation["conclusion"] != "suitable"
+    assert evaluation["conclusion"] in ("caution", "not_recommended")
+    assert evaluation["unchecked_items"] == ["香辣干锅"]
+    assert evaluation["unchecked_notice"] == UNCHECKED_NOTICE.format(foods="香辣干锅")
+    assert "香辣干锅" in evaluation["unchecked_notice"]
 
 
 # ---------- 验收第 7 条：模型不能看图 ----------

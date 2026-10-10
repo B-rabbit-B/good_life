@@ -9,11 +9,12 @@ from fastapi.routing import APIRoute, iter_route_contexts
 import app.models  # noqa: F401
 from app.db import Base
 from app.main import create_app
+from app.nutrition.catalog import load_catalog
 from app.photos import images, matching, recognition, service
 from app.photos.eval_check import BANDS, GRAMS_TOLERANCE, STATUS_NAMES
 from app.photos.models import PhotoRecognition
 from app.photos.portions import GRAMS_FROM_FOOD, GRAMS_FROM_GROUP, GRAMS_FROM_MODEL, GRAMS_FROM_TABLE, UNITS_FILE
-from app.photos.schemas import MAX_USER_GRAMS, MIN_USER_GRAMS, ItemOut, RecognitionOut
+from app.photos.schemas import MAX_USER_GRAMS, MIN_USER_GRAMS, EvaluationOut, ItemOut, RecognitionOut
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs" / "09-交付物"
@@ -117,6 +118,15 @@ def test_unit_table_doc_lists_every_unit_group_and_amount():
         assert word in doc, word
 
 
+def test_unit_table_doc_counts_foods_with_their_own_portions_from_the_catalog():
+    doc = _read("份量换算表说明.md")
+    foods = [food for food in load_catalog().foods.values() if food.portions]
+    assert f"营养库里自带份量的食物目前有 {len(foods)} 个" in doc
+    listed = re.search(r"自带的单位有([^。]+)。", doc).group(1).split("、")
+    assert len(listed) == len(set(listed))
+    assert set(listed) == {unit for food in foods for unit, _grams in food.portions}
+
+
 def test_interface_doc_lists_every_photo_route_and_every_error_code():
     doc = _read("接口清单.md")
     routes = _photo_routes()
@@ -139,6 +149,8 @@ def test_data_structure_doc_covers_fields_statuses_and_reasons():
     for name in ItemOut.model_fields:
         assert name in doc, name
     for name in RecognitionOut.model_fields:
+        assert name in doc, name
+    for name in EvaluationOut.model_fields:
         assert name in doc, name
     assert [column.name for column in PhotoRecognition.__table__.columns if column.name not in doc] == []
     for word in (*matching.REVIEW_REASONS, "matched", "needs_confirmation", "draft", "confirmed", "discarded",

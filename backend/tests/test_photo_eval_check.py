@@ -141,7 +141,8 @@ def test_full_run_counts_every_metric():
     for row in ("| 漏识 | 2 |", "| 多识 | 1 |", "| 认错 | 1 |", "| 匹配不上 | 1 |", "| 克数偏差超过 50% | 1 |",
                 "| 把握程度低但其实正确 | 1 |", "| 把握程度高但其实错误 | 1 |"):
         assert row in report, row
-    assert "非食物图片 2 张：判为不是食物 1 张，判为看不清 0 张，误判为食物 1 张" in report
+    assert "非食物图片 2 张：判为不是食物 1 张，判为看不清 0 张，误判为食物 1 张，两次格式都不对 0 张" in report
+    assert "错误：非食物图片被误判为食物" in report
     assert "食物图片被判为不是食物、看不清或两次格式都不对：1 张" in report
     assert "用了格式重试：1 张；两次格式都不对：0 张" in report
     assert "不计入统计：2 张" in report and "标注有误、没有评测：1 行" in report
@@ -249,6 +250,32 @@ def test_read_labels_validates_rows():
     assert all(problem.startswith("第 ") for problem in problems)
     assert any("第 4 行" in p and "克数" in p for p in problems)
     assert any("第 10 行" in p and "重复" in p for p in problems)
+
+
+def test_nonfood_counts_add_up_and_unclear_counts_as_correct():
+    labels = "\n".join([HEADER, "c.png,,,否", "d.png,,,否", "e.png,,,否", ""])
+    script = {
+        SIZES["c.png"]: [(200, _answer(status="unclear"))],
+        SIZES["d.png"]: [(200, _answer(status="not_food"))],
+        SIZES["e.png"]: [(200, "不是 JSON"), (200, "还是不是")],
+    }
+    code, report, _model, _printed = _run(script, labels)
+    assert code == 0
+    assert "非食物图片 3 张：判为不是食物 1 张，判为看不清 1 张，误判为食物 0 张，两次格式都不对 1 张" in report
+    assert "正确（判为看不清，同样会拒绝）" in report
+    assert "无法判断：两次格式都不对" in report
+
+
+def test_read_labels_rejects_commas_between_dishes():
+    text = "\n".join([HEADER, "1.jpg,番茄炒蛋，米饭,,是", '2.jpg,"番茄炒蛋,米饭",,是', "3.jpg,番茄炒蛋、米饭,,是"])
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "labels.csv"
+        path.write_text(text, encoding="utf-8")
+        labels, problems = read_labels(path)
+    assert labels == [Label("3.jpg", True, ("番茄炒蛋", "米饭"), None)]
+    assert len(problems) == 2
+    assert all("顿号" in problem for problem in problems)
+    assert problems[0].startswith("第 2 行") and problems[1].startswith("第 3 行")
 
 
 def test_read_labels_needs_the_four_columns():

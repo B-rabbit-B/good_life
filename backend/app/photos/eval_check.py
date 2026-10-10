@@ -60,6 +60,12 @@ STATUS_NAMES = {
     "error": "调用出错",
 }
 COUNTED = ("ok", "not_food", "unclear", "format_failed")  # 计入统计的状态；未评测与调用出错不计入
+NONFOOD_JUDGEMENTS = {  # 非食物图片的逐张判断
+    "not_food": "正确",
+    "unclear": "正确（判为看不清，同样会拒绝）",
+    "ok": "错误：非食物图片被误判为食物",
+    "format_failed": "无法判断：两次格式都不对",
+}
 
 Progress = Callable[[str], None]
 
@@ -150,6 +156,8 @@ def read_labels(path: Path) -> tuple[list[Label], list[str]]:
             problem = f"是否食物只能填“是”或“否”，现在是“{kind}”"
         elif kind == "是" and not dishes:
             problem = "是食物的照片要填真实菜品（多个菜品用顿号分隔）"
+        elif any("，" in dish or "," in dish for dish in dishes):
+            problem = "真实菜品里有逗号；多个菜品要用顿号（、）分隔，例如 番茄炒蛋、米饭"
         elif kind == "是" and grams_parts and (len(grams_parts) != len(dishes) or _grams(grams_parts) is None):
             problem = "真实克数要与菜品一一对应、用顿号分隔，每个都是大于 0 的数字；不知道克数就整格留空"
         if problem:
@@ -257,6 +265,7 @@ class Summary:
     nonfood_correct: int = 0
     nonfood_unclear: int = 0
     nonfood_as_food: int = 0
+    nonfood_format_failed: int = 0
     retried: int = 0
     format_failed: int = 0
     truth_dishes: int = 0
@@ -297,6 +306,7 @@ def summarize(results: list[ImageResult], catalog: Catalog | None = None) -> Sum
             s.nonfood_correct += result.status == "not_food"
             s.nonfood_unclear += result.status == "unclear"
             s.nonfood_as_food += result.status == "ok"
+            s.nonfood_format_failed += result.status == "format_failed"
             continue
         s.food_images += 1
         s.food_rejected += result.status != "ok"
@@ -421,7 +431,7 @@ def _judgement_text(result: ImageResult, catalog: Catalog) -> str:
     if result.status not in COUNTED:
         return result.note
     if not result.label.is_food:
-        return "正确" if result.status == "not_food" else "错误：非食物图片没有判为不是食物"
+        return NONFOOD_JUDGEMENTS[result.status]
     judged = judge(result.label, result.items, catalog)
     return f"命中 {len(judged.hits)}，认错 {judged.misidentified}，多识 {judged.extra}，漏识 {judged.missed}"
 
@@ -445,7 +455,8 @@ def render_markdown(results: list[ImageResult], problems: list[str], choice: Vis
               f"- 菜品级召回率：{_percent(s.hits, s.truth_dishes)}（命中 {s.hits} 道，真实菜品共 {s.truth_dishes} 道）",
               f"- 菜品级精确率：{_percent(s.hits, s.recognized)}（命中 {s.hits} 个，识别出的菜品共 {s.recognized} 个）",
               f"- 非食物图片 {s.nonfood_images} 张：判为不是食物 {s.nonfood_correct} 张，"
-              f"判为看不清 {s.nonfood_unclear} 张，误判为食物 {s.nonfood_as_food} 张",
+              f"判为看不清 {s.nonfood_unclear} 张，误判为食物 {s.nonfood_as_food} 张，"
+              f"两次格式都不对 {s.nonfood_format_failed} 张",
               f"- 食物图片被判为不是食物、看不清或两次格式都不对：{s.food_rejected} 张",
               f"- 用了格式重试：{s.retried} 张；两次格式都不对：{s.format_failed} 张",
               "",

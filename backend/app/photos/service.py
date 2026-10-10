@@ -19,7 +19,8 @@ from app.llm.service import AdapterFactory, ResolvedTarget, complete, resolve_ta
 from app.nutrition import meals
 from app.nutrition.catalog import Catalog, load_catalog
 from app.nutrition.context import build_context
-from app.nutrition.engine import evaluate_meal
+from app.nutrition.engine import CAUTION, CONCLUSION_ORDER, SUITABLE, evaluate_meal
+from app.nutrition.engine import DISCLAIMER as DISCLAIMER_ENGINE
 from app.photos.images import prepare_image
 from app.photos.matching import GRAMS_FROM_USER, MATCH_USER_SELECTED, MAX_CANDIDATES, REVIEW_REASONS, build_item
 from app.photos.models import PhotoRecognition
@@ -38,9 +39,11 @@ DISCLAIMER = "菜品与份量由模型估算，热量与营养由营养库按份
 RECOGNITION_MAX_TOKENS = 1500
 MEAL_NOTE = "拍照识别"
 USER_CONFIDENCE = 1.0
-MAX_NOTE_LENGTH = 200
-# 模型的补充说明里出现数字或这些词就整句丢弃：热量与营养数字只能来自营养库。
-_NUTRITION_WORDS = ("热量", "卡", "cal", "千焦", "kj", "能量", "蛋白", "脂肪", "碳水", "糖", "盐", "营养", "钠", "纤维")
+# 待确认菜品的固定提示（程序写的，不来自模型），仿照智能体守卫的 FALLBACK_UNCHECKED。
+UNCHECKED_NOTICE = (
+    "以下菜品没能匹配到营养库，暂时没有按你的医嘱和饮食约束核对：{foods}。"
+    "请先从候选里选择对应的食物或改名，核对之后再吃或再确认入库。"
+)
 
 
 def _not_found() -> AppError:
@@ -75,13 +78,6 @@ def _ask_model(user_id: uuid.UUID, jpeg: bytes, target: ResolvedTarget, factory:
                    "模型没有按要求给出识别结果，请稍后重试；多次失败时可以到设置页换一个看图模型，或手动记录这一餐")
 
 
-def _safe_note(note: str) -> str | None:
-    lowered = note.lower()
-    if not note or any(ch.isdigit() for ch in note) or any(word in lowered for word in _NUTRITION_WORDS):
-        return None
-    return note[:MAX_NOTE_LENGTH]
-
-
 def recognize(user_id: uuid.UUID, content: bytes, keep_image: bool, *, factory: AdapterFactory) -> uuid.UUID:
     """识别一张餐食照片并保存为草稿，返回识别记录编号。不是食物、看不清时报错，不保存记录。"""
     prepared = prepare_image(content)
@@ -101,7 +97,6 @@ def recognize(user_id: uuid.UUID, content: bytes, keep_image: bool, *, factory: 
         user_id=user_id,
         status=DRAFT,
         items=items,
-        note=_safe_note(output.note),
         image=prepared.data if keep_image else None,
         image_kept=keep_image,
         model_id=target.model_id,
@@ -214,10 +209,10 @@ def confirm(
     if any(item["status"] != "matched" for item in items):
         raise AppError(422, "photo_items_need_confirmation",
                        "还有待确认的菜品：请先从候选里选择对应的食物、改成营养库里有的名称，或删除这一项，再确认入库")
-    too_heavy = next((item for item in items if item["grams"] > meals.MAX_GRAMS), None)
-    if too_heavy is not None:
+    bad = next((item for item in items if not 0 < item["grams"] <= meals.MAX_GRAMS), None)
+    if bad is not None:
         raise AppError(422, "photo_grams_out_of_range",
-                       f"“{too_heavy['name']}”的克数超过了 {meals.MAX_GRAMS} 克，请先修正这道菜的克数，再确认入库")
+                       f"“{bad['name']}”的克数需要大于 0 且不超过 {meals.MAX_GRAMS} 克，请先修正这道菜的克数，再确认入库")
     try:
         entries = [
             meals.log_meal(db, user_id, eaten_on=eaten_on, meal_type=meal_type, food_id=item["food_id"],
@@ -252,15 +247,28 @@ def delete_recognition(db: Session, user_id: uuid.UUID, rec_id: uuid.UUID) -> No
 
 
 def evaluate(db: Session, user_id: uuid.UUID, items: list[dict[str, Any]], today: date) -> dict[str, Any] | None:
-    """用步骤 04 的引擎按今天的约束评价这一餐里已匹配的菜品；结论与依据原样来自引擎。没有已匹配菜品时返回 None。"""
+    """用步骤 04 的引擎按今天的约束评价这一餐里已匹配的菜品；结论与依据原样来自引擎。
+
+    待确认的菜品没法核对，按“未核对即不放行”处理：列在 unchecked_items 里，附一句固定提示，
+    整餐结论至少是“注意”（caution）。只有待确认菜品时也返回评价（items 为空）；一个菜品都没有时返回 None。
+    """
     catalog = load_catalog()
-    matched = [item for item in current_items(items, catalog) if item["status"] == "matched"]
-    if not matched:
+    current = current_items(items, catalog)
+    if not current:
         return None
-    foods = [(catalog.get(item["food_id"]), item["grams"]) for item in matched]
-    result = evaluate_meal(foods, build_context(db, user_id, today), catalog)
+    matched = [item for item in current if item["status"] == "matched"]
+    unchecked = [item["name"] for item in current if item["status"] != "matched"]
+    conclusion, evaluations, disclaimer = SUITABLE, [], DISCLAIMER_ENGINE
+    if matched:
+        foods = [(catalog.get(item["food_id"]), item["grams"]) for item in matched]
+        result = evaluate_meal(foods, build_context(db, user_id, today), catalog)
+        conclusion, evaluations, disclaimer = result.conclusion, result.items, result.disclaimer
+    if unchecked:
+        conclusion = max(conclusion, CAUTION, key=CONCLUSION_ORDER.index)
     return {
-        "conclusion": result.conclusion,
+        "conclusion": conclusion,
+        "unchecked_items": unchecked,
+        "unchecked_notice": UNCHECKED_NOTICE.format(foods="、".join(unchecked)) if unchecked else None,
         "items": [
             {
                 "item_id": item["id"],
@@ -269,7 +277,7 @@ def evaluate(db: Session, user_id: uuid.UUID, items: list[dict[str, Any]], today
                 "reasons": [vars(reason) for reason in evaluation.reasons],
                 "tradeoff": evaluation.tradeoff,
             }
-            for item, evaluation in zip(matched, result.items, strict=True)
+            for item, evaluation in zip(matched, evaluations, strict=True)
         ],
-        "disclaimer": result.disclaimer,
+        "disclaimer": disclaimer,
     }

@@ -67,8 +67,14 @@ def test_parse_rejects_missing_json(text):
 
 
 def test_parse_not_food_and_unclear_have_no_items():
-    assert parse_output('{"status": "not_food", "items": [], "note": "是一只猫"}').note == "是一只猫"
+    assert parse_output('{"status": "not_food", "items": []}').items == ()
     assert parse_output('{"status": "unclear"}').items == ()
+
+
+def test_parse_ignores_the_models_note():
+    out = parse_output('{"status": "ok", "items": [{"name": "米饭"}], "note": "可以配一杯啤酒解腻"}')
+    assert set(vars(out)) == {"status", "items"}
+    assert "啤酒" not in repr(out)
 
 
 def test_parse_keeps_at_most_twelve_items():
@@ -91,7 +97,7 @@ def test_parse_trims_and_limits_names():
     assert out.items[1].name == "长" * 30
 
 
-@pytest.mark.parametrize("grams", ["-50", -50, 0, "多", None, True, [1], "1e999"])
+@pytest.mark.parametrize("grams", ["-50", -50, 0, 0.3, 0.99, 5000.5, 1e308, "1e308", "多", None, True, [1], "1e999"])
 def test_parse_bad_grams_become_none(grams):
     text = json.dumps({"status": "ok", "items": [{"name": "米饭", "grams": grams}]}, ensure_ascii=False)
     assert parse_output(text).items[0].grams_estimate is None
@@ -123,14 +129,15 @@ def test_parse_ignores_calorie_and_nutrient_fields():
     }
     out = parse_output(json.dumps(raw))
     assert set(vars(out.items[0])) == {"name", "portion_text", "grams_estimate", "confidence"}
-    assert set(vars(out)) == {"status", "items", "note"}
+    assert set(vars(out)) == {"status", "items"}
 
 
 def test_prompts_forbid_nutrition_numbers_and_ask_for_json_only():
     assert "只输出一段 JSON" in RECOGNITION_PROMPT
     assert "不要给出热量或任何营养数字" in RECOGNITION_PROMPT
-    for word in ("status", "items", "name", "portion", "grams", "confidence", "note", "not_food", "unclear"):
+    for word in ("status", "items", "name", "portion", "grams", "confidence", "not_food", "unclear"):
         assert word in RECOGNITION_PROMPT
+    assert "note" not in RECOGNITION_PROMPT and "补充" not in RECOGNITION_PROMPT
     assert "只输出一段 JSON" in RETRY_PROMPT
 
 
