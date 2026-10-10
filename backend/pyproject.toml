@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.142.1",
     "httpx2>=2.13.1",
     "mcp>=2.3,<3",
+    "pillow>=12,<13",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.15.0",
     "pyjwt>=2.15.1",

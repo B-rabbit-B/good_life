@@ -1,6 +1,6 @@
 # good-life
 
-个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件）。此外还完成了步骤 04（营养与饮食约束引擎：营养库与检索、饮食记录与每日汇总、需求估算、融合医嘱、经期、目标与当日摄入的饮食判断）。随后完成了步骤 05（健身模块：内置动作库与自定义动作、训练记录、周汇总与动作趋势、能量消耗估算、训练信号与饮食联动、运动限制冲突提示）。随后完成了步骤 06（SDK 与 MCP：进程内 SDK 封装前面各模块的能力，用户可签发只读或读写的智能体授权，再通过本地 MCP 服务让任何支持 MCP 的客户端调用，医嘱确认与解除不暴露给模型，每次调用留审计）。步骤 01 至 06 均已验收通过。步骤 07（多模型接入：用户填写模型服务的地址与密钥，由后端拉取模型列表、标注看图与工具调用能力、测试连通性、为日常对话与看图识别分别选择模型，并用统一的方式调用 Claude、Gemini 与各种兼容格式的服务，密钥加密保存、只显示掩码）已有条件通过：除真实服务实测外的 6 条验收标准已代验通过，真实服务实测需要你本人运行实测脚本补做，见第 16 节。步骤 08（智能体层：会聊天、会按档案调用工具、按规则主动开场提问的站内智能体，回答发出前由输出检查保证不提到医嘱禁忌的食物，涉及用药、严重症状、孕期异常、极端节食与自伤的话题只给固定的安全回复，依据只来自步骤 04 的引擎）已有条件通过：第 3 至 8 条已代验通过，第 1、2、9 条的真实模型表现还需要你用真实模型运行智能体实测脚本补做，见第 17 节。
+个人档案驱动的健康生活智能体。当前完成的是步骤 01（项目底座与账号档案：后端服务、PostgreSQL、注册登录、个人档案、免责声明）、步骤 02（经期模块：经期记录、统计、预测、阶段判断与阶段提示）和步骤 03（医嘱模块：医嘱录入与提取、条目确认、状态流转、当前约束查询、解除与审计、证据文件）。此外还完成了步骤 04（营养与饮食约束引擎：营养库与检索、饮食记录与每日汇总、需求估算、融合医嘱、经期、目标与当日摄入的饮食判断）。随后完成了步骤 05（健身模块：内置动作库与自定义动作、训练记录、周汇总与动作趋势、能量消耗估算、训练信号与饮食联动、运动限制冲突提示）。随后完成了步骤 06（SDK 与 MCP：进程内 SDK 封装前面各模块的能力，用户可签发只读或读写的智能体授权，再通过本地 MCP 服务让任何支持 MCP 的客户端调用，医嘱确认与解除不暴露给模型，每次调用留审计）。步骤 01 至 06 均已验收通过。步骤 07（多模型接入：用户填写模型服务的地址与密钥，由后端拉取模型列表、标注看图与工具调用能力、测试连通性、为日常对话与看图识别分别选择模型，并用统一的方式调用 Claude、Gemini 与各种兼容格式的服务，密钥加密保存、只显示掩码）已有条件通过：除真实服务实测外的 6 条验收标准已代验通过，真实服务实测需要你本人运行实测脚本补做，见第 16 节。步骤 08（智能体层：会聊天、会按档案调用工具、按规则主动开场提问的站内智能体，回答发出前由输出检查保证不提到医嘱禁忌的食物，涉及用药、严重症状、孕期异常、极端节食与自伤的话题只给固定的安全回复，依据只来自步骤 04 的引擎）已有条件通过：第 3 至 8 条已代验通过，第 1、2、9 条的真实模型表现还需要你用真实模型运行智能体实测脚本补做，见第 17 节。步骤 09（拍照识别：上传一张饭菜照片，由“看图识别”用途的模型认出菜品与份量，匹配营养库按克数算出热量与营养并给出数据出处，匹配不上的标为待确认，用户可以修正，确认后才写入饮食记录，并由步骤 04 的引擎按个人约束评价这一餐；原图默认不保留）已有条件通过：第 2 至 7 条已代验通过，第 1、9 条的流程与规则部分已代验；第 8 条需要你用至少二十张自选照片运行照片评测脚本，第 1、9 条的真实模型表现也由这次评测给出，见第 19 节。
 
 定位声明：只提供生活方式建议，不做医疗诊断，不替代医生。
 
@@ -68,7 +68,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 uv run alembic upgrade head
 ```
 
-该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）以及 `custom_exercises`、`workouts`、`strength_sets`、`cardio_entries`（步骤 05 健身模块）以及 `agent_grants`、`sdk_call_audits`（步骤 06 的智能体授权与调用审计）以及 `llm_providers`、`llm_models`、`llm_assignments`（步骤 07 的模型服务、模型与用途分配）以及 `agent_conversations`、`agent_messages`、`agent_preferences`、`agent_openings`、`agent_settings`（步骤 08 的智能体会话、消息、偏好、开场记录与设置）共二十六张表。营养库与内置动作库都不入数据库，随程序从数据文件加载。
+该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）以及 `custom_exercises`、`workouts`、`strength_sets`、`cardio_entries`（步骤 05 健身模块）以及 `agent_grants`、`sdk_call_audits`（步骤 06 的智能体授权与调用审计）以及 `llm_providers`、`llm_models`、`llm_assignments`（步骤 07 的模型服务、模型与用途分配）以及 `agent_conversations`、`agent_messages`、`agent_preferences`、`agent_openings`、`agent_settings`（步骤 08 的智能体会话、消息、偏好、开场记录与设置）以及 `photo_recognitions`（步骤 09 的拍照识别记录）共二十七张表。营养库与内置动作库都不入数据库，随程序从数据文件加载。
 
 ## 6. 运行测试
 
@@ -425,3 +425,53 @@ uv run python -m app.phase2_demo
 ```
 
 脚本会重建检查账号 `demo_phase2`（密码 `demo-pass-123`），并在本机启动一个按关键词应答的模拟模型（不连外网、不用真实密钥），然后通过真实接口依次：配置模型、录入并确认医嘱、取开场问题（再取一次相同、拒绝后不再问）、让智能体用工具记下早餐、问晚饭吃什么（带依据与免责）、诱导推荐忌口食物（被拦截改写并附医嘱提醒）、问停药（固定就医引导、不调模型）、说“医生说我好了”（只提出解除建议，用户本人确认后才解除）、解除后再问、流式输出。结果见 `docs/第二阶段中期检查记录.md`。
+
+## 19. 拍照识别
+
+步骤 09 让你上传一张饭菜照片，由步骤 07 里“看图识别”用途选定的模型认出菜品、份量说法、估计克数与把握程度，再匹配步骤 04 的营养库按克数算出热量与营养。分工是：模型只负责“看”，营养库负责“算”，引擎负责“评”：
+
+- 图片：只收 JPEG、PNG、WebP，不超过 8 MB；后端先转正方向、去掉全部元数据（包括拍摄位置）、长边缩到 1280 像素，再重新编码为 JPEG，发给模型的只是这份 JPEG。原图从不保存；上传时选择保留的，只保存处理后的 JPEG，加密存储，可随记录删除。
+- 识别：模型只输出一段 JSON，格式不对时用同一张图片重试一次；不是食物或看不清时直接给出重拍提示，不保存记录。模型给的热量或营养数字一律不读。
+- 匹配与计算：菜名在营养库里精确命中（名称、常用名或别名）才算已匹配，否则标为“待确认”，不给数字，附候选让你选；份量按“该食物自带的份量、通用换算表、模型估计的克数、类别默认份量”的顺序换算成克，换算表在 `backend/app/photos/data/portion_units.json`，可以直接修改。每个菜品都带营养库的数据出处。
+- 提醒修正：把握程度低于 0.6、待确认、克数小于 10 克或大于 1500 克、克数只来自估算，任一条成立就建议修正。
+- 修正与确认：可以改菜名、改份量或克数、从候选里选食物、增删菜品，修改后重新计算；只有确认之后才写入饮食记录（每个菜品一条，备注“拍照识别”），还有待确认的菜品时不能确认。草稿会带上引擎按你今天的约束（医嘱、经期、目标、当日摄入）给出的评价与依据。
+
+先确认开发库已建到最新版本（包含 `photo_recognitions` 表），在 `backend` 目录执行：
+
+```powershell
+uv run alembic upgrade head
+```
+
+### 通过接口文档页面试用
+
+启动后端服务（第 7 节），在 http://localhost:8000/docs 注册、登录、确认免责声明并 Authorize（第 8 节），按第 16 节添加一个能看图的模型（例如通义千问的 `qwen-vl-max`），并用 `PUT /api/llm/assignments/vision` 把它分配给“看图识别”。然后在 photos 分组里：
+
+1. 上传识别：`POST /api/photos/recognitions`，`file` 选一张饭菜照片，`keep_image` 不填或填 `false`（不保留图片）。响应 201 是一条草稿：`items` 里每个菜品有克数、克数来源、把握程度、`status`（`matched` 或 `needs_confirmation`）、营养、数据出处与 `review_reasons`；`totals` 是已匹配菜品的合计；`evaluation` 是引擎的评价。没有选看图模型时返回 409 `llm_not_configured`，选的模型不能看图时返回 422 `llm_model_lacks_vision`；不是食物或看不清时返回 422 `photo_not_food` 或 `photo_unclear`。
+2. 修正：`PUT /api/photos/recognitions/{rec_id}/items`，`items` 放修正后的整组菜品（带 `id` 是修改，不带是新增，没列出的即删除），每项可以改 `name`、`portion_text`、`grams`，或用 `food_id` 从候选里选食物。
+3. 确认入库：`POST /api/photos/recognitions/{rec_id}/confirm`，填 `eaten_on`（不能晚于今天）与 `meal_type`。之后用 `GET /api/nutrition/meals` 能看到写入的饮食记录。不想要这次识别时用 `POST /api/photos/recognitions/{rec_id}/discard` 放弃。
+4. 识别历史：`GET /api/photos/recognitions`；查看一条：`GET /api/photos/recognitions/{rec_id}`；删除：`DELETE /api/photos/recognitions/{rec_id}`；上传时选择了保留图片的，用 `GET /api/photos/recognitions/{rec_id}/image` 取回处理后的图片。
+
+完整的流程、换算表、数据结构、接口、错误码与验收方法见 `docs/09-交付物/`。
+
+### 照片评测
+
+验收第 8 条要求用至少二十张自选照片评测识别效果，并据此确定哪些情况需要提醒修正。这需要真实的看图模型与你自己拍的照片，所以由你本人在本机运行照片评测脚本（自动化测试只用假服务与程序生成的图片）。
+
+1. 密钥：与第 16 节是同一份 `backend/llm_keys.local.env`，至少有一家服务同时填了密钥与看图模型名（`*_VISION_MODEL`，例如 `QWEN_VISION_MODEL=qwen-vl-max`）；脚本按服务的顺序用第一家填了看图模型名的服务。
+2. 照片：在 `backend` 目录下新建 `photo_eval` 目录，放入至少二十张照片（JPEG、PNG 或 WebP），其中放几张不是食物的。
+3. 标注：把 `backend/photo_eval.labels.example.csv` 复制到 `backend/photo_eval/labels.csv`，每张照片写一行：文件名、真实菜品（多个用顿号分隔）、真实克数（可不填，填写时与菜品一一对应、用顿号分隔）、是否食物（是或否）。用表格软件编辑时另存为“CSV UTF-8”格式。在 `backend` 目录执行：
+
+```powershell
+New-Item -ItemType Directory -Force photo_eval
+Copy-Item photo_eval.labels.example.csv photo_eval\labels.csv
+```
+
+重要：照片目录 `backend/photo_eval/` 与结果文件 `backend/photo_eval_result.md` 都已在 `backend/.gitignore` 中忽略，不要提交；密钥文件同样不能提交，也不能发给任何人。
+
+然后在 `backend` 目录运行：
+
+```powershell
+uv run python -m app.photos.eval_check
+```
+
+每张照片走与正式流程相同的步骤（同样的图片处理、提示词、格式重试、解析、营养库匹配与份量换算），不连数据库、不保存任何记录；每次调用最多等 60 秒，运行中逐张打印进度。结束后把结果打印在屏幕上，并写入 `backend/photo_eval_result.md`：每张照片的真实菜品与识别结果（只有菜名与克数，没有图片）、菜品级召回率与精确率、非食物照片的判断情况、各类错误的数量（漏识、多识、认错、匹配不上、克数偏差超过 50%、把握程度低但其实正确、把握程度高但其实错误）、按把握程度分段的正确率与建议的提醒阈值。中途按 Ctrl+C 中断时，已完成的照片也会写进去。输出前会去掉全部密钥，仍请你先看一遍。再把结果摘抄进 `docs/09-交付物/评测记录.md`，并对照 `docs/09-交付物/验收记录.md` 逐条核对。
