@@ -73,13 +73,18 @@ def log_meal(
     portion: dict[str, Any] | None,
     note: str | None,
     today: date,
+    commit: bool = True,
 ) -> MealEntry:
+    """commit 为假时只写入会话（flush）不提交，由调用方把多条记录放在同一个事务里一起提交。"""
     if eaten_on > today:
         raise AppError(422, "meal_in_future", "不能记录未来日期的饮食")
     food = get_food(food_id)
     entry = MealEntry(user_id=user_id, eaten_on=eaten_on, meal_type=meal_type, note=note)
     _apply_snapshot(entry, food, resolve_grams(food, grams, portion))
     db.add(entry)
+    if not commit:
+        db.flush()
+        return entry
     db.commit()
     db.refresh(entry)
     return entry
