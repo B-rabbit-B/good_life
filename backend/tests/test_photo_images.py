@@ -1,11 +1,13 @@
 import io
 import struct
+import warnings
 import zlib
 
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageCms
+from PIL.PngImagePlugin import PngInfo
 
 from app.common.body_limit import DEFAULT_RULES, MAX_PHOTO_BODY_BYTES, UploadBodyLimitMiddleware
 from app.errors import AppError
@@ -172,14 +174,93 @@ def test_header_only_and_garbage_are_unreadable():
 @pytest.mark.parametrize(
     "width,height",
     [
-        (7000, 7000),  # 4900 万：超过我们的上限，但 Pillow 不会警告
-        (10000, 10000),  # 1 亿：Pillow 会发出解压炸弹警告
-        (20000, 20000),  # 4 亿：Pillow 直接抛出解压炸弹错误
+        (7000, 7000),  # 4900 万
+        (10000, 10000),  # 1 亿
+        (20000, 20000),  # 4 亿
     ],
 )
 def test_too_many_declared_pixels(width, height):
     error = _error(_png_declaring(width, height))
     assert (error.status_code, error.code) == (422, "photo_too_many_pixels")
+
+
+def test_prepare_image_leaves_warning_filters_untouched():
+    before = list(warnings.filters)
+    prepare_image(_jpeg_with_exif(800, 600))
+    for content in (_png_declaring(10000, 10000), b"\xff\xd8\xff\xe0 garbage"):
+        _error(content)
+    assert warnings.filters == before
+
+
+XMP_PACKET = (
+    b'<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
+    b"<rdf:RDF><rdf:Description SECRET-XMP/></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>"
+)
+
+
+def _srgb_profile() -> bytes:
+    return ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+
+
+def test_jpeg_comment_icc_xmp_and_exif_do_not_survive():
+    exif = Image.Exif()
+    exif[0x010F] = "SECRET-MAKER"
+    exif[ORIENTATION] = 1
+    source = _encode(
+        _gradient(300, 200),
+        "JPEG",
+        comment=b"SECRET-COMMENT",
+        icc_profile=_srgb_profile(),
+        xmp=XMP_PACKET,
+        exif=exif,
+    )
+    for marker in (b"SECRET-COMMENT", b"ICC_PROFILE", b"http://ns.adobe.com/xap/1.0/", b"SECRET-XMP", b"SECRET-MAKER"):
+        assert marker in source
+
+    result = prepare_image(source)
+
+    for marker in (b"SECRET", b"ICC_PROFILE", b"ns.adobe.com", b"Exif", b"xmp", b"XMP"):
+        assert marker not in result.data
+    out = Image.open(io.BytesIO(result.data))
+    assert out.info.get("comment") is None
+    assert out.info.get("icc_profile") is None
+    assert out.info.get("exif") is None
+
+
+def test_png_text_chunks_icc_and_exif_do_not_survive():
+    text = PngInfo()
+    text.add_text("Comment", "SECRET-TEXT")
+    text.add_itxt("XML:com.adobe.xmp", XMP_PACKET.decode(), zip=False)
+    exif = Image.Exif()
+    exif[0x010F] = "SECRET-MAKER"
+    source = _encode(_gradient(120, 80), "PNG", pnginfo=text, icc_profile=_srgb_profile(), exif=exif)
+    assert b"SECRET-TEXT" in source and b"SECRET-MAKER" in source
+
+    result = prepare_image(source)
+
+    for marker in (b"SECRET", b"ICC_PROFILE", b"ns.adobe.com", b"Exif", b"XMP"):
+        assert marker not in result.data
+    assert Image.open(io.BytesIO(result.data)).info.get("comment") is None
+
+
+def test_large_jpeg_is_reduced_while_decoding_and_keeps_orientation():
+    exif = Image.Exif()
+    exif[ORIENTATION] = 8  # 逆时针转 90 度：竖图变回横图的反向
+    img = Image.new("RGB", (4000, 1000), (0, 0, 255))
+    img.paste((255, 0, 0), (0, 0, 1000, 1000))  # 左边是红色
+    result = prepare_image(_encode(img, "JPEG", exif=exif))
+
+    assert (result.width, result.height) == (320, 1280)
+    out = Image.open(io.BytesIO(result.data)).convert("RGB")
+    r, g, b = out.getpixel((160, 1200))  # 原图左边（红）经 ROTATE_90 转到底部
+    assert r > 200 and b < 60
+
+
+def test_cmyk_jpeg_is_converted_to_rgb():
+    source = _encode(Image.new("CMYK", (2000, 1500), (0, 255, 255, 0)), "JPEG")
+    result = prepare_image(source)
+    out = Image.open(io.BytesIO(result.data))
+    assert (out.mode, out.size) == ("RGB", (1280, 960))
 
 
 def test_output_is_deterministic():

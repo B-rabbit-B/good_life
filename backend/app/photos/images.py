@@ -4,10 +4,9 @@
 """
 
 import io
-import warnings
 from dataclasses import dataclass
 
-from PIL import Image, ImageOps
+from PIL import Image
 
 from app.errors import AppError
 
@@ -19,6 +18,20 @@ ALLOWED_TYPES = ("image/jpeg", "image/png", "image/webp")
 
 _HEIC_BRANDS = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"hevm", b"hevs", b"mif1", b"msf1", b"heif"}
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_ORIENTATION_TAG = 0x0112
+_TRANSPOSE = {
+    2: Image.Transpose.FLIP_LEFT_RIGHT,
+    3: Image.Transpose.ROTATE_180,
+    4: Image.Transpose.FLIP_TOP_BOTTOM,
+    5: Image.Transpose.TRANSPOSE,
+    6: Image.Transpose.ROTATE_270,
+    7: Image.Transpose.TRANSVERSE,
+    8: Image.Transpose.ROTATE_90,
+}
+
+# 像素上限由 prepare_image 自己在打开后、解码前检查；关掉 Pillow 自带的检查，
+# 这样它既不会发警告（警告过滤器是全局的，线程不安全），也不会在我们之前抛错。
+Image.MAX_IMAGE_PIXELS = None
 
 
 def sniff_image_type(content: bytes) -> str | None:
@@ -67,45 +80,58 @@ def _check_content(content: bytes) -> str:
     return kind
 
 
-def _to_rgb(img: Image.Image) -> Image.Image:
-    if img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info):
-        rgba = img.convert("RGBA")
-        background = Image.new("RGB", rgba.size, (255, 255, 255))
-        background.paste(rgba, mask=rgba.getchannel("A"))
-        return background
-    return img.convert("RGB")
-
-
 def prepare_image(content: bytes) -> PreparedImage:
     source_type = _check_content(content)
     try:
-        # 解压炸弹警告在这里一律当作错误处理，其他警告（例如损坏的 EXIF）不外泄。
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            return _process(content, source_type)
+        return _process(content, source_type)
     except AppError:
         raise
-    except (Image.DecompressionBombWarning, Image.DecompressionBombError):
+    except Image.DecompressionBombError:
         raise _too_many_pixels() from None
     except Exception:  # Pillow 对损坏文件会抛出多种异常，对用户都是“打不开”
         raise _unreadable() from None
+
+
+def _target_size(width: int, height: int) -> tuple[int, int]:
+    long_side = max(width, height)
+    if long_side <= TARGET_LONG_SIDE:
+        return width, height
+    scale = TARGET_LONG_SIDE / long_side
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def _has_alpha(img: Image.Image) -> bool:
+    return img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info)
 
 
 def _process(content: bytes, source_type: str) -> PreparedImage:
     with Image.open(io.BytesIO(content)) as img:
         if img.width * img.height > MAX_PIXELS:  # 先看声明的尺寸，再解码像素
             raise _too_many_pixels()
+        size = _target_size(img.width, img.height)
+        orientation = img.getexif().get(_ORIENTATION_TAG)
+        if img.format == "JPEG" and size != img.size:
+            img.draft("RGB", size)  # 让解码器直接按 1/2、1/4、1/8 缩小，省内存
         img.load()
-        upright = ImageOps.exif_transpose(img)
-        rgb = _to_rgb(upright)
 
-    long_side = max(rgb.size)
-    if long_side > TARGET_LONG_SIDE:
-        scale = TARGET_LONG_SIDE / long_side
-        size = (max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale)))
-        rgb = rgb.resize(size, Image.Resampling.LANCZOS)
+        # 先缩小再转正，大图只在缩小之前占用一份完整的像素内存。
+        if _has_alpha(img):
+            rgba = img if img.mode == "RGBA" else img.convert("RGBA")
+            if rgba.size != size:
+                rgba = rgba.resize(size, Image.Resampling.LANCZOS)
+            result = Image.new("RGB", size, (255, 255, 255))
+            result.paste(rgba, mask=rgba.getchannel("A"))
+        else:
+            rgb = img if img.mode == "RGB" else img.convert("RGB")
+            result = rgb if rgb.size == size else rgb.resize(size, Image.Resampling.LANCZOS)
+            if result is img:  # 离开 with 之后原图会被关闭，先复制一份
+                result = img.copy()
+
+    transpose = _TRANSPOSE.get(orientation)
+    if transpose is not None:
+        result = result.transpose(transpose)
+    result.info = {}  # 注释、ICC、XMP、文字块等一律不带进输出
 
     out = io.BytesIO()
-    rgb.save(out, format="JPEG", quality=JPEG_QUALITY)  # 不传 exif、icc_profile，输出不带任何元数据
-    return PreparedImage(data=out.getvalue(), width=rgb.width, height=rgb.height, source_type=source_type)
+    result.save(out, format="JPEG", quality=JPEG_QUALITY)  # 不传 exif、icc_profile，输出不带任何元数据
+    return PreparedImage(data=out.getvalue(), width=result.width, height=result.height, source_type=source_type)
