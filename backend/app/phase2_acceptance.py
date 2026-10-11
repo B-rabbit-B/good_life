@@ -4,7 +4,7 @@
 没有真实的模型密钥与高德密钥，所以脚本自带两个本地模拟服务（都在 127.0.0.1 的空闲端口上，结束时关闭）：
 一个 OpenAI 兼容的模拟模型（沿用中期检查的按关键词回答，另外会“看图”：按图片颜色给出固定的识别结果，
 会回答附近餐厅的工具调用），一个模拟高德 Web 服务（固定的几家店）。后端用真实的适配器与高德客户端通过 HTTP
-去访问它们；高德的地址与密钥只在本进程里临时改成模拟服务与演示用的假密钥，不读也不改 backend/.env。
+去访问它们；不修改 .env，高德地址与密钥由进程环境变量覆盖（指向模拟服务与演示用的假密钥），结束时恢复。
 脚本会重建演示账号 demo_phase2_final（密码 demo-pass-123），全程经 FastAPI 应用的真实接口（进程内的 TestClient）；
 确认医嘱、确认解除、修正并确认拍照识别、定位授权这几步代表用户本人在应用里的操作。
 """
@@ -13,6 +13,7 @@ import base64
 import io
 import json
 import os
+import re
 import sys
 import threading
 from collections.abc import Callable
@@ -49,10 +50,11 @@ from app.phase2_demo import (
 )
 from app.photos.models import PhotoRecognition
 from app.photos.service import MEAL_NOTE as PHOTO_NOTE
-from app.restaurants.coords import wgs84_to_gcj02
+from app.restaurants.coords import coarse, wgs84_to_gcj02
 from app.restaurants.models import RestaurantSettings
 from app.restaurants.service import NOTICE as RESTAURANT_NOTICE
 from app.sdk.tooling import tool_name
+from app.security.crypto import EncryptedBytes, EncryptedJSON
 
 DEMO_USERNAME = "demo_phase2_final"
 VISION_MODEL_ID = "qwen-vl-max"
@@ -69,6 +71,10 @@ STEAMED_FISH = "清蒸鱼"
 NAV_PREFIX = "https://uri.amap.com/navigation?to="
 STEP_COUNT = 23
 ENV_NAMES = ("LLM_ALLOW_PRIVATE_HOSTS", "AMAP_KEY", "AMAP_BASE_URL")
+# 识别结果：模型给的克数、份量换算表换算后的克数、营养库食物编号与热量
+EXPECTED_ITEMS = {MAPO_TOFU: {"model_grams": 300, "grams": 250.0, "food_id": "dish:mapo_tofu", "kcal": 340.5},
+                  "米饭": {"model_grams": 180, "grams": 150.0, "food_id": "cfcd:012401x", "kcal": 174.0}}
+COORDINATE = re.compile(r"\d{2,3}\.\d{3,}")  # 三位以上小数的经纬度写法
 
 
 # ---------- 本地模拟模型：中期检查的模型，加上看图与附近餐厅 ----------
@@ -91,8 +97,10 @@ def _vision_answer(jpeg: bytes) -> str:
     if min(mean) > 240:
         return json.dumps({"status": "not_food", "items": []})
     return json.dumps({"status": "ok", "calories": SNEAKED_CALORIES, "items": [
-        {"name": MAPO_TOFU, "portion": "一盘", "grams": 300, "confidence": 0.9, "calories": SNEAKED_CALORIES},
-        {"name": "米饭", "portion": "一碗", "grams": 180, "confidence": 0.95, "calories": SNEAKED_CALORIES},
+        {"name": MAPO_TOFU, "portion": "一盘", "grams": EXPECTED_ITEMS[MAPO_TOFU]["model_grams"], "confidence": 0.9,
+         "calories": SNEAKED_CALORIES},
+        {"name": "米饭", "portion": "一碗", "grams": EXPECTED_ITEMS["米饭"]["model_grams"], "confidence": 0.95,
+         "calories": SNEAKED_CALORIES},
     ]}, ensure_ascii=False)
 
 
@@ -290,12 +298,20 @@ def photo_steps(story: AcceptanceStory) -> None:
     evaluation = body["evaluation"] or {}
     tofu_eval = next((e for e in evaluation.get("items", []) if tofu and e["item_id"] == tofu["id"]), None)
     medical = _medical(tofu_eval["reasons"], item_id) if tofu_eval else []
-    story.step("拍照识别：上传照片，热量取自营养库，按医嘱评价",
-               [item["name"] for item in items] == [MAPO_TOFU, "米饭"] and from_catalog
+    expected = all(
+        item["name"] in EXPECTED_ITEMS and item["food_id"] == EXPECTED_ITEMS[item["name"]]["food_id"]
+        and item["grams"] == EXPECTED_ITEMS[item["name"]]["grams"]
+        and item["nutrients"]["energy_kcal"] == EXPECTED_ITEMS[item["name"]]["kcal"]
+        for item in items
+    )
+    story.step("拍照识别：上传照片，克数按份量换算，热量取自营养库，按医嘱评价",
+               [item["name"] for item in items] == [MAPO_TOFU, "米饭"] and from_catalog and expected
                and SNEAKED_CALORIES not in _numbers(body) and evaluation.get("conclusion") == "not_recommended"
                and tofu_eval is not None and tofu_eval["conclusion"] == "not_recommended" and bool(medical),
-               "识别出 " + "、".join(f"{i['name']}（{i['portion_text']}，{i['grams']} 克，{i['status']}，"
-                                     f"{i['nutrients']['energy_kcal']} 千卡）" for i in items),
+               "识别出 " + "、".join(
+                   f"{i['name']}（{i['food_id']}，{i['portion_text']}，模型估计 "
+                   f"{EXPECTED_ITEMS.get(i['name'], {}).get('model_grams')} 克，按份量换算表改为 {i['grams']} 克，"
+                   f"{i['nutrients']['energy_kcal']} 千卡）" for i in items),
                f"模型多给的“calories: {SNEAKED_CALORIES}”被忽略，热量与营养按克数取自营养库，"
                f"响应里没有 {SNEAKED_CALORIES} 这个数",
                f"整餐结论 {evaluation.get('conclusion')}；{MAPO_TOFU} {tofu_eval['conclusion'] if tofu_eval else None}，"
@@ -315,7 +331,7 @@ def photo_steps(story: AcceptanceStory) -> None:
     story.step("拍照识别：修正菜品后确认为午餐，写入饮食记录",
                [i["food_name"] for i in fixed["items"]][0].startswith(STEAMED_FISH)
                and all(i["status"] == "matched" for i in fixed["items"])
-               and fixed["evaluation"]["conclusion"] != "not_recommended"
+               and fixed["evaluation"]["conclusion"] == "suitable"
                and confirmed["status"] == "confirmed" and len(photo_meals) == 2
                and story.photo_meal_ids == order
                and all(m["meal_type"] == "lunch" for m in photo_meals),
@@ -384,13 +400,22 @@ def restaurant_steps(story: AcceptanceStory) -> None:
     gps = api("POST", "/api/restaurants/search", json={"location": {**GPS, "coord_type": "gps"}, "remember_area": True})
     settings = api("GET", "/api/restaurants/settings")
     area = settings["area"] or {}
+    with get_sessionmaker()() as db:  # 库里的区域是加密的，读出 ORM 对象即解密
+        stored = db.scalar(select(RestaurantSettings).join(User, User.id == RestaurantSettings.user_id)
+                           .where(User.username == DEMO_USERNAME)).area or {}
+    stored_text = json.dumps(stored, ensure_ascii=False)
+    rough = coarse(*wgs84_to_gcj02(GPS["lng"], GPS["lat"]))
     story.step("附近餐厅：授权后定位检索，记住的是区县而不是街道",
                settings["location_consent"] == "granted" and gps["center"]["source"] == "gps"
                and "/v3/geocode/regeo" in story.amap.paths(before)
                and area.get("name") == REGEO["addressComponent"]["district"]
-               and area.get("name") != REGEO["formatted_address"],
-               f"检索中心“{gps['center']['name']}”，推荐 {len(gps['restaurants'])} 家",
-               f"记住的大致区域：{area.get('name')}（逆地理给出的街道地址“{REGEO['formatted_address']}”不保存）")
+               and set(stored) == {"name", "adcode", "lng", "lat"}
+               and stored["name"] == REGEO["addressComponent"]["district"]
+               and (stored["lng"], stored["lat"]) == rough
+               and REGEO["formatted_address"] not in stored_text and not COORDINATE.search(stored_text),
+               f"检索中心“{gps['center']['name']}”，推荐 {len(gps['restaurants'])} 家；记住的大致区域：{area.get('name')}",
+               f"库里的区域解密后是 {stored_text}：只有区县名、行政区划代码与取整到两位小数的坐标，"
+               f"没有街道地址“{REGEO['formatted_address']}”，也没有三位以上小数的坐标")
 
     # 清除大致区域
     api("DELETE", "/api/restaurants/settings/area", expect=204)
@@ -423,21 +448,29 @@ def cross_steps(story: AcceptanceStory) -> None:
     shown = {shop["name"] for shop in data.get("restaurants", [])} | {
         shop["type_name"] for shop in data.get("restaurants", []) if shop["type_name"]} | {
         group["type_name"] for group in data.get("avoided_types", [])}
-    leaked = [dish for dish in avoid if not any(dish in name for name in shown) and dish in content]
+    # 先去掉店名与类型名（“老码头火锅”“麻辣烫与串串”本来就带菜名里的字），再在剩下的工具结果里找应避开的菜名
+    scrubbed = content
+    for name in sorted(shown, key=len, reverse=True):
+        scrubbed = scrubbed.replace(name, "")
+    leaked = sorted(dish for dish in avoid if dish in scrubbed)
+    shape_ok = all(set(group) == {"type_name", "reason_sources"} for group in data.get("avoided_types", []))
     sources = [group["reason_sources"] for group in data.get("avoided_types", [])]
     story.step("跨模块：智能体按地点调用附近餐厅工具，推荐粥铺",
                len(bodies) == 2 and NEARBY_TOOL in [t["function"]["name"] for t in bodies[0].get("tools", [])]
                and [c["name"] for c in calls] == [NEARBY_TOOL] and json.loads(calls[0]["arguments"]) == {"place": PLACE}
                and geocoded == [PLACE] and envelope.get("ok") is True
-               and len(sources) == 2 and all("医嘱" in s for s in sources) and not leaked
+               and len(sources) == 2 and all("医嘱" in s for s in sources) and shape_ok and not leaked
                and porridge in turn["text"] and "guard_rewritten" not in turn["flags"]
                and NEARBY_TOOL in turn["tools_used"],
                f"用户说“{NEARBY_TEXT}”；模型调用 {NEARBY_TOOL}（地点“{PLACE}”），工具名取自能力名 {NEARBY_CAPABILITY}",
                "工具结果里被避开的类型："
                + "；".join(f"{g['type_name']}（原因来源 {'、'.join(g['reason_sources'])}）"
                           for g in data.get("avoided_types", []))
-               + f"，没有应避开的菜名（共核对 {len(avoid)} 个）",
-               f"回答：{turn['text'].split(chr(10))[0].rstrip('。')}；标记 {turn['flags']}，模型本轮只收到 {len(bodies)} 次请求，没有改写")
+               + "，每类只有类型名与原因来源；去掉店名与类型名后核对了 "
+               + f"{len(avoid)} 个应避开的菜名（{'、'.join(sorted(avoid))}），"
+               + (f"发现 {'、'.join(leaked)}" if leaked else "一个都没有出现"),
+               f"回答：{turn['text'].split(chr(10))[0].rstrip('。')}；标记 {turn['flags']}，"
+               f"模型本轮只收到 {len(bodies)} 次请求，没有改写")
 
     summary = api("GET", "/api/nutrition/summary")
     photo_meals = [m for m in api("GET", "/api/nutrition/meals") if m["id"] in story.photo_meal_ids]
@@ -461,23 +494,24 @@ def resolve_steps(story: AcceptanceStory) -> None:
     names = [shop["name"] for shop in body["restaurants"]]
     sichuan = next((item for item in body["type_advice"] if item["type_key"] == "sichuan"), {})
     story.step("解除后：附近餐厅不再避开川菜",
-               body["avoided_types"] == [] and "老川菜馆" in names and sichuan.get("conclusion") != "not_recommended",
+               body["avoided_types"] == [] and "老川菜馆" in names and sichuan.get("conclusion") == "caution",
                f"被避开的类型 {len(body['avoided_types'])} 个；老川菜馆回到推荐列表（{sichuan.get('type_name')}整类 "
                f"{sichuan.get('conclusion')}）")
 
 
-def _raw_rows(db: Any, model: Any, user_id: Any) -> list[str]:
-    """一个用户在这张表里的原始行（加密列就是密文）；时间列不取，避免秒数里的小数被误当作坐标。"""
-    columns = [c for c in model.__table__.columns if not isinstance(c.type, (Date, DateTime))]
+def _plain_rows(db: Any, model: Any, user_id: Any) -> list[str]:
+    """一个用户在这张表里的明文列，按库里的原始文本取出。加密列另行解密核对；时间列不取，
+    避免秒数里的小数被误当作坐标。"""
+    skipped = (Date, DateTime, EncryptedJSON, EncryptedBytes)
+    columns = [c for c in model.__table__.columns if not isinstance(c.type, skipped)]
     rows = db.execute(select(*(cast(c, Text) for c in columns)).where(model.__table__.c.user_id == user_id)).all()
     return [" ".join(value or "" for value in row) for row in rows]
 
 
-def _coordinate_texts() -> list[str]:
-    gcj = wgs84_to_gcj02(GPS["lng"], GPS["lat"])
-    center = [float(part) for part in GEOCODES[PLACE]["location"].split(",")]
-    values = [GPS["lng"], GPS["lat"], *gcj, *center]
-    return sorted({f"{v:.6f}" for v in values} | {f"{v:.2f}" for v in values})
+def _leaks(text: str, coordinates: bool = True) -> list[str]:
+    """文本里出现的地点、医嘱原文，以及（coordinates 为真时）三位以上小数的坐标。"""
+    words = [word for word in (PLACE, ORDER_TEXT.rstrip("。")) if word in text]
+    return words + (COORDINATE.findall(text) if coordinates else [])
 
 
 def audit_summary(story: AcceptanceStory) -> list[str]:
@@ -489,23 +523,37 @@ def audit_summary(story: AcceptanceStory) -> list[str]:
             .where(SdkCallAudit.user_id == user_id, SdkCallAudit.client_name == AGENT_CLIENT_NAME)
             .group_by(SdkCallAudit.capability, SdkCallAudit.outcome)
         ).all()
-        raw = {model.__tablename__: _raw_rows(db, model, user_id)
-               for model in (SdkCallAudit, RestaurantSettings, PhotoRecognition)}
+        plain = {model.__tablename__: _plain_rows(db, model, user_id)
+                 for model in (SdkCallAudit, RestaurantSettings, PhotoRecognition)}
+        # 加密列：读出 ORM 对象即解密（识别项里有克数与营养数字，只查地点与医嘱原文）
+        recognitions = db.scalars(select(PhotoRecognition).where(PhotoRecognition.user_id == user_id)).all()
+        areas = list(db.scalars(select(RestaurantSettings).where(RestaurantSettings.user_id == user_id)).all())
+        decrypted = json.dumps([r.items for r in recognitions] + [a.area for a in areas], ensure_ascii=False)
+        cleared = [a.area for a in areas] == [None]
     total = sum(count for *_, count in rows)
     errors = sum(count for _, outcome, count in rows if outcome == "error")
     by_capability: dict[str, int] = {}
     for capability, _, count in rows:
         by_capability[capability] = by_capability.get(capability, 0) + count
     nearby_ok = any(c == NEARBY_CAPABILITY and o == "ok" for c, o, _ in rows)
-    coordinates = _coordinate_texts()
-    forbidden = [PLACE, ORDER_TEXT, ORDER_TEXT.rstrip("。"), *coordinates]
-    found = sorted({word for lines in raw.values() for line in lines for word in forbidden if word in line})
-    story.step("审计与隐私：审计只记能力与结果，库里没有地点、坐标与医嘱原文",
-               total > 0 and nearby_ok and errors == 0 and not found and all(raw.values()),
+    plain_text = {name: "\n".join(lines) for name, lines in plain.items()}
+    found = sorted({leak for text in plain_text.values() for leak in _leaks(text)})
+    decrypted_found = sorted(set(_leaks(decrypted, coordinates=False)))
+    # 对照：同样的扫描能在明文列里找到本该在的内容，坐标写法能被认出，解密后的识别项里有修正后的菜名
+    controls = (NEARBY_CAPABILITY in plain_text["sdk_call_audits"]
+                and VISION_MODEL_ID in plain_text["photo_recognitions"]
+                and bool(_leaks(json.dumps(GPS))) and STEAMED_FISH in decrypted)
+    story.step("审计与隐私：明文列没有地点、坐标与医嘱原文，加密内容解密后也没有地点与医嘱原文",
+               total > 0 and nearby_ok and errors == 0 and all(plain.values()) and controls
+               and not found and not decrypted_found and cleared,
                f"客户端名为 {AGENT_CLIENT_NAME} 的审计 {total} 行，失败 {errors} 行；其中 {NEARBY_CAPABILITY} "
                f"{by_capability.get(NEARBY_CAPABILITY, 0)} 行",
-               "按原始列核对 " + "、".join(f"{name} {len(lines)} 行" for name, lines in raw.items())
-               + f"：没有“{PLACE}”、医嘱原文与 {len(coordinates)} 种坐标写法" + (f"，但发现 {found}" if found else ""))
+               "明文列（不含时间列）" + "、".join(f"{name} {len(lines)} 行" for name, lines in plain.items())
+               + f"：没有“{PLACE}”、医嘱原文与三位以上小数的坐标" + (f"，但发现 {found}" if found else "")
+               + f"；对照：同样的扫描能找到 {NEARBY_CAPABILITY}、{VISION_MODEL_ID} 与演示坐标：{controls}",
+               f"加密列解密后核对：识别项里有修正后的“{STEAMED_FISH}”（确实解密了），没有“{PLACE}”与医嘱原文"
+               + (f"，但发现 {decrypted_found}" if decrypted_found else "")
+               + f"；餐厅设置里的区域已清除：{cleared}")
     used = "、".join(f"{name} {count}" for name, count in sorted(by_capability.items()))
     return [f"审计里客户端名为 {AGENT_CLIENT_NAME} 的行共 {total} 行，其中失败 {errors} 行；按能力：{used}",
             "审计只记能力名、结果、错误码、客户端与耗时，不记任何对话内容、地点与坐标"]
@@ -547,14 +595,17 @@ def run(today: date, out: Callable[[str], None] = print) -> bool:
                 story.step("验收中断", False, f"{type(err).__name__}：{err}")
             steps = story.steps
     finally:
-        model.stop()
-        amap.stop()
+        # 先恢复环境变量与配置，再关模拟服务：关服务出错时也不会留下指向模拟服务的配置
         for name, value in previous.items():
             if value is None:
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = value
         get_settings.cache_clear()
+        try:
+            model.stop()
+        finally:
+            amap.stop()
     out(f"第二阶段整体验收（{today.isoformat()}，账号 {DEMO_USERNAME}，密码 {DEMO_PASSWORD}）")
     for number, step in enumerate(steps, 1):
         out(f"\n{number}. [{'通过' if step.ok else '未通过'}] {step.title}")
