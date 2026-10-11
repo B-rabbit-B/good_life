@@ -1,0 +1,98 @@
+[
+  {
+    "key": "light",
+    "name": "清淡",
+    "description": "口味清淡、好消化，适合胃不舒服或没胃口的时候",
+    "synonyms": ["清淡", "胃不舒服", "胃不太舒服", "胃不好", "胃疼", "肠胃不适", "软的", "软烂", "好消化", "易消化", "养胃", "没胃口", "生病", "感冒"],
+    "keywords": ["粥", "粤菜", "家常菜"],
+    "prefer_types": ["porridge", "cantonese", "home"]
+  },
+  {
+    "key": "porridge",
+    "name": "粥",
+    "description": "粥铺、砂锅粥一类，暖胃好消化",
+    "synonyms": ["稀饭", "喝粥", "砂锅粥", "胃不舒服", "胃不太舒服", "胃不好", "软的", "软烂", "养胃"],
+    "keywords": ["粥", "粥铺"],
+    "prefer_types": ["porridge"]
+  },
+  {
+    "key": "soup",
+    "name": "汤",
+    "description": "想喝口热汤",
+    "synonyms": ["喝汤", "汤水", "煲汤", "炖汤", "热汤", "老火汤"],
+    "keywords": ["汤", "煲汤", "粤菜"],
+    "prefer_types": ["cantonese", "porridge", "dumpling"]
+  },
+  {
+    "key": "light_meal",
+    "name": "轻食",
+    "description": "沙拉、轻食一类，热量较低",
+    "synonyms": ["沙拉", "减脂", "减肥", "瘦身", "低卡", "控制热量", "健康餐"],
+    "keywords": ["轻食", "沙拉"],
+    "prefer_types": ["salad"]
+  },
+  {
+    "key": "high_protein",
+    "name": "高蛋白",
+    "description": "多一些肉蛋鱼虾，适合健身、增肌之后",
+    "synonyms": ["蛋白质", "健身", "增肌", "撸铁", "练完", "训练完", "长肌肉", "吃点肉", "多吃肉"],
+    "keywords": ["健身餐", "牛排", "海鲜"],
+    "prefer_types": ["salad", "western", "seafood"]
+  },
+  {
+    "key": "vegetarian",
+    "name": "素食",
+    "description": "不吃肉，素菜为主",
+    "synonyms": ["吃素", "素菜", "不吃肉", "素斋", "斋饭"],
+    "keywords": ["素食", "素菜馆"],
+    "prefer_types": ["vegetarian"]
+  },
+  {
+    "key": "noodles",
+    "name": "面食",
+    "description": "面条、米线、米粉一类",
+    "synonyms": ["面条", "吃面", "来碗面", "拉面", "米线", "米粉", "粉面", "嗦粉"],
+    "keywords": ["面馆", "米线", "米粉"],
+    "prefer_types": ["noodles", "dumpling"]
+  },
+  {
+    "key": "not_spicy",
+    "name": "不辣",
+    "description": "不吃辣或不能吃辣",
+    "synonyms": ["不吃辣", "不想吃辣", "不能吃辣", "怕辣", "不要辣", "不要太辣", "忌辣", "别太辣"],
+    "keywords": ["粤菜", "粥", "日本料理"],
+    "prefer_types": ["cantonese", "porridge", "japanese"]
+  },
+  {
+    "key": "less_oil",
+    "name": "少油",
+    "description": "少油不油腻",
+    "synonyms": ["不油腻", "别太油", "不要太油", "油少", "低脂", "清爽"],
+    "keywords": ["轻食", "粤菜", "粥"],
+    "prefer_types": ["salad", "cantonese", "porridge"]
+  },
+  {
+    "key": "dumpling",
+    "name": "饺子包子",
+    "description": "饺子、馄饨、包子一类",
+    "synonyms": ["饺子", "水饺", "包子", "馄饨", "云吞", "抄手", "小笼包", "生煎"],
+    "keywords": ["饺子", "包子", "馄饨"],
+    "prefer_types": ["dumpling"]
+  },
+  {
+    "key": "halal",
+    "name": "清真",
+    "description": "清真餐厅",
+    "synonyms": ["穆斯林", "回民", "不吃猪肉", "伊斯兰"],
+    "keywords": ["清真"],
+    "prefer_types": ["halal"]
+  },
+  {
+    "key": "dessert",
+    "name": "甜品",
+    "description": "甜品、蛋糕、奶茶等饮品",
+    "synonyms": ["甜点", "蛋糕", "奶茶", "冰淇淋", "甜的", "下午茶", "饮品", "喝点东西"],
+    "keywords": ["甜品", "奶茶", "蛋糕"],
+    "prefer_types": ["dessert"]
+  }
+]

@@ -1,0 +1,128 @@
+[
+  {
+    "key": "home",
+    "name": "家常菜",
+    "typecodes": [],
+    "name_keywords": ["家常菜", "家常", "农家菜", "私房菜", "中式快餐", "盖浇饭", "食堂"],
+    "dishes": ["dish:tomato_egg", "dish:green_pepper_pork", "dish:stir_fried_broccoli", "dish:braised_eggplant", "dish:hot_sour_potato"]
+  },
+  {
+    "key": "sichuan",
+    "name": "川菜",
+    "typecodes": ["050102"],
+    "name_keywords": ["川菜", "川味", "四川", "成都", "川渝", "麻辣香锅"],
+    "dishes": ["dish:mapo_tofu", "dish:kung_pao_chicken", "dish:twice_cooked_pork", "dish:yuxiang_pork", "dish:boiled_fish"]
+  },
+  {
+    "key": "hunan",
+    "name": "湘菜",
+    "typecodes": ["050108"],
+    "name_keywords": ["湘菜", "湘味", "湖南", "长沙", "小炒肉"],
+    "dishes": ["dish:hand_torn_cabbage", "dish:dry_fried_beans", "dish:hot_sour_potato", "dish:braised_pork_belly"]
+  },
+  {
+    "key": "cantonese",
+    "name": "粤菜",
+    "typecodes": ["050103", "050305"],
+    "name_keywords": ["粤菜", "茶餐厅", "潮汕", "潮州", "广式", "港式", "早茶", "烧腊", "广东", "顺德", "肠粉", "煲仔饭"],
+    "dishes": ["dish:steamed_fish", "dish:boiled_shrimp", "cfcd:081321", "cfcd:081407", "dish:stir_fried_broccoli"]
+  },
+  {
+    "key": "hotpot",
+    "name": "火锅",
+    "typecodes": ["050117"],
+    "name_keywords": ["火锅", "牛肉火锅", "涮肉", "涮羊肉", "打边炉", "海底捞", "呷哺呷哺"],
+    "dishes": ["dish:hot_pot", "cfcd:045333", "cfcd:082116", "cfcd:081307", "cfcd:121305"]
+  },
+  {
+    "key": "bbq",
+    "name": "烧烤",
+    "typecodes": [],
+    "name_keywords": ["烧烤", "烤串", "撸串", "烤肉", "羊肉串", "串吧"],
+    "dishes": ["dish:lamb_skewers", "cfcd:091309", "cfcd:081424", "cfcd:021105", "cfcd:013101"]
+  },
+  {
+    "key": "malatang",
+    "name": "麻辣烫与串串",
+    "typecodes": [],
+    "name_keywords": ["麻辣烫", "麻辣拌", "串串", "冒菜", "钵钵鸡"],
+    "dishes": ["dish:malatang", "dish:hot_pot", "cfcd:121305", "cfcd:045333"]
+  },
+  {
+    "key": "porridge",
+    "name": "粥铺",
+    "typecodes": [],
+    "name_keywords": ["粥", "粥铺", "粥店", "粥城", "砂锅粥"],
+    "dishes": ["cfcd:012404", "cfcd:015103", "cfcd:033201", "dish:baozi", "dish:tea_egg"]
+  },
+  {
+    "key": "salad",
+    "name": "轻食沙拉",
+    "typecodes": [],
+    "name_keywords": ["轻食", "沙拉", "色拉", "健身餐", "减脂餐", "能量碗", "波奇饭"],
+    "dishes": ["cfcd:091112", "cfcd:045333", "cfcd:045217", "dish:brown_rice", "dish:sashimi"]
+  },
+  {
+    "key": "noodles",
+    "name": "面馆",
+    "typecodes": [],
+    "name_keywords": ["面馆", "拉面", "牛肉面", "刀削面", "炸酱面", "热干面", "小面", "面庄", "米线", "米粉", "粉面", "螺蛳粉"],
+    "dishes": ["dish:beef_noodles", "dish:zhajiang_noodles", "dish:fried_noodles", "cfcd:012410"]
+  },
+  {
+    "key": "dumpling",
+    "name": "饺子馄饨包子",
+    "typecodes": [],
+    "name_keywords": ["饺子", "水饺", "蒸饺", "馄饨", "云吞", "抄手", "包子", "小笼包", "灌汤包", "生煎"],
+    "dishes": ["dish:jiaozi", "dish:wonton", "dish:baozi", "dish:seaweed_egg_soup"]
+  },
+  {
+    "key": "vegetarian",
+    "name": "素食",
+    "typecodes": ["050120"],
+    "name_keywords": ["素食", "素菜", "素斋", "斋菜", "蔬食"],
+    "dishes": ["dish:stir_fried_broccoli", "dish:garlic_spinach", "dish:braised_eggplant", "dish:di_san_xian"]
+  },
+  {
+    "key": "halal",
+    "name": "清真与西北菜",
+    "typecodes": ["050121", "050115"],
+    "name_keywords": ["清真", "西北", "新疆", "兰州", "宁夏", "甘肃", "陕西", "大盘鸡", "手抓", "羊肉泡馍"],
+    "dishes": ["dish:beef_noodles", "dish:scallion_lamb", "dish:beef_potato_stew", "dish:lamb_skewers"]
+  },
+  {
+    "key": "seafood",
+    "name": "海鲜",
+    "typecodes": ["050119"],
+    "name_keywords": ["海鲜", "渔港", "海产", "小龙虾", "生蚝", "蟹宴"],
+    "dishes": ["dish:boiled_shrimp", "dish:steamed_fish", "dish:braised_fish", "cfcd:124108", "cfcd:123002"]
+  },
+  {
+    "key": "western",
+    "name": "西餐",
+    "typecodes": ["050201"],
+    "name_keywords": ["西餐", "牛排", "扒房", "意大利", "意式", "法式", "披萨", "比萨", "必胜客", "意面"],
+    "dishes": ["supplement:bread", "cfcd:121228", "cfcd:011312", "cfcd:021105", "cfcd:045333"]
+  },
+  {
+    "key": "japanese",
+    "name": "日料",
+    "typecodes": ["050202"],
+    "name_keywords": ["日料", "日本料理", "日式", "日式拉面", "寿司", "刺身", "居酒屋", "烧鸟", "鳗鱼饭", "定食"],
+    "dishes": ["dish:sashimi", "cfcd:121408", "dish:cucumber_salad"]
+  },
+  {
+    "key": "fastfood",
+    "name": "快餐炸鸡汉堡",
+    "typecodes": ["050301", "050302"],
+    "name_keywords": ["汉堡", "汉堡王", "炸鸡", "鸡排", "肯德基", "麦当劳", "华莱士", "德克士", "塔斯汀"],
+    "dishes": ["dish:fried_chicken", "cfcd:091303", "supplement:bread", "supplement:cola"]
+  },
+  {
+    "key": "dessert",
+    "name": "甜品饮品",
+    "typecodes": ["050500", "050700", "050800", "050900"],
+    "name_keywords": ["甜品", "甜点", "糖水", "蛋糕", "烘焙", "面包", "冰淇淋", "奶茶", "茶饮", "饮品", "果汁", "咖啡", "星巴克", "瑞幸", "喜茶", "蜜雪冰城"],
+    "dishes": ["supplement:cake", "supplement:ice_cream", "supplement:milk_tea", "supplement:latte", "cfcd:103001"]
+  }
+]

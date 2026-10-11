@@ -6,8 +6,16 @@ from pathlib import Path
 
 from fastapi.routing import APIRoute, iter_route_contexts
 
-from app.agent import conversations
-from app.agent.assembly import DATA_NOTICE, RECORD_CHECK, RISK_FOLLOW_UP, SAFETY_SECTION, AgentContext, tool_specs
+from app.agent import assembly, conversations
+from app.agent.assembly import (
+    DATA_NOTICE,
+    RECORD_CHECK,
+    RESTAURANT_NOTE,
+    RISK_FOLLOW_UP,
+    SAFETY_SECTION,
+    AgentContext,
+    tool_specs,
+)
 from app.agent.guard import (
     EXCLUDED_NAMES,
     FALLBACK_BLOCKED,
@@ -108,13 +116,16 @@ def test_criteria_1_2_and_9_are_marked_as_needing_the_users_live_run_and_the_oth
 
 def test_acceptance_record_counts_match_the_code():
     record = _read("验收记录.md")
-    assert f"共 {len(agent_registry()) + 6} 项能力" in record and "MCP 工具 27 个" in record
+    assert "共 33 项能力" in record and "MCP 工具 27 个" in record  # 本步骤验收当时的数字，不改动
     assert "迁移版本到 0014" in record and "共二十六张表" in record
     for model in (AgentConversation, AgentMessage, AgentPreference, AgentOpening, AgentSettings):
         assert model.__tablename__ in record, model.__tablename__
     assert f"新增 {len(_agent_routes())} 个接口" in record
     assert "能力表 27 项加站内的“记住偏好”，一轮最多提供 28 个、最少 18 个" in record
-    assert len(agent_registry()) == 27
+    note = next(line for line in record.splitlines() if line.startswith("补充说明（步骤 10）"))
+    assert f"共 {len(agent_registry()) + 6} 项能力、MCP 工具 {len(agent_registry())} 个" in note
+    assert "最多提供 29 个工具" in note and "最少仍是 18 个" in note and "1.2" in note
+    assert len(agent_registry()) == 28
 
 
 def test_opening_rule_table_lists_five_kinds_in_priority_order_with_the_code_constants():
@@ -190,7 +201,7 @@ def test_interface_doc_lists_every_agent_route_and_every_error_code():
     assert "llm_model_lacks_tools" in doc  # 模型配置类错误按原状态码与错误码返回
 
 
-def test_behavior_doc_numbers_and_fixed_texts_match_the_code():
+def test_behavior_doc_numbers_and_fixed_texts_match_the_code(monkeypatch):
     doc = _read("智能体行为设计.md")
     everything = AgentContext(capabilities={"cycle": True, "medical": True, "nutrition": True, "fitness": True,
                                             "profile": True},
@@ -199,9 +210,13 @@ def test_behavior_doc_numbers_and_fixed_texts_match_the_code():
     minimal = AgentContext(capabilities={"cycle": False, "medical": True, "nutrition": True, "fitness": True},
                            profile_summary="", constraints=(), phase=None, intake=None, training=None,
                            has_workouts=False, preferences=(), today=date(2026, 10, 9))
-    most, fewest = len(tool_specs(everything)), len(tool_specs(minimal))
-    assert (most, fewest) == (28, 18) and len(agent_registry()) == 27
-    assert f"最多拿到 {most} 个工具" in doc and f"最少 {fewest} 个" in doc and "共 27 项" in doc
+    monkeypatch.setattr(assembly, "amap_configured", lambda: True)
+    most = len(tool_specs(everything))
+    monkeypatch.setattr(assembly, "amap_configured", lambda: False)
+    fewest = len(tool_specs(minimal))
+    assert (most, fewest) == (29, 18) and len(agent_registry()) == 28
+    assert f"最多拿到 {most} 个工具" in doc and f"最少 {fewest} 个" in doc and "共 28 项" in doc
+    assert RESTAURANT_NOTE in doc
     assert f"最多调用 {MAX_MODEL_CALLS} 次模型" in doc
     assert f"最近 {conversations.HISTORY_LIMIT} 条" in doc and f"每段约 {SSE_CHUNK_CHARS} 个字" in doc
     assert TOOL_LIMIT_REPLY in doc and EMPTY_REPLY in doc
@@ -233,7 +248,8 @@ def test_leftover_live_users_are_described_by_the_exact_prefix_pattern():
 
 def test_readme_step_06_section_uses_the_current_sdk_numbers():
     section = (ROOT / "README.md").read_text(encoding="utf-8").split("## 14. SDK 与 MCP 演示")[1].split("\n## ")[0]
-    assert "共 33 项能力" in section and "27 项暴露成工具" in section and "1.1" in section
+    assert "共 34 项能力" in section and "28 项暴露成工具" in section and "1.2" in section
+    assert "共 33 项能力" not in section and "应看到 28 个工具" in section
     assert "共 32 项能力" not in section.replace("当时共 32 项能力", "")
 
 
@@ -252,6 +268,7 @@ def test_step_06_records_note_the_new_capability_without_changing_old_numbers_an
     for name in ("06-交付物/验收记录.md", "第一阶段整体验收记录.md"):
         text = (ROOT / "docs" / name).read_text(encoding="utf-8")
         assert "补充说明（步骤 08）" in text and "profile.get_profile" in text and "1.1" in text, name
+        assert "补充说明（步骤 10）" in text and "nutrition.nearby_restaurants" in text and "1.2" in text, name
     assert "MCP 工具 26 个" in (ROOT / "docs" / "06-交付物" / "验收记录.md").read_text(encoding="utf-8")
     assert "看到 26 个工具" in (ROOT / "docs" / "第一阶段整体验收记录.md").read_text(encoding="utf-8")
     audit = (ROOT / "docs" / "06-交付物" / "调用审计说明.md").read_text(encoding="utf-8")

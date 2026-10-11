@@ -1,10 +1,10 @@
 """SDK 自己定义的参数模型（REST 里来自路径或查询参数的部分）；全部拒绝多余字段，都不含用户编号。"""
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.medical.schemas import (
     CATEGORY_TEXT,
@@ -17,6 +17,7 @@ from app.medical.schemas import (
     Reason,
     ReasonBody,
 )
+from app.restaurants.needs import MAX_NEEDS, load_needs
 
 ItemId = Annotated[UUID, Field(description=ITEM_ID_TEXT)]
 
@@ -71,6 +72,30 @@ class WeekParams(_Params):
     start: date | None = Field(
         default=None, description="这一周的开始日期，格式 YYYY-MM-DD，必须是星期一；不填表示本周"
     )
+
+
+NeedKey = Literal[tuple(need.key for need in load_needs())]  # 可选值由需求词表生成，出现在 JSON Schema 的 enum 里
+NEED_KEYS_TEXT = "、".join(f"{need.key}（{need.name}）" for need in load_needs())
+
+
+class NearbyParams(_Params):
+    place: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)] | None = Field(
+        default=None,
+        description="用户说出的地名或地标，例如“国贸”“西湖”，1 至 50 个字；不填表示使用用户在应用里保存的大致区域",
+    )
+    city: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)] | None = Field(
+        default=None, description="地点所在的城市，1 至 20 个字，可选；只能和 place 一起填"
+    )
+    needs: Annotated[list[NeedKey], Field(max_length=MAX_NEEDS)] = Field(
+        default=[], description=f"用户想吃的方向，最多 {MAX_NEEDS} 个，只能从这些键里选：{NEED_KEYS_TEXT}；不填表示不限"
+    )
+    radius: Annotated[int, Field(ge=500, le=5000)] = Field(default=2000, description="检索半径（米），500 至 5000，默认 2000")
+
+    @model_validator(mode="after")
+    def _city_needs_place(self) -> "NearbyParams":
+        if self.city is not None and self.place is None:
+            raise ValueError("city 只能和 place 一起使用")
+        return self
 
 
 class ExerciseIdParams(_Params):

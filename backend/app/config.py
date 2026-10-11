@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7
     llm_allow_private_hosts: bool = False  # 为真时模型服务地址不做内网检查，只用于测试与本地模拟服务
     llm_timeout_seconds: float = 20.0
+    amap_key: str | None = None  # 高德 Web 服务密钥；留空则附近餐厅功能关闭
+    amap_base_url: str = "https://restapi.amap.com"
+    amap_timeout_seconds: float = 8.0
+
+    @field_validator("amap_key", mode="before")
+    @classmethod
+    def _blank_amap_key_is_none(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("jwt_secret", "field_encryption_key")
     @classmethod

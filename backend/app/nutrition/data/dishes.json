@@ -329,5 +329,18 @@
      {"food": "cfcd:192017", "grams": 3}, {"food": "supplement:vinegar", "grams": 3}, {"food": "cfcd:044205", "grams": 3}
    ],
    "serving_grams": 265, "tags": ["raw_cold"],
-   "note": "家常凉拌做法一人份估计：内酯豆腐配皮蛋 1 个"}
+   "note": "家常凉拌做法一人份估计：内酯豆腐配皮蛋 1 个"},
+  {"id": "lamb_skewers", "name": "烤羊肉串", "aliases": ["孜然羊肉串", "羊肉串"], "category": "菜品-家常菜",
+   "ingredients": [
+     {"food": "cfcd:083101x", "grams": 150}, {"food": "cfcd:043108", "grams": 3}, {"food": "cfcd:192004", "grams": 5},
+     {"food": "supplement:salt", "grams": 2}
+   ],
+   "serving_grams": 160, "tags": ["spicy", "warm_nature"],
+   "note": "烧烤店做法一人份估计：羊肉约 8 串，刷油后撒干辣椒面与盐炭烤；营养库没有孜然，不计入，烹调失水不计"},
+  {"id": "sashimi", "name": "生鱼片", "aliases": ["刺身", "三文鱼刺身"], "category": "菜品-凉菜",
+   "ingredients": [
+     {"food": "cfcd:121228", "grams": 100}, {"food": "cfcd:121262", "grams": 50}, {"food": "supplement:soy_sauce", "grams": 10}
+   ],
+   "serving_grams": 160, "tags": ["raw_cold"],
+   "note": "日料店一人份估计：生三文鱼（按鲑鱼计）与金枪鱼切片，蘸酱油；不经加热，属生冷"}
 ]

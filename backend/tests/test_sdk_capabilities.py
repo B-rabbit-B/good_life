@@ -43,7 +43,7 @@ def test_capability_counts_and_levels():
     levels = {}
     for cap in REGISTRY.values():
         levels.setdefault(cap.level, set()).add(cap.name)
-    assert (len(REGISTRY), len(levels["read"]), len(levels["write"]), len(levels["user_confirmed"])) == (33, 22, 5, 6)
+    assert (len(REGISTRY), len(levels["read"]), len(levels["write"]), len(levels["user_confirmed"])) == (34, 23, 5, 6)
     assert levels["write"] == {"cycle.record_period", "medical.submit_order", "medical.propose_resolution",
                                "nutrition.log_meal", "fitness.log_workout"}
     assert {name.removeprefix("medical.") for name in levels["user_confirmed"]} == set(USER_ONLY_OPERATIONS)

@@ -26,7 +26,7 @@ from app.agent.loop import (
     replayable,
     strip_self_evidence,
 )
-from app.agent import conversations, loop
+from app.agent import assembly, conversations, loop
 from app.agent.guard import mentioned_food_ids
 from app.auth.models import User
 from app.sdk import GoodLife, SdkError
@@ -219,7 +219,8 @@ def test_tool_round_trip_appends_engine_evidence_and_is_audited_as_agent(client,
     assert replayed[-2]["content"] == "晚饭可以吃清蒸鱼，清淡又有蛋白质。"
 
 
-def test_tool_declarations_are_agent_tools_and_safe_for_gemini(client, scripted):
+def test_tool_declarations_are_agent_tools_and_safe_for_gemini(client, scripted, monkeypatch):
+    monkeypatch.setattr(assembly, "amap_configured", lambda: True)  # 配置了高德密钥时附近餐厅也在内
     headers = _cycle_user(client, "gwen")
     exercise = client.get("/api/fitness/exercises/search", params={"q": "卧推"}, headers=headers).json()
     workout = {"performed_on": "2026-10-07", "duration_minutes": 60, "rpe": 7,
