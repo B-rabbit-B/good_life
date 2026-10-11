@@ -121,3 +121,22 @@ class SearchOut(BaseModel):
     avoided_types: list[AvoidedTypeOut]
     notice: str
     disclaimer: str
+
+
+class NearbyShopOut(BaseModel):
+    """给智能体的一家店：不含地址、坐标、导航链接与应避开的菜名。"""
+
+    name: str
+    type_name: str | None
+    distance_m: int | None
+    conclusion: Literal["suitable", "caution", "unchecked"]
+    order: list[str]
+
+
+class NearbyOut(BaseModel):
+    """SDK 能力 nutrition.nearby_restaurants 的输出：排在前面的几家、已避开的类型名称与固定提示。"""
+
+    center_name: str
+    restaurants: list[NearbyShopOut]
+    avoided_type_names: list[str]
+    notice: str

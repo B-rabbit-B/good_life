@@ -25,7 +25,7 @@ from app.sdk.registry import REGISTRY, CallContext, Capability, Notice
 
 logger = logging.getLogger(__name__)
 
-SDK_VERSION = "1.1"
+SDK_VERSION = "1.2"
 
 CONFIRMATION_HINT = "这一步只能由用户本人在应用里操作；如需解除医嘱，可以调用 medical.propose_resolution 提出解除建议"
 WRITE_HINT = "当前授权只允许读取；需要写入时请让用户创建读写授权"

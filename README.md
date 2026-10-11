@@ -269,7 +269,7 @@ uv run python -m app.fitness.demo
 
 ## 14. SDK 与 MCP 演示
 
-步骤 06 把前面各模块的能力整理成一份进程内 SDK，再用一个本地 MCP 服务把其中不需要本人确认的能力暴露成工具。现在 SDK 版本为 1.1，共 33 项能力（其中 6 项需要用户本人确认，只有用户登录令牌能调用），MCP 把其余 27 项暴露成工具；步骤 06 当时共 32 项能力、26 个工具，步骤 08 新增了只读的“读取档案详情”。医嘱的确认、修改、解除、作废、继续生效、撤回解除建议这 6 个动作不是 MCP 工具，模型只能提出解除建议。授权令牌只代表“你允许这个客户端读取或写入”，吊销后下一次调用立即失效。
+步骤 06 把前面各模块的能力整理成一份进程内 SDK，再用一个本地 MCP 服务把其中不需要本人确认的能力暴露成工具。现在 SDK 版本为 1.2，共 34 项能力（其中 6 项需要用户本人确认，只有用户登录令牌能调用），MCP 把其余 28 项暴露成工具；步骤 06 当时共 32 项能力、26 个工具，步骤 08 新增了只读的“读取档案详情”，步骤 10 新增了只读的“附近餐厅”（服务端没有配置高德密钥时调用会返回 restaurant_not_configured）。医嘱的确认、修改、解除、作废、继续生效、撤回解除建议这 6 个动作不是 MCP 工具，模型只能提出解除建议。授权令牌只代表“你允许这个客户端读取或写入”，吊销后下一次调用立即失效。
 
 先确认开发库已建到最新版本（包含 `agent_grants` 与 `sdk_call_audits` 两张表），都在 `backend` 目录下执行：
 
@@ -303,7 +303,7 @@ uv run python -m app.mcp_server
 npx @modelcontextprotocol/inspector
 ```
 
-在打开的页面里：传输方式选 STDIO；Command 填 uv 的完整路径（`Get-Command uv` 可以查到）；Arguments 填 `--directory 后端目录的完整路径 run python -m app.mcp_server`；Environment Variables 添加 `GOODLIFE_AGENT_TOKEN`（值为令牌），可选 `GOODLIFE_CLIENT_NAME`。点 Connect，在 Tools 页签点 List Tools，应看到 27 个工具，选中一个填参数后 Run Tool。Inspector 的界面会随版本变化，以其官方说明为准。Claude Desktop 的配置同理，详见《接入使用说明》。
+在打开的页面里：传输方式选 STDIO；Command 填 uv 的完整路径（`Get-Command uv` 可以查到）；Arguments 填 `--directory 后端目录的完整路径 run python -m app.mcp_server`；Environment Variables 添加 `GOODLIFE_AGENT_TOKEN`（值为令牌），可选 `GOODLIFE_CLIENT_NAME`。点 Connect，在 Tools 页签点 List Tools，应看到 28 个工具，选中一个填参数后 Run Tool。Inspector 的界面会随版本变化，以其官方说明为准。Claude Desktop 的配置同理，详见《接入使用说明》。
 
 ### 六个场景
 

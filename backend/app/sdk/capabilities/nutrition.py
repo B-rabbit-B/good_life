@@ -1,3 +1,4 @@
+from app.errors import AppError
 from app.nutrition import router
 from app.nutrition.schemas import (
     EvaluateIn,
@@ -10,8 +11,14 @@ from app.nutrition.schemas import (
     SearchOut,
     SummaryOut,
 )
-from app.sdk.params import DayParams, FoodIdParams, QueryParams
+from app.restaurants import service as restaurant_service
+from app.restaurants.amap import get_amap_client
+from app.restaurants.schemas import NearbyOut, SearchIn
+from app.sdk.params import DayParams, FoodIdParams, NearbyParams, QueryParams
 from app.sdk.registry import CallContext, Capability, Notice
+
+NEARBY_LIMIT = 8
+NO_LOCATION_MESSAGE = "还不知道用户在哪里：请问用户现在在哪里，请用户说出地名或地标（可加上城市），再把它填进 place 重新查找。"
 
 PROFILE_FIELD_NAMES = {"birth_year": "出生年份", "height_cm": "身高", "weight_kg": "体重", "activity_level": "活动水平"}
 
@@ -50,6 +57,27 @@ def _evaluate_food(ctx: CallContext, params: EvaluateIn):
 
 def _evaluate_meal(ctx: CallContext, params: EvaluateMealIn):
     return router.evaluate_meal_items(body=params, user=ctx.user, db=ctx.db, today=ctx.today)
+
+
+def _nearby_restaurants(ctx: CallContext, params: NearbyParams) -> dict:
+    """没给地点时用保存的大致区域，都没有就请智能体问用户在哪里；只把前几家与类型名称交给模型，不给应避开的菜名与原因。"""
+    client = get_amap_client()
+    if params.place is None and not restaurant_service.get_settings(ctx.db, ctx.user.id).area:
+        raise AppError(422, "restaurant_no_location", NO_LOCATION_MESSAGE)
+    request = SearchIn(place=params.place, city=params.city, use_saved_area=params.place is None,
+                       needs=list(params.needs), radius=params.radius)
+    result = restaurant_service.search(ctx.db, ctx.user.id, request, ctx.today, client=client, factory=None)
+    order = {advice["type_key"]: advice["order"] for advice in result["type_advice"]}
+    return {
+        "center_name": result["center"]["name"],
+        "restaurants": [
+            {"name": shop["name"], "type_name": shop["type_name"], "distance_m": shop["distance_m"],
+             "conclusion": shop["conclusion"], "order": order.get(shop["type_key"], [])}
+            for shop in result["restaurants"][:NEARBY_LIMIT]
+        ],
+        "avoided_type_names": [group["type_name"] for group in result["avoided_types"]],
+        "notice": result["notice"],
+    }
 
 
 CAPABILITIES: tuple[Capability, ...] = (
@@ -116,5 +144,15 @@ CAPABILITIES: tuple[Capability, ...] = (
         input_model=EvaluateMealIn,
         output_type=MealEvaluationOut,
         handler=_evaluate_meal,
+    ),
+    Capability(
+        name="nutrition.nearby_restaurants",
+        module="nutrition",
+        level="read",
+        summary="按用户说出的地名或地标（不填则用用户保存的大致区域）查找附近餐厅，按医嘱约束、目标等给出排在前面的几家店的"
+        "类别、距离、结论与可点的菜，以及已避开的餐厅类型；只是按餐厅类别给出的一般性建议，不代表该店真实菜单",
+        input_model=NearbyParams,
+        output_type=NearbyOut,
+        handler=_nearby_restaurants,
     ),
 )

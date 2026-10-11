@@ -7009,6 +7009,174 @@
       "input_schema": {
         "additionalProperties": false,
         "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "地点所在的城市，1 至 20 个字，可选；只能和 place 一起填",
+            "title": "City"
+          },
+          "needs": {
+            "default": [],
+            "description": "用户想吃的方向，最多 3 个，只能从这些键里选：light（清淡）、porridge（粥）、soup（汤）、light_meal（轻食）、high_protein（高蛋白）、vegetarian（素食）、noodles（面食）、not_spicy（不辣）、less_oil（少油）、dumpling（饺子包子）、halal（清真）、dessert（甜品）；不填表示不限",
+            "items": {
+              "enum": [
+                "light",
+                "porridge",
+                "soup",
+                "light_meal",
+                "high_protein",
+                "vegetarian",
+                "noodles",
+                "not_spicy",
+                "less_oil",
+                "dumpling",
+                "halal",
+                "dessert"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Needs",
+            "type": "array"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "用户说出的地名或地标，例如“国贸”“西湖”，1 至 50 个字；不填表示使用用户在应用里保存的大致区域",
+            "title": "Place"
+          },
+          "radius": {
+            "default": 2000,
+            "description": "检索半径（米），500 至 5000，默认 2000",
+            "maximum": 5000,
+            "minimum": 500,
+            "title": "Radius",
+            "type": "integer"
+          }
+        },
+        "title": "NearbyParams",
+        "type": "object"
+      },
+      "level": "read",
+      "module": "nutrition",
+      "name": "nutrition.nearby_restaurants",
+      "output_schema": {
+        "$defs": {
+          "NearbyShopOut": {
+            "description": "给智能体的一家店：不含地址、坐标、导航链接与应避开的菜名。",
+            "properties": {
+              "conclusion": {
+                "enum": [
+                  "suitable",
+                  "caution",
+                  "unchecked"
+                ],
+                "title": "Conclusion",
+                "type": "string"
+              },
+              "distance_m": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Distance M"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "order": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Order",
+                "type": "array"
+              },
+              "type_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Type Name"
+              }
+            },
+            "required": [
+              "name",
+              "type_name",
+              "distance_m",
+              "conclusion",
+              "order"
+            ],
+            "title": "NearbyShopOut",
+            "type": "object"
+          }
+        },
+        "description": "SDK 能力 nutrition.nearby_restaurants 的输出：排在前面的几家、已避开的类型名称与固定提示。",
+        "properties": {
+          "avoided_type_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Avoided Type Names",
+            "type": "array"
+          },
+          "center_name": {
+            "title": "Center Name",
+            "type": "string"
+          },
+          "notice": {
+            "title": "Notice",
+            "type": "string"
+          },
+          "restaurants": {
+            "items": {
+              "$ref": "#/$defs/NearbyShopOut"
+            },
+            "title": "Restaurants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "center_name",
+          "restaurants",
+          "avoided_type_names",
+          "notice"
+        ],
+        "title": "NearbyOut",
+        "type": "object"
+      },
+      "summary": "按用户说出的地名或地标（不填则用用户保存的大致区域）查找附近餐厅，按医嘱约束、目标等给出排在前面的几家店的类别、距离、结论与可点的菜，以及已避开的餐厅类型；只是按餐厅类别给出的一般性建议，不代表该店真实菜单"
+    },
+    {
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
           "query": {
             "description": "要搜索的名称或别名，1 至 50 个字，首尾空格会被去掉",
             "maxLength": 50,
@@ -7272,5 +7440,5 @@
       "summary": "查看当前用户档案里与生活方式建议有关的内容：性别、出生年份、身高、体重、活动水平、目标、饮食偏好、忌口食物、可选功能的开关与档案更新时间；不含健康状况与备注"
     }
   ],
-  "sdk_version": "1.1"
+  "sdk_version": "1.2"
 }

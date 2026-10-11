@@ -217,6 +217,11 @@ def use_transport(transport: httpx2.BaseTransport | None) -> Iterator[None]:
         _transport_override = previous
 
 
+def amap_configured() -> bool:
+    """服务端是否配置了高德密钥；没有配置时附近餐厅功能关闭，智能体也不提供这个工具。"""
+    return bool(get_settings().amap_key)
+
+
 def get_amap_client() -> AmapClient:
     settings = get_settings()
     if not settings.amap_key:
