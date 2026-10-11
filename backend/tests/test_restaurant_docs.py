@@ -69,12 +69,13 @@ def test_delivery_docs_exist_and_contain_no_code_blocks_or_inline_code():
 # ---------- 验收记录 ----------
 
 
-def test_acceptance_record_has_seven_rows_with_existing_tests_and_an_empty_user_column():
+def test_acceptance_record_has_seven_rows_with_existing_tests_and_user_acceptance():
     rows = _acceptance_rows()
     assert [row[0] for row in rows] == [str(n) for n in range(1, 8)]
     for row in rows:
         assert len(row) == 6 and row[1] and row[2] and row[3] and row[4], row[0]
-        assert row[5] == "", row[0]  # “用户验收”列由用户本人填写，目前为空
+        expected = {"1": "流程与规则部分代验通过，真实高德待用户实测", "2": "流程与规则部分代验通过，真实高德待用户实测"}
+        assert row[5] == expected.get(row[0], "通过（代验，见“代为验收记录”）"), row[0]
         assert re.search(r"test_\w+\.py::test_\w+", row[2]), row[0]  # 每一行都至少引用一个自动化测试
     references = {(match.group(1), match.group(2)) for row in rows
                   for match in re.finditer(r"(test_\w+\.py)::(test_\w+)", row[2])}
@@ -218,4 +219,4 @@ def test_readme_and_overview_record_step_10_status():
     assert "uv run python -m app.restaurants.live_check" in readme and "restaurant_live_result.md" in readme
     assert "AMAP_KEY" in readme and "步骤 10" in readme.split("定位声明")[0]
     overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8")
-    assert "| 10 | 附近餐厅推荐 | 10-附近餐厅推荐.md | 04、08 | 待验收（见 10-交付物/验收记录.md） |" in overview
+    assert "| 10 | 附近餐厅推荐 | 10-附近餐厅推荐.md | 04、08 | 有条件通过（2026-10-11，第 3 至 7 条 Claude 代验通过、第 1、2 条流程与规则部分代验；第 1、2 条真实高德检索待用户补测，见 10-交付物/验收记录.md） |" in overview
