@@ -160,12 +160,17 @@ class Step:
 
 
 class Story:
-    def __init__(self, client: TestClient, model: _ScriptedModel, today: date):
+    def __init__(self, client: TestClient, model: _ScriptedModel, today: date, username: str = DEMO_USERNAME):
         self.client = client
         self.model = model
         self.today = today
+        self.username = username
         self.headers: dict[str, str] = {}
         self.steps: list[Step] = []
+        # 各步之间共用的状态：模型服务编号、医嘱约束、对话编号
+        self.provider_id = ""
+        self.constraints: list[dict[str, Any]] = []
+        self.conversation = ""
 
     def api(self, method: str, path: str, expect: int | tuple[int, ...] = (200, 201, 204), **kwargs: Any) -> Any:
         response = self.client.request(method, path, headers=self.headers, **kwargs)
@@ -184,20 +189,28 @@ class Story:
                         json={"text": text, "stream": False})
 
 
-def prepare_account() -> None:
+def prepare_account(username: str = DEMO_USERNAME) -> None:
     """只删除演示账号本身（其余数据随账号级联删除），之后由故事里的注册接口重建。"""
     with get_sessionmaker()() as db:
-        db.execute(delete(User).where(User.username == DEMO_USERNAME))
+        db.execute(delete(User).where(User.username == username))
         db.commit()
 
 
 def run_story(story: Story) -> None:
+    chat_steps(story)
+    resolve_step(story)
+    after_resolve_step(story)
+    stream_step(story)
+
+
+def chat_steps(story: Story) -> None:
+    """第 1 至 8 步：账号与模型、经期、医嘱、主动开场、聊天加工具、带依据的回答、输出检查、风险话题。"""
     today = story.today
     api = story.api
 
     # 1 账号、档案与模型
-    api("POST", "/api/auth/register", json={"username": DEMO_USERNAME, "password": DEMO_PASSWORD})
-    token = api("POST", "/api/auth/login", json={"username": DEMO_USERNAME, "password": DEMO_PASSWORD})
+    api("POST", "/api/auth/register", json={"username": story.username, "password": DEMO_PASSWORD})
+    token = api("POST", "/api/auth/login", json={"username": story.username, "password": DEMO_PASSWORD})
     story.headers = {"Authorization": f"Bearer {token['access_token']}"}
     version = api("GET", "/api/disclaimer")["version"]
     api("POST", "/api/disclaimer/accept", json={"version": version})
@@ -207,8 +220,9 @@ def run_story(story: Story) -> None:
         "name": "本地模拟模型", "kind": "openai_compatible", "base_url": story.model.base_url, "api_key": DEMO_MODEL_KEY})
     model = api("POST", f"/api/llm/providers/{provider['id']}/models", json={"model_id": DEMO_MODEL_ID})
     assignment = api("PUT", "/api/llm/assignments/chat", json={"model_id": model["id"]})
+    story.provider_id = provider["id"]
     story.step("账号、档案与模型", bool(caps["cycle"]) and assignment["model"]["model_id"] == DEMO_MODEL_ID,
-               f"注册并登录 {DEMO_USERNAME}，接受免责声明 {version}，填好档案（女、1996 年生、162 厘米、54 公斤、"
+               f"注册并登录 {story.username}，接受免责声明 {version}，填好档案（女、1996 年生、162 厘米、54 公斤、"
                "轻度活动、减脂）；按档案开放的模块：" + "、".join(k for k, v in caps.items() if v),
                f"添加模型服务“{provider['name']}”（密钥只显示提示 {provider['key_hint']}），手动添加模型 {DEMO_MODEL_ID}，"
                "分配给日常对话")
@@ -228,6 +242,7 @@ def run_story(story: Story) -> None:
     for item in order["items"]:
         api("POST", f"/api/medical/items/{item['id']}/confirm")
     constraints = api("GET", "/api/medical/constraints")["constraints"]
+    story.constraints = constraints
     story.step("医嘱：录入并由用户本人确认", bool(order["items"]) and pending and len(constraints) == len(order["items"]),
                f"录入“{ORDER_TEXT}”，得到 {len(order['items'])} 条待确认条目",
                "（确认这一步代表用户在应用里点确认，走用户登录令牌）",
@@ -248,6 +263,7 @@ def run_story(story: Story) -> None:
     story.step("主动开场：规则触发、同一条不重复、拒绝后不再追问", opening_ok and declined_ok, *lines)
 
     conversation = api("POST", "/api/agent/conversations", json={"title": "第二阶段演示"})["id"]
+    story.conversation = conversation
 
     # 5 聊天加工具：记录早餐
     turn = story.chat(conversation, "帮我记一下早餐吃了一个鸡蛋")
@@ -285,6 +301,11 @@ def run_story(story: Story) -> None:
                and not turn["tools_used"],
                f"风险标记 {risk_flags}；模型收到的请求数不变（{before}）", f"固定回复：{turn['text'][:40]}……")
 
+
+def resolve_step(story: Story) -> None:
+    """第 9 步：医生说好了，模型只提建议，用户本人确认后解除。"""
+    api, conversation, constraints = story.api, story.conversation, story.constraints
+
     # 9 医生说好了：只提建议，用户本人确认
     item_id = constraints[0]["item_id"]
     turn = story.chat(conversation, "医生说我好了，可以吃辣了")
@@ -303,14 +324,25 @@ def run_story(story: Story) -> None:
                "约束照常生效",
                f"用户本人确认解除后，生效的医嘱约束 {len(after)} 条")
 
+
+def after_resolve_step(story: Story) -> None:
+    """第 10 步：解除后同样的问题不再被拦截。"""
+    conversation = story.conversation
+
     # 10 解除后不再改写
     turn = story.chat(conversation, "推荐川菜吧")
     story.step("解除后：同样的问题不再被拦截", "guard_rewritten" not in turn["flags"] and NOTICE_PREFIX not in turn["text"]
                and MAPO_TOFU in turn["text"],
                f"标记 {turn['flags']}；回答：{turn['text'].splitlines()[0]}", "没有医嘱阻断，也就没有医嘱提醒")
 
+
+def stream_step(story: Story) -> None:
+    """第 11 步：流式输出。"""
+    conversation = story.conversation
+
     # 11 流式
-    stream = api("POST", f"/api/agent/conversations/{conversation}/messages", json={"text": "晚饭吃什么", "stream": True})
+    stream = story.api("POST", f"/api/agent/conversations/{conversation}/messages",
+                       json={"text": "晚饭吃什么", "stream": True})
     story.step("流式：delta 与 done 事件", "event: delta" in stream and "event: done" in stream,
                f"收到 {stream.count('event: delta')} 个 delta 事件和 {stream.count('event: done')} 个 done 事件")
 
