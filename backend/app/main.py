@@ -14,6 +14,7 @@ from app.medical.router import router as medical_router
 from app.nutrition.router import router as nutrition_router
 from app.photos.router import router as photos_router
 from app.profile.router import router as profile_router
+from app.restaurants.router import router as restaurants_router
 
 
 def create_app() -> FastAPI:
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(llm_router)
     app.include_router(agent_router)
     app.include_router(photos_router)
+    app.include_router(restaurants_router)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

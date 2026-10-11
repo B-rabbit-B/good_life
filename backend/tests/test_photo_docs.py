@@ -86,7 +86,8 @@ def test_criterion_8_depends_on_the_users_evaluation_and_the_others_do_not():
 
 def test_acceptance_record_counts_match_the_code():
     record = _read("验收记录.md")
-    assert len(Base.metadata.tables) == 27  # 二十七张表按实际的模型数出来，不只看文档
+    # 二十七张表按实际的模型数出来，不只看文档；步骤 10 之后新增的表不算在步骤 09 的记录里
+    assert len(set(Base.metadata.tables) - {"restaurant_settings"}) == 27
     assert "迁移版本到 0015" in record and "共二十七张表" in record and PhotoRecognition.__tablename__ in record
     assert f"新增 {len(_photo_routes())} 个接口" in record
 
