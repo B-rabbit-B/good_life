@@ -15,6 +15,7 @@ from sqlalchemy import text
 
 from app.config import Settings
 from app.db import Base, get_db, get_engine, get_sessionmaker
+from app.errors import AppError
 from app.llm import service as llm_service
 from app.nutrition.catalog import load_catalog
 from app.nutrition.engine import DISCLAIMER
@@ -53,10 +54,16 @@ POIS = [
     _poi("B006", "张姐面馆", "050100", "600", "", 116.467, 39.915, "建国路 6 号"),
     _poi("B007", "某某餐厅", "050000", "80", "", 116.468, 39.916, "建国路 7 号"),
 ]
-GUOMAO = {"formatted_address": "北京市朝阳区国贸", "district": "朝阳区", "adcode": "110105",
-          "location": "116.458000,39.908000"}
-CITY_LEVEL = {"formatted_address": "北京市", "district": [], "adcode": "110000", "location": "116.407000,39.904000"}
-REGEO = {"formatted_address": "北京市朝阳区建国门外大街", "addressComponent": {"district": "朝阳区", "adcode": "110105"}}
+GUOMAO = {"formatted_address": "北京市朝阳区国贸", "district": "朝阳区", "adcode": "110105", "city": [],
+          "province": "北京市", "location": "116.458000,39.908000"}
+# 只匹配到城市：区县与城市都是空数组（直辖市），名称只能来自省份
+CITY_LEVEL = {"formatted_address": "北京市", "district": [], "city": [], "province": "北京市", "adcode": "110000",
+              "location": "116.407000,39.904000"}
+REGEO = {"formatted_address": "北京市朝阳区建国门外大街", "addressComponent": {
+    "district": "朝阳区", "adcode": "110105", "city": [], "province": "北京市"}}
+# 不设区的地级市：没有区县，逆地理的地址名称细到街道
+DONGGUAN_REGEO = {"formatted_address": "广东省东莞市南城街道鸿福路 100 号", "addressComponent": {
+    "district": [], "adcode": "441900", "city": "东莞市", "province": "广东省"}}
 
 
 def ok(body: dict) -> httpx2.Response:
@@ -71,6 +78,8 @@ class FakeAmap:
         self.sessions: list = []
         self.in_transaction: list[bool] = []
         self.override: httpx2.Response | None = None
+        self.regeo = REGEO
+        self.geocodes = {"国贸": [GUOMAO], "北京": [CITY_LEVEL]}
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.in_transaction.append(any(session.in_transaction() for session in self.sessions))
@@ -81,10 +90,10 @@ class FakeAmap:
         if request.url.path == "/v5/place/around":
             return ok({"count": str(len(POIS)), "pois": POIS})
         if request.url.path == "/v3/geocode/geo":
-            found = {"国贸": [GUOMAO], "北京": [CITY_LEVEL]}.get(params["address"], [])
+            found = self.geocodes.get(params["address"], [])
             return ok({"count": str(len(found)), "geocodes": found})
         if request.url.path == "/v3/geocode/regeo":
-            return ok({"regeocode": REGEO})
+            return ok({"regeocode": self.regeo})
         return httpx2.Response(404)
 
     def calls(self, path: str) -> list[dict[str, str]]:
@@ -361,11 +370,26 @@ def test_remember_area_from_place_uses_the_geocoded_district(client, fake):
     assert area == {"name": "朝阳区", "adcode": "110105", "lng": 116.46, "lat": 39.91}
 
 
-def test_city_level_match_saves_the_formatted_name_not_an_empty_one(client, fake):
+def test_city_level_match_saves_the_province_name_not_an_empty_one(client, fake):
     headers = ready_user(client, "hap")
     _ok(client, headers, place="北京", remember_area=True)
     area = decrypt_value(_row("hap")["area"])
-    assert area["name"] == "北京市" and area["adcode"] == "110000"
+    assert area["name"] == "北京市" and area["adcode"] == "110000"  # 来自 province：district 与 city 都是空数组
+
+    # 连省份也没有时用固定名称，不用解析出的地址名称，也不用用户输入的原文
+    fake.geocodes["北京"] = [{**CITY_LEVEL, "province": []}]
+    _ok(client, headers, place="北京", remember_area=True)
+    assert decrypt_value(_row("hap")["area"])["name"] == "大致区域"
+
+
+def test_gps_area_without_district_uses_the_city_not_the_street_address(client, fake):
+    headers = ready_user(client, "hay")
+    _grant(client, headers)
+    fake.regeo = DONGGUAN_REGEO
+    _ok(client, headers, location={"lng": 113.75, "lat": 23.02}, remember_area=True)
+    area = decrypt_value(_row("hay")["area"])
+    assert area["name"] == "东莞市" and area["adcode"] == "441900"
+    assert client.get(f"{URL}/settings", headers=headers).json()["area"]["name"] == "东莞市"
 
 
 def test_saved_area_without_saving_is_422(client, fake):
@@ -586,6 +610,32 @@ def test_rate_limit_is_per_user_per_hour(client, fake, monkeypatch):
     _ok(client, second, place="国贸")
     restaurant_service.reset_rate_limit()
     _ok(client, first, place="国贸")
+
+
+def test_rate_limit_window_slides_and_idle_users_are_evicted(monkeypatch):
+    restaurant_service.reset_rate_limit()
+    monkeypatch.setattr(restaurant_service, "RATE_LIMIT", 2)
+    clock = [1000.0]
+    monkeypatch.setattr(restaurant_service.time, "monotonic", lambda: clock[0])
+    busy, idle = uuid.uuid4(), uuid.uuid4()
+    restaurant_service._check_rate(idle)
+    clock[0] += 1800
+    restaurant_service._check_rate(busy)
+    restaurant_service._check_rate(busy)
+    with pytest.raises(AppError) as exc:
+        restaurant_service._check_rate(busy)
+    assert exc.value.status_code == 429
+    assert set(restaurant_service._recent_searches) == {idle, busy}
+
+    clock[0] += 1800  # idle 的那次已满一小时
+    with pytest.raises(AppError):
+        restaurant_service._check_rate(busy)  # busy 的两次还在窗口里
+    assert set(restaurant_service._recent_searches) == {busy}  # 窗口里没有记录的用户被移出
+
+    clock[0] += 1800
+    restaurant_service._check_rate(busy)  # 窗口滑过之后重新建立计数
+    assert len(restaurant_service._recent_searches[busy]) == 1
+    restaurant_service.reset_rate_limit()
 
 
 # ---------- 事务 ----------

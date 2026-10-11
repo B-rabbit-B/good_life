@@ -137,10 +137,30 @@ def test_httpx_info_log_does_not_contain_the_key(caplog):
     rec.client().around(116.46, 39.91, keywords="粥", radius=500)
     rec.client().geocode("国贸", None)
     assert "HTTP Request" in caplog.text  # 日志确实产生了
-    assert KEY not in caplog.text
-    assert "key=***" in caplog.text
-    assert "?key=***&" in caplog.text or "&key=***" in caplog.text  # 只改写 key，其余参数保留
-    assert "types=050000" in caplog.text
+    assert KEY not in caplog.text and "key=" not in caplog.text
+    assert "/v5/place/around?<redacted>" in caplog.text  # 整个查询串被替换，路径保留
+    assert "/v3/geocode/geo?<redacted>" in caplog.text
+    assert "types=050000" not in caplog.text
+
+
+def test_httpx_info_log_has_no_location_place_text_or_keywords(caplog):
+    caplog.set_level(logging.INFO, logger="httpx2")
+    regeo = {"regeocode": {"formatted_address": "北京市朝阳区建国路", "addressComponent": {
+        "district": "朝阳区", "adcode": "110105", "city": [], "province": "北京市"}}}
+    geocode = {"count": "1", "geocodes": [{"formatted_address": "北京市朝阳区国贸", "location": "116.4600,39.9100",
+                                         "district": "朝阳区", "adcode": "110105"}]}
+    rec = Recorder(ok({"count": "0", "pois": []}), ok(geocode), ok(regeo))
+    client = rec.client()
+    client.around(116.123456, 39.654321, keywords="砂锅粥", radius=1500)
+    client.geocode("三里屯太古里", "北京")
+    client.regeo(116.987654, 39.456789)
+    text = caplog.text
+    assert text.count("HTTP Request") == 3
+    for path in ("/v5/place/around", "/v3/geocode/geo", "/v3/geocode/regeo"):
+        assert f"{path}?<redacted>" in text
+    for secret in (KEY, "116.123456", "39.654321", "116.987654", "39.456789", "116.12", "39.65", "116.98", "39.45",
+                   "砂锅粥", "三里屯", "北京", "%E7%A0%82", "%E4%B8%89", "radius=", "location", "keywords", "address"):
+        assert secret not in text, secret
 
 
 def test_around_without_keywords_omits_the_parameter():
@@ -165,11 +185,11 @@ def test_around_skips_pois_without_usable_location():
 def test_geocode_returns_first_result():
     rec = Recorder(ok({"count": "1", "geocodes": [
         {"formatted_address": "北京市朝阳区国贸", "location": "116.4600,39.9100", "district": "朝阳区",
-         "adcode": "110105"},
+         "adcode": "110105", "city": [], "province": "北京市"},
         {"formatted_address": "别处", "location": "1,2", "district": "x", "adcode": "1"},
     ]}))
     place = rec.client().geocode("国贸", "北京")
-    assert place == Place("北京市朝阳区国贸", 116.46, 39.91, "朝阳区", "110105")
+    assert place == Place("北京市朝阳区国贸", 116.46, 39.91, "朝阳区", "110105", "", "北京市")  # 直辖市的 city 为空数组
     assert rec.requests[0].url.path == "/v3/geocode/geo"
     assert rec.params == {"key": KEY, "address": "国贸", "city": "北京"}
 
@@ -181,10 +201,10 @@ def test_geocode_without_city_omits_it_and_no_result_is_none():
 
 
 def test_regeo_reads_district_and_adcode():
-    rec = Recorder(ok({"regeocode": {"formatted_address": "北京市朝阳区建国路", "addressComponent": {
-        "district": "朝阳区", "adcode": "110105"}}}))
+    rec = Recorder(ok({"regeocode": {"formatted_address": "广东省东莞市南城街道", "addressComponent": {
+        "district": [], "adcode": "441900", "city": "东莞市", "province": "广东省"}}}))
     place = rec.client().regeo(116.46, 39.91)
-    assert place == Place("北京市朝阳区建国路", 116.46, 39.91, "朝阳区", "110105")
+    assert place == Place("广东省东莞市南城街道", 116.46, 39.91, "", "441900", "东莞市", "广东省")
     assert rec.requests[0].url.path == "/v3/geocode/regeo"
     assert rec.params["location"] == "116.460000,39.910000"
     assert rec.params["key"] == KEY
@@ -193,7 +213,7 @@ def test_regeo_reads_district_and_adcode():
 def test_regeo_with_empty_district_array_gives_empty_text():
     rec = Recorder(ok({"regeocode": {"formatted_address": [], "addressComponent": {"district": [], "adcode": []}}}))
     place = rec.client().regeo(116.46, 39.91)
-    assert place.district == "" and place.adcode == ""
+    assert place.district == "" and place.adcode == "" and place.city == "" and place.province == ""
 
 
 # ---------- 错误映射 ----------

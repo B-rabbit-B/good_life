@@ -54,9 +54,14 @@ def reset_rate_limit() -> None:
 def _check_rate(user_id: uuid.UUID) -> None:
     now = time.monotonic()
     with _rate_lock:
+        # 顺带清掉窗口已过的用户，字典不会只增不减
+        for key in list(_recent_searches):
+            recent = _recent_searches[key]
+            while recent and now - recent[0] >= RATE_WINDOW_SECONDS:
+                recent.popleft()
+            if not recent:
+                del _recent_searches[key]
         recent = _recent_searches.setdefault(user_id, deque())
-        while recent and now - recent[0] >= RATE_WINDOW_SECONDS:
-            recent.popleft()
         if len(recent) >= RATE_LIMIT:
             raise AppError(429, "restaurant_rate_limited",
                            f"附近餐厅检索太频繁了：每小时最多 {RATE_LIMIT} 次，请稍后再试。")
@@ -110,13 +115,9 @@ def _model_needs(user_id: uuid.UUID, text: str, factory: AdapterFactory) -> tupl
     return needs.parse_model_needs(completion.result.text)
 
 
-def _area_name(place: Place, raw_place: str | None) -> str:
-    """区县优先；没有区县（如只匹配到城市）时用解析出的地址名称，但不用用户输入的原文，也不留空。"""
-    if place.district:
-        return place.district
-    if place.name and place.name != raw_place:
-        return place.name
-    return AREA_FALLBACK_NAME
+def _area_name(place: Place) -> str:
+    """区县 → 城市 → 省份 → “大致区域”。不用解析出的地址名称（可能细到街道），也不留空。"""
+    return place.district or place.city or place.province or AREA_FALLBACK_NAME
 
 
 def _around(client: AmapClient, lng: float, lat: float, keywords: list[str], radius: int) -> list[Poi]:
@@ -203,7 +204,7 @@ def search(
             place = client.regeo(lng, lat)
         rough_lng, rough_lat = coarse(lng, lat)
         row = get_settings(db, user_id)
-        row.area = {"name": _area_name(place, request.place), "adcode": place.adcode, "lng": rough_lng,
+        row.area = {"name": _area_name(place), "adcode": place.adcode, "lng": rough_lng,
                     "lat": rough_lat}
         row.area_saved_at = datetime.now(UTC)
         db.commit()

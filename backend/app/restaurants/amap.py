@@ -23,27 +23,28 @@ _KEY_CODES = {"10001", "10009", "10010", "10012"}
 
 _transport_override: httpx2.BaseTransport | None = None
 
-_KEY_PARAM = re.compile(r"([?&])key=[^&\s\"]*")
+_QUERY = re.compile(r"\?[^\s\"]*")
 
 
-class _RedactKeyFilter(logging.Filter):
-    """httpx2 会在 INFO 级别记录完整请求地址，而密钥是地址里的查询参数；这里把 key=... 改写成 key=***。
-    只改写这个记录器的记录，不抬高日志级别，所以模型适配器的 INFO 日志不受影响。"""
+class _RedactQueryFilter(logging.Filter):
+    """httpx2 会在 INFO 级别记录完整请求地址，查询串里有密钥、坐标、地点原文与检索关键词；这里把整个查询串
+    改写成 ?<redacted>，只保留路径。只改写这个记录器的记录，不抬高日志级别，所以模型适配器的 INFO 日志不受影响。"""
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
             message = record.getMessage()
         except (TypeError, ValueError):
             return True
-        if "key=" in message:
-            record.msg = _KEY_PARAM.sub(lambda m: m.group(1) + "key=***", message)
+        redacted = _QUERY.sub("?<redacted>", message)
+        if redacted != message:
+            record.msg = redacted
             record.args = ()
         return True
 
 
 _httpx_logger = logging.getLogger("httpx2")
-if not any(isinstance(f, _RedactKeyFilter) for f in _httpx_logger.filters):
-    _httpx_logger.addFilter(_RedactKeyFilter())
+if not any(isinstance(f, _RedactQueryFilter) for f in _httpx_logger.filters):
+    _httpx_logger.addFilter(_RedactQueryFilter())
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,8 @@ class Place:
     lat: float
     district: str
     adcode: str
+    city: str  # 直辖市的 city 在高德返回里是空数组，这里为空字符串
+    province: str
 
 
 def _failed(message: str = "附近餐厅服务暂时不可用（高德服务出错或无法连接），请稍后再试") -> AppError:
@@ -188,7 +191,8 @@ class AmapClient:
         if location is None:
             raise _failed()
         return Place(_text(first.get("formatted_address")) or address, location[0], location[1],
-                     _text(first.get("district")), _text(first.get("adcode")))
+                     _text(first.get("district")), _text(first.get("adcode")), _text(first.get("city")),
+                     _text(first.get("province")))
 
     def regeo(self, lng: float, lat: float) -> Place:
         data = self._get("/v3/geocode/regeo", {"location": f"{_coord(lng)},{_coord(lat)}"})
@@ -197,7 +201,8 @@ class AmapClient:
         if not isinstance(component, dict):
             raise _failed()
         return Place(_text(regeocode.get("formatted_address")), lng, lat,
-                     _text(component.get("district")), _text(component.get("adcode")))
+                     _text(component.get("district")), _text(component.get("adcode")), _text(component.get("city")),
+                     _text(component.get("province")))
 
 
 @contextmanager
