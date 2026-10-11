@@ -95,7 +95,7 @@ def test_acceptance_record_counts_match_the_code():
 def test_readme_and_overview_record_step_09_status():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "## 19. 拍照识别" in readme and "### 照片评测" in readme
-    assert "共二十七张表" in readme and PhotoRecognition.__tablename__ in readme
+    assert PhotoRecognition.__tablename__ in readme  # 表的总数随后续步骤增加，由最新步骤的文档测试检查
     assert "uv run python -m app.photos.eval_check" in readme and "photo_eval_result.md" in readme
     assert "步骤 09" in readme.split("定位声明")[0]
     overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8")
