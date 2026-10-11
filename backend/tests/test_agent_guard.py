@@ -332,6 +332,16 @@ def test_violation_names_ids_and_order():
     assert verdict == GuardVerdict(False, ("麻婆豆腐", "宫保鸡丁"), (MAPO, KUNG_PAO))
 
 
+def test_short_name_lamb_skewers_resolves_to_the_spicy_dish_and_is_blocked():
+    # 营养库里还有不带辛辣标签的“羊肉串（烤）”等成分条目；烤羊肉串有别名“羊肉串”，短名按食物检索排第一的它来判断
+    text = "推荐你去吃羊肉串"
+    ids = guard.mentioned_food_ids(text, CATALOG)
+    assert ids[0] == "dish:lamb_skewers" == CATALOG.search("羊肉串", 1)[0].food.id
+    evaluations = {food_id: _evaluate(food_id, constraints=(NO_SPICY,)) for food_id in ids}
+    verdict = check_answer(text, evaluations)
+    assert not verdict.passed and verdict.food_ids == ("dish:lamb_skewers",) and verdict.violations == ("羊肉串",)
+
+
 def test_only_medical_blocks_count():
     evaluations = {
         "cfcd:066201x": _evaluate("cfcd:066201x", cycle_phase="menstrual"),  # 西瓜：经期提示的谨慎

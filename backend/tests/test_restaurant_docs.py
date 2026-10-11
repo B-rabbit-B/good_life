@@ -9,10 +9,11 @@ import app.models  # noqa: F401
 from app.db import Base
 from app.main import create_app
 from app.nutrition.catalog import load_catalog
+from app.nutrition.engine import EvaluationContext, HardConstraint
 from app.restaurants import live_check, needs, ranking, service, types
 from app.restaurants.models import RestaurantSettings
 from app.restaurants.needs import load_needs
-from app.restaurants.types import load_types
+from app.restaurants.types import advise, load_types
 from app.sdk.registry import REGISTRY
 from app.sdk.tooling import exposed_capabilities
 
@@ -29,6 +30,12 @@ REUSED_CODES = ("validation_error", "not_authenticated", "invalid_token", "discl
 LIVE_PENDING = "依赖用户运行实测脚本"
 RESULT_PENDING = "待用户运行实测脚本后填写"
 CATALOG = load_catalog()
+# 约束过滤说明里“各条医嘱的结果”表的每一行：医嘱写法、类别与说法；表中结果由引擎现算，不靠手写
+ORDER_ROWS = (
+    ("忌辛辣", "diet_avoid", "辛辣"), ("忌生冷", "diet_avoid", "生冷"), ("忌油腻", "diet_avoid", "油腻"),
+    ("痛风，忌高嘌呤", "diet_avoid", "高嘌呤"), ("忌海鲜", "diet_avoid", "海鲜"), ("低盐饮食", "diet_require", "低盐"),
+    ("忌甜食", "diet_avoid", "甜食"), ("禁酒", "diet_avoid", "酒"),
+)
 
 
 def _read(name: str) -> str:
@@ -132,6 +139,30 @@ def test_filter_doc_lists_every_type_with_codes_keywords_and_dishes_and_states_t
                  "火锅这一类为“需要注意”", "低盐", "已知局限"):
         assert word in doc, word
     assert "避开火锅" not in doc and "火锅被避开" not in doc
+
+
+def _order_row(label: str, category: str, subject: str) -> str:
+    """只有这一条医嘱（没有每日需求、没有其他约束）时，各类型的整类结论，按类型表的顺序排成文档里的一行。"""
+    context = EvaluationContext(constraints=(HardConstraint("m1", category, label, (subject,)),))
+    avoided, caution = [], []
+    for rtype in load_types():
+        advice = advise(rtype, context, CATALOG)
+        if advice.conclusion == "not_recommended":
+            avoided.append(f"{rtype.name}（{len(advice.avoid)}/{len(rtype.dishes)} 道：{'、'.join(advice.avoid)}）")
+        elif advice.conclusion == "caution":
+            parts = ([f"应避开：{'、'.join(advice.avoid)}"] if advice.avoid else []) + (
+                [f"适量：{'、'.join(advice.moderate)}"] if advice.moderate else [])
+            caution.append(f"{rtype.name}（{'；'.join(parts)}）")
+    return f"| {label} | {'、'.join(avoided) or '无'} | {'、'.join(caution) or '无'} |"
+
+
+def test_filter_doc_order_table_matches_the_engine():
+    doc = _read("约束过滤与排序规则说明.md")
+    for label, category, subject in ORDER_ROWS:
+        assert _order_row(label, category, subject) in doc, label
+    assert "日料（2/3 道：生鱼片、凉拌黄瓜）" in _order_row("忌生冷", "diet_avoid", "生冷")
+    assert "海鲜（应避开：牡蛎）" in _order_row("痛风，忌高嘌呤", "diet_avoid", "高嘌呤")
+    assert "火锅（应避开：火锅）" in _order_row("忌辛辣", "diet_avoid", "辛辣")
 
 
 def test_location_doc_covers_consent_storage_and_logs():

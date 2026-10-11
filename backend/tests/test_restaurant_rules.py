@@ -25,6 +25,7 @@ NO_SPICY = _order("忌辛辣", "辛辣")
 NO_GREASY = _order("忌油腻", "油腻")
 NO_RAW_COLD = _order("忌生冷", "生冷")
 LOW_SALT = _order("低盐饮食", "低盐", "diet_require")
+NO_PURINE = _order("痛风，忌高嘌呤食物", "高嘌呤")
 
 
 def _poi(poi_id="p1", name="某某餐厅", typecode="050000", distance=100, rating=None):
@@ -154,7 +155,7 @@ def test_goal_reasons_from_different_rules_are_all_kept():
     (NO_GREASY, "bbq", ("caution", "not_recommended")),
     (NO_SPICY, "bbq", ("caution", "not_recommended")),
     (NO_SPICY, "hunan", ("not_recommended",)),
-    (NO_RAW_COLD, "japanese", ("caution", "not_recommended")),
+    (NO_RAW_COLD, "japanese", ("not_recommended",)),
     (NO_RAW_COLD, "salad", ("caution", "not_recommended")),
 ])
 def test_main_orders_are_caught_by_representative_dishes(context, key, expected):
@@ -168,6 +169,21 @@ def test_new_dishes_carry_tags_through_the_catalog():
     assert skewers.name == "烤羊肉串" and "spicy" in skewers.tags
     assert sashimi.name == "生鱼片" and "刺身" in sashimi.aliases and "raw_cold" in sashimi.tags
     assert "dish:lamb_skewers" in TYPES["bbq"].dishes and "dish:sashimi" in TYPES["japanese"].dishes
+
+
+def test_raw_cold_order_avoids_japanese_with_two_of_three_dishes():
+    advice = advise(TYPES["japanese"], NO_RAW_COLD, CATALOG)
+    assert advice.conclusion == "not_recommended"
+    assert advice.avoid == ("生鱼片", "凉拌黄瓜") and advice.order == ("鳗鱼（红烧）",)
+    assert all(item.reason.source == "medical" for item in advice.reasons)
+
+
+def test_purine_order_only_reaches_caution_for_seafood_and_hotpot():
+    # 只有牡蛎带高嘌呤标签：海鲜一类 5 道里 1 道不建议，整类是“需要注意”，与忌辛辣时的火锅同理
+    seafood = advise(TYPES["seafood"], NO_PURINE, CATALOG)
+    assert seafood.conclusion == "caution" and seafood.avoid == ("牡蛎",)
+    hotpot = advise(TYPES["hotpot"], NO_PURINE, CATALOG)
+    assert hotpot.conclusion == "caution" and hotpot.avoid == ("火锅",)
 
 
 def test_rice_is_not_a_representative_dish():
@@ -217,6 +233,12 @@ def test_rules_match_colloquial_text():
     assert match_rules("想减脂") == ("light_meal",)
     assert match_rules("随便看看附近有什么") == ()
     assert match_rules("想吃不辣的") == ("not_spicy",)
+
+
+def test_rules_match_the_added_colloquial_synonyms():
+    assert match_rules("不想吃辣") == ("not_spicy",)
+    assert match_rules("不要太辣的就行") == ("not_spicy",)
+    assert match_rules("胃不太舒服") == ("light", "porridge")
 
 
 def test_rules_skip_negated_mentions():

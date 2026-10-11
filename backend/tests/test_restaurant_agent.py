@@ -36,7 +36,7 @@ TODAY = date(2026, 10, 7)
 CAPABILITY = "nutrition.nearby_restaurants"
 TOOL = "nutrition_nearby_restaurants"
 NO_SPICY = "一周内忌食辛辣。"
-OUT_KEYS = {"center_name", "restaurants", "avoided_type_names", "notice"}
+OUT_KEYS = {"center_name", "restaurants", "avoided_types", "notice"}
 SHOP_KEYS = {"name", "type_name", "distance_m", "conclusion", "order"}
 
 
@@ -119,7 +119,7 @@ def test_sdk_with_a_place_returns_the_top_shops_like_the_rest_api(client, sdk, f
     assert data["center_name"] == expected["center"]["name"] == "北京市朝阳区国贸"
     assert data["restaurants"] == _expected_shops(expected)
     assert all(set(shop) == SHOP_KEYS for shop in data["restaurants"])
-    assert data["avoided_type_names"] == []
+    assert data["avoided_types"] == []
     assert data["notice"] == restaurant_service.NOTICE
     unchecked = next(shop for shop in data["restaurants"] if shop["name"] == "某某餐厅")
     assert unchecked == {"name": "某某餐厅", "type_name": None, "distance_m": 80, "conclusion": "unchecked",
@@ -184,14 +184,16 @@ def test_sdk_without_amap_key_is_not_configured(client, sdk, unconfigured):
     assert _audits()[-1] == (CAPABILITY, "error", "restaurant_not_configured", "pytest")
 
 
-def test_sdk_output_has_avoided_type_names_but_no_avoid_dishes_or_reasons(client, sdk, fake):
+def test_sdk_output_has_avoided_types_with_reason_sources_but_no_avoid_dishes_or_reasons(client, sdk, fake):
     headers = ready_user(client, "fay")
     _spicy_order(client, headers)
     expected = _rest(client, headers, place="国贸")
     data = sdk.call(_token(client, headers), CAPABILITY, {"place": "国贸"}).data
 
-    assert data["avoided_type_names"] == [group["type_name"] for group in expected["avoided_types"]]
-    assert len(data["avoided_type_names"]) == 2  # 川菜与麻辣烫两类
+    # 每个被避开的类型只给名称与原因来源（引擎的来源名称，去重），不给原因原文与菜名
+    assert data["avoided_types"] == [{"type_name": group["type_name"], "reason_sources": ["医嘱"]}
+                                     for group in expected["avoided_types"]]
+    assert len(data["avoided_types"]) == 2  # 川菜与麻辣烫两类
     assert data["restaurants"] == _expected_shops(expected)
     names = {shop["name"] for shop in data["restaurants"]}
     assert "老川菜馆" not in names and "杨记麻辣烫" not in names
@@ -203,12 +205,23 @@ def test_sdk_output_has_avoided_type_names_but_no_avoid_dishes_or_reasons(client
     avoid = {dish for item in expected["type_advice"] for dish in item["avoid"]}
     reasons = {r["message"] for item in expected["type_advice"] for r in item["reasons"]}
     assert avoid and reasons
-    shown = names | set(data["avoided_type_names"]) | {shop["type_name"] for shop in data["restaurants"]}
+    avoided_names = {group["type_name"] for group in data["avoided_types"]}
+    shown = names | avoided_names | {shop["type_name"] for shop in data["restaurants"]}
     for dish in avoid:
         if not any(dish in name for name in shown if name):  # 店名、类型名里本来就带的字（如“火锅”）除外
             assert dish not in serialized, dish
     for message in reasons:
         assert message not in serialized, message
+
+
+def test_reason_sources_list_every_engine_source_once_in_the_engines_order(client, sdk, fake):
+    profile = {"gender": "male", "birth_year": 1990, "height_cm": 175, "weight_kg": 70, "activity_level": "moderate",
+               "goal": "maintain"}
+    headers = ready_user(client, "gil", profile)  # 档案完整，能估算每日需求：水煮鱼、麻辣烫的钠超过上限
+    _spicy_order(client, headers)
+    data = sdk.call(_token(client, headers), CAPABILITY, {"place": "国贸"}).data
+    assert data["avoided_types"] == [{"type_name": "川菜", "reason_sources": ["医嘱", "当日摄入"]},
+                                     {"type_name": "麻辣烫与串串", "reason_sources": ["医嘱", "当日摄入"]}]
 
 
 @pytest.mark.parametrize("params", [
@@ -326,7 +339,7 @@ def test_agent_calls_the_tool_and_the_answer_goes_through_the_output_check(clien
     envelope = json.loads(result["content"])
     assert envelope["ok"] is True and set(envelope["data"]) == OUT_KEYS
     assert "张记粥铺" in result["content"] and "杨记麻辣烫" not in result["content"]
-    assert len(envelope["data"]["avoided_type_names"]) == 2
+    assert [group["reason_sources"] for group in envelope["data"]["avoided_types"]] == [["医嘱"], ["医嘱"]]
     assert body["flags"] == ["guard_rewritten"]
     assert "麻辣烫" in scripted.requests[2].messages[-1]["content"]  # 重写要求里点名了麻辣烫
     assert body["text"].split("\n\n")[0] == "国贸附近可以去张记粥铺喝粥。"

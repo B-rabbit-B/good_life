@@ -109,7 +109,7 @@
     "name": "日料",
     "typecodes": ["050202"],
     "name_keywords": ["日料", "日本料理", "日式", "日式拉面", "寿司", "刺身", "居酒屋", "烧鸟", "鳗鱼饭", "定食"],
-    "dishes": ["dish:sashimi", "cfcd:121408", "dish:steamed_egg"]
+    "dishes": ["dish:sashimi", "cfcd:121408", "dish:cucumber_salad"]
   },
   {
     "key": "fastfood",

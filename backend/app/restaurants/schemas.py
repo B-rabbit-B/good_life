@@ -133,10 +133,17 @@ class NearbyShopOut(BaseModel):
     order: list[str]
 
 
+class NearbyAvoidedOut(BaseModel):
+    """给智能体的一个被避开的类型：类型名称与原因的来源（例如“医嘱”“当日摄入”），不含菜名与原因原文。"""
+
+    type_name: str
+    reason_sources: list[str]
+
+
 class NearbyOut(BaseModel):
-    """SDK 能力 nutrition.nearby_restaurants 的输出：排在前面的几家、已避开的类型名称与固定提示。"""
+    """SDK 能力 nutrition.nearby_restaurants 的输出：排在前面的几家、已避开的类型（名称与原因来源）与固定提示。"""
 
     center_name: str
     restaurants: list[NearbyShopOut]
-    avoided_type_names: list[str]
+    avoided_types: list[NearbyAvoidedOut]
     notice: str

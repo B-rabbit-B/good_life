@@ -1,5 +1,6 @@
 from app.errors import AppError
 from app.nutrition import router
+from app.nutrition.engine import SOURCE_NAMES, SOURCE_ORDER
 from app.nutrition.schemas import (
     EvaluateIn,
     EvaluateMealIn,
@@ -59,8 +60,15 @@ def _evaluate_meal(ctx: CallContext, params: EvaluateMealIn):
     return router.evaluate_meal_items(body=params, user=ctx.user, db=ctx.db, today=ctx.today)
 
 
+def _reason_sources(reasons: list[dict]) -> list[str]:
+    """原因来自哪里（医嘱、当日摄入等），按引擎的来源顺序去重；不含原因原文与菜名。"""
+    sources = {reason["source"] for reason in reasons}
+    return [SOURCE_NAMES[source] for source in SOURCE_ORDER if source in sources]
+
+
 def _nearby_restaurants(ctx: CallContext, params: NearbyParams) -> dict:
-    """没给地点时用保存的大致区域，都没有就请智能体问用户在哪里；只把前几家与类型名称交给模型，不给应避开的菜名与原因。"""
+    """没给地点时用保存的大致区域，都没有就请智能体问用户在哪里；只把前几家、被避开的类型名称与原因来源交给模型，
+    不给应避开的菜名与原因原文。"""
     client = get_amap_client()
     if params.place is None and not restaurant_service.get_settings(ctx.db, ctx.user.id).area:
         raise AppError(422, "restaurant_no_location", NO_LOCATION_MESSAGE)
@@ -75,7 +83,10 @@ def _nearby_restaurants(ctx: CallContext, params: NearbyParams) -> dict:
              "conclusion": shop["conclusion"], "order": order.get(shop["type_key"], [])}
             for shop in result["restaurants"][:NEARBY_LIMIT]
         ],
-        "avoided_type_names": [group["type_name"] for group in result["avoided_types"]],
+        "avoided_types": [
+            {"type_name": group["type_name"], "reason_sources": _reason_sources(group["reasons"])}
+            for group in result["avoided_types"]
+        ],
         "notice": result["notice"],
     }
 

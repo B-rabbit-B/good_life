@@ -7080,6 +7080,28 @@
       "name": "nutrition.nearby_restaurants",
       "output_schema": {
         "$defs": {
+          "NearbyAvoidedOut": {
+            "description": "给智能体的一个被避开的类型：类型名称与原因的来源（例如“医嘱”“当日摄入”），不含菜名与原因原文。",
+            "properties": {
+              "reason_sources": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Reason Sources",
+                "type": "array"
+              },
+              "type_name": {
+                "title": "Type Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type_name",
+              "reason_sources"
+            ],
+            "title": "NearbyAvoidedOut",
+            "type": "object"
+          },
           "NearbyShopOut": {
             "description": "给智能体的一家店：不含地址、坐标、导航链接与应避开的菜名。",
             "properties": {
@@ -7137,13 +7159,13 @@
             "type": "object"
           }
         },
-        "description": "SDK 能力 nutrition.nearby_restaurants 的输出：排在前面的几家、已避开的类型名称与固定提示。",
+        "description": "SDK 能力 nutrition.nearby_restaurants 的输出：排在前面的几家、已避开的类型（名称与原因来源）与固定提示。",
         "properties": {
-          "avoided_type_names": {
+          "avoided_types": {
             "items": {
-              "type": "string"
+              "$ref": "#/$defs/NearbyAvoidedOut"
             },
-            "title": "Avoided Type Names",
+            "title": "Avoided Types",
             "type": "array"
           },
           "center_name": {
@@ -7165,7 +7187,7 @@
         "required": [
           "center_name",
           "restaurants",
-          "avoided_type_names",
+          "avoided_types",
           "notice"
         ],
         "title": "NearbyOut",

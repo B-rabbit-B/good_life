@@ -330,7 +330,7 @@
    ],
    "serving_grams": 265, "tags": ["raw_cold"],
    "note": "家常凉拌做法一人份估计：内酯豆腐配皮蛋 1 个"},
-  {"id": "lamb_skewers", "name": "烤羊肉串", "aliases": ["孜然羊肉串"], "category": "菜品-家常菜",
+  {"id": "lamb_skewers", "name": "烤羊肉串", "aliases": ["孜然羊肉串", "羊肉串"], "category": "菜品-家常菜",
    "ingredients": [
      {"food": "cfcd:083101x", "grams": 150}, {"food": "cfcd:043108", "grams": 3}, {"food": "cfcd:192004", "grams": 5},
      {"food": "supplement:salt", "grams": 2}
