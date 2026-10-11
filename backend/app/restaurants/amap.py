@@ -4,7 +4,9 @@
 任何错误说明、异常信息与 repr 都不含密钥或高德返回的原文。
 """
 
+import logging
 import math
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -20,6 +22,28 @@ _BUSY_CODES = {"10003", "10004", "10014", "10019", "10020", "10021", "10044", "1
 _KEY_CODES = {"10001", "10009", "10010", "10012"}
 
 _transport_override: httpx2.BaseTransport | None = None
+
+_KEY_PARAM = re.compile(r"([?&])key=[^&\s\"]*")
+
+
+class _RedactKeyFilter(logging.Filter):
+    """httpx2 会在 INFO 级别记录完整请求地址，而密钥是地址里的查询参数；这里把 key=... 改写成 key=***。
+    只改写这个记录器的记录，不抬高日志级别，所以模型适配器的 INFO 日志不受影响。"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            message = record.getMessage()
+        except (TypeError, ValueError):
+            return True
+        if "key=" in message:
+            record.msg = _KEY_PARAM.sub(lambda m: m.group(1) + "key=***", message)
+            record.args = ()
+        return True
+
+
+_httpx_logger = logging.getLogger("httpx2")
+if not any(isinstance(f, _RedactKeyFilter) for f in _httpx_logger.filters):
+    _httpx_logger.addFilter(_RedactKeyFilter())
 
 
 @dataclass(frozen=True)
@@ -58,7 +82,7 @@ def _number(value: Any) -> float | None:
         return None
     try:
         number = float(value)
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
     return number if math.isfinite(number) else None
 

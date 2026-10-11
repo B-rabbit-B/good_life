@@ -1,3 +1,4 @@
+import logging
 import math
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -78,6 +79,11 @@ def test_beijing_point_shifts_by_hundreds_of_meters_deterministically():
     assert gcj[0] > wgs[0] and gcj[1] > wgs[1]  # 北京一带 GCJ-02 偏向东北
 
 
+def test_beijing_reference_vector():
+    lng, lat = wgs84_to_gcj02(116.397428, 39.90923)
+    assert abs(lng - 116.40367) < 1e-4 and abs(lat - 39.91063) < 1e-4
+
+
 @pytest.mark.parametrize("point", [(139.6917, 35.6895), (-74.006, 40.7128)])
 def test_points_outside_china_are_unchanged(point):
     assert wgs84_to_gcj02(*point) == point
@@ -115,6 +121,26 @@ def test_around_sends_expected_request_and_parses_pois():
     assert isinstance(pois[0].distance_m, int)
     assert pois[1].rating is None and pois[1].distance_m is None and pois[1].address == ""
     assert pois[2].rating is None and pois[2].distance_m is None
+
+
+def test_overflowing_numbers_are_treated_as_missing():
+    huge = 10**400  # float() 对它抛 OverflowError
+    body = {"pois": [{**POIS["pois"][0], "distance": huge, "business": {"rating": huge}}]}
+    (poi,) = Recorder(ok(body)).client().around(116.46, 39.91, keywords=None, radius=500)
+    assert poi.distance_m is None and poi.rating is None
+
+
+def test_httpx_info_log_does_not_contain_the_key(caplog):
+    caplog.set_level(logging.INFO)
+    caplog.set_level(logging.INFO, logger="httpx2")
+    rec = Recorder(ok({"count": "0", "pois": []}))
+    rec.client().around(116.46, 39.91, keywords="粥", radius=500)
+    rec.client().geocode("国贸", None)
+    assert "HTTP Request" in caplog.text  # 日志确实产生了
+    assert KEY not in caplog.text
+    assert "key=***" in caplog.text
+    assert "?key=***&" in caplog.text or "&key=***" in caplog.text  # 只改写 key，其余参数保留
+    assert "types=050000" in caplog.text
 
 
 def test_around_without_keywords_omits_the_parameter():
