@@ -27,6 +27,12 @@ class RestaurantType:
 
 
 @dataclass(frozen=True)
+class DishReason:
+    food_name: str  # 给出这条原因的代表菜
+    reason: Reason
+
+
+@dataclass(frozen=True)
 class TypeAdvice:
     type_key: str
     type_name: str
@@ -34,7 +40,7 @@ class TypeAdvice:
     order: tuple[str, ...]  # 可点（适合的代表菜名）
     moderate: tuple[str, ...]  # 适量（需注意）
     avoid: tuple[str, ...]  # 应避开（不建议）
-    reasons: tuple[Reason, ...]
+    reasons: tuple[DishReason, ...]
 
 
 @lru_cache
@@ -77,10 +83,11 @@ def classify(poi: Poi) -> RestaurantType | None:
 def advise(rtype: RestaurantType, context: EvaluationContext, catalog: Catalog) -> TypeAdvice:
     """每道代表菜按默认克数交给引擎评价；一半以上（含一半）不建议 → 整类不建议，否则有不建议或需注意 → 需注意。
 
-    原因取不建议与需注意菜品里的负面原因（不建议、无法判断、需注意），按 code 与 ref 去重，保持引擎给出的顺序。
+    原因取不建议与需注意菜品里的负面原因（不建议、无法判断、需注意），连同菜名一起保留；按 code 与 ref 去重，
+    健身目标的原因按 code、ref 与说明去重（同一目标下的不同规则 ref 相同），先出现的菜优先，保持引擎给出的顺序。
     """
     order, moderate, avoid = [], [], []
-    reasons: dict[tuple[str, str], Reason] = {}
+    reasons: dict[tuple[str, ...], DishReason] = {}
     for food_id in rtype.dishes:
         food = catalog.foods[food_id]
         evaluation = evaluate_food(food, food.default_grams, context, catalog)
@@ -90,7 +97,8 @@ def advise(rtype: RestaurantType, context: EvaluationContext, catalog: Catalog) 
         (avoid if evaluation.conclusion == NOT_RECOMMENDED else moderate).append(food.name)
         for reason in evaluation.reasons:
             if reason.effect in NEGATIVE_EFFECTS:
-                reasons.setdefault((reason.code, reason.ref), reason)
+                key = (reason.code, reason.ref, reason.message) if reason.source == "goal" else (reason.code, reason.ref)
+                reasons.setdefault(key, DishReason(food.name, reason))
     if len(avoid) * 2 >= len(rtype.dishes):
         conclusion = NOT_RECOMMENDED
     elif avoid or moderate:

@@ -13,6 +13,8 @@ from app.errors import AppError
 
 DATA_DIR = Path(__file__).with_name("data")
 MAX_NEEDS = 3
+# 紧挨在说法前面、表示否定的说法；带“吃”“喝”的几种让“不想吃甜的”“别喝奶茶”也算否定
+NEGATIONS = ("不", "别", "不想", "不要", "不吃", "不喝", "不想吃", "不想喝", "不要吃", "不要喝", "别吃", "别喝")
 
 
 @dataclass(frozen=True)
@@ -39,9 +41,19 @@ def _keys() -> tuple[str, ...]:
     return tuple(need.key for need in load_needs())
 
 
+def _mentioned(word: str, text: str) -> bool:
+    """说法出现在文本里，且至少有一处前面不是否定说法；本身以“不”开头的说法（不辣、不吃肉）不做否定检查。"""
+    start = text.find(word)
+    while start != -1:
+        if word.startswith("不") or not text[:start].endswith(NEGATIONS):
+            return True
+        start = text.find(word, start + 1)
+    return False
+
+
 def match_rules(text: str) -> tuple[str, ...]:
-    """名称或任一同义说法出现在文本里即命中；按词表顺序，最多 3 个。"""
-    hits = [need.key for need in load_needs() if any(word in text for word in (need.name, *need.synonyms))]
+    """名称或任一同义说法出现在文本里即命中（“不想吃甜的”这类被否定的不算）；按词表顺序，最多 3 个。"""
+    hits = [need.key for need in load_needs() if any(_mentioned(word, text) for word in (need.name, *need.synonyms))]
     return tuple(hits[:MAX_NEEDS])
 
 

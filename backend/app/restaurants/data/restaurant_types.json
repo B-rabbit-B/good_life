@@ -25,28 +25,28 @@
     "name": "粤菜",
     "typecodes": ["050103", "050305"],
     "name_keywords": ["粤菜", "茶餐厅", "潮汕", "潮州", "广式", "港式", "早茶", "烧腊", "广东", "顺德", "肠粉", "煲仔饭"],
-    "dishes": ["dish:steamed_fish", "dish:boiled_shrimp", "cfcd:081321", "cfcd:093301", "dish:stir_fried_broccoli"]
+    "dishes": ["dish:steamed_fish", "dish:boiled_shrimp", "cfcd:081321", "cfcd:081407", "dish:stir_fried_broccoli"]
   },
   {
     "key": "hotpot",
     "name": "火锅",
     "typecodes": ["050117"],
     "name_keywords": ["火锅", "牛肉火锅", "涮肉", "涮羊肉", "打边炉", "海底捞", "呷哺呷哺"],
-    "dishes": ["dish:hot_pot", "cfcd:045333", "cfcd:122206", "cfcd:022201"]
+    "dishes": ["dish:hot_pot", "cfcd:045333", "cfcd:082116", "cfcd:081307", "cfcd:121305"]
   },
   {
     "key": "bbq",
     "name": "烧烤",
     "typecodes": [],
     "name_keywords": ["烧烤", "烤串", "撸串", "烤肉", "羊肉串", "串吧"],
-    "dishes": ["cfcd:083304", "cfcd:091309", "cfcd:021105", "cfcd:013101"]
+    "dishes": ["dish:lamb_skewers", "cfcd:091309", "cfcd:081424", "cfcd:021105", "cfcd:013101"]
   },
   {
     "key": "malatang",
     "name": "麻辣烫与串串",
     "typecodes": [],
     "name_keywords": ["麻辣烫", "麻辣拌", "串串", "冒菜", "钵钵鸡"],
-    "dishes": ["dish:malatang", "dish:hot_pot", "cfcd:045333"]
+    "dishes": ["dish:malatang", "dish:hot_pot", "cfcd:121305", "cfcd:045333"]
   },
   {
     "key": "porridge",
@@ -60,7 +60,7 @@
     "name": "轻食沙拉",
     "typecodes": [],
     "name_keywords": ["轻食", "沙拉", "色拉", "健身餐", "减脂餐", "能量碗", "波奇饭"],
-    "dishes": ["cfcd:091112", "cfcd:045333", "cfcd:045217", "dish:brown_rice", "cfcd:121228"]
+    "dishes": ["cfcd:091112", "cfcd:045333", "cfcd:045217", "dish:brown_rice", "dish:sashimi"]
   },
   {
     "key": "noodles",
@@ -88,7 +88,7 @@
     "name": "清真与西北菜",
     "typecodes": ["050121", "050115"],
     "name_keywords": ["清真", "西北", "新疆", "兰州", "宁夏", "甘肃", "陕西", "大盘鸡", "手抓", "羊肉泡馍"],
-    "dishes": ["dish:beef_noodles", "dish:scallion_lamb", "dish:beef_potato_stew", "cfcd:083304"]
+    "dishes": ["dish:beef_noodles", "dish:scallion_lamb", "dish:beef_potato_stew", "dish:lamb_skewers"]
   },
   {
     "key": "seafood",
@@ -109,7 +109,7 @@
     "name": "日料",
     "typecodes": ["050202"],
     "name_keywords": ["日料", "日本料理", "日式", "日式拉面", "寿司", "刺身", "居酒屋", "烧鸟", "鳗鱼饭", "定食"],
-    "dishes": ["cfcd:121228", "cfcd:121262", "cfcd:012401x", "cfcd:121408", "dish:steamed_egg"]
+    "dishes": ["dish:sashimi", "cfcd:121408", "dish:steamed_egg"]
   },
   {
     "key": "fastfood",

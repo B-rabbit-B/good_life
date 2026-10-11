@@ -11,11 +11,20 @@ from app.restaurants import needs as needs_module
 from app.restaurants.amap import Poi
 from app.restaurants.needs import MODEL_PROMPT, load_needs, match_rules, parse_model_needs, resolve
 from app.restaurants.ranking import CONCLUSION_RANK, MAX_RESULTS, Ranked, rank
-from app.restaurants.types import GENERIC_TYPECODES, TypeAdvice, advise, classify, load_types
+from app.restaurants.types import GENERIC_TYPECODES, DishReason, TypeAdvice, advise, classify, load_types
 
 CATALOG = load_catalog()
 TYPES = {rtype.key: rtype for rtype in load_types()}
-NO_SPICY = EvaluationContext(constraints=(HardConstraint("m1", "diet_avoid", "忌辛辣", ("辛辣",)),))
+
+
+def _order(content, subject, category="diet_avoid"):
+    return EvaluationContext(constraints=(HardConstraint("m1", category, content, (subject,)),))
+
+
+NO_SPICY = _order("忌辛辣", "辛辣")
+NO_GREASY = _order("忌油腻", "油腻")
+NO_RAW_COLD = _order("忌生冷", "生冷")
+LOW_SALT = _order("低盐饮食", "低盐", "diet_require")
 
 
 def _poi(poi_id="p1", name="某某餐厅", typecode="050000", distance=100, rating=None):
@@ -114,13 +123,55 @@ def test_no_spicy_order_avoids_sichuan_and_malatang():
         assert isinstance(advice, TypeAdvice)
         assert advice.type_key == key and advice.type_name == TYPES[key].name
         assert advice.conclusion == "not_recommended"
-        assert advice.reasons and all(reason.source == "medical" for reason in advice.reasons)
-        assert all(reason.effect in ("block", "unverifiable", "caution") for reason in advice.reasons)
+        assert advice.reasons and all(item.reason.source == "medical" for item in advice.reasons)
+        assert all(item.reason.effect in ("block", "unverifiable", "caution") for item in advice.reasons)
     sichuan = advise(TYPES["sichuan"], NO_SPICY, CATALOG)
     assert "麻婆豆腐" in sichuan.avoid
-    # 同一条医嘱在几道菜上的原因按 code 与 ref 去重
-    pairs = [(reason.code, reason.ref) for reason in sichuan.reasons]
-    assert len(pairs) == len(set(pairs))
+    # 同一条医嘱在几道菜上的原因按 code 与 ref 去重，留下第一道菜的
+    assert len(sichuan.reasons) == 1
+    assert isinstance(sichuan.reasons[0], DishReason)
+    assert sichuan.reasons[0].food_name == CATALOG.get(TYPES["sichuan"].dishes[0]).name == "麻婆豆腐"
+
+
+def test_goal_reasons_from_different_rules_are_all_kept():
+    advice = advise(TYPES["fastfood"], EvaluationContext(goal="lose_fat"), CATALOG)
+    assert advice.conclusion == "caution"
+    assert "可乐" in advice.moderate and "炸鸡" in advice.moderate
+    goal = [(item.food_name, item.reason.message) for item in advice.reasons if item.reason.source == "goal"]
+    assert any(name == "炸鸡" and "油炸" in message for name, message in goal)
+    assert any(name == "可乐" and "含糖饮料" in message for name, message in goal)
+    # 炸鸡块与炸鸡的油炸原因说明相同，只留先出现的炸鸡
+    assert [name for name, _ in goal] == ["炸鸡", "可乐"]
+
+
+@pytest.mark.parametrize(("context", "key", "expected"), [
+    (LOW_SALT, "hotpot", ("caution", "not_recommended")),
+    (LOW_SALT, "bbq", ("caution", "not_recommended")),
+    (LOW_SALT, "cantonese", ("caution", "not_recommended")),
+    (LOW_SALT, "malatang", ("caution", "not_recommended")),
+    (NO_GREASY, "fastfood", ("not_recommended",)),
+    (NO_GREASY, "hotpot", ("caution", "not_recommended")),
+    (NO_GREASY, "bbq", ("caution", "not_recommended")),
+    (NO_SPICY, "bbq", ("caution", "not_recommended")),
+    (NO_SPICY, "hunan", ("not_recommended",)),
+    (NO_RAW_COLD, "japanese", ("caution", "not_recommended")),
+    (NO_RAW_COLD, "salad", ("caution", "not_recommended")),
+])
+def test_main_orders_are_caught_by_representative_dishes(context, key, expected):
+    advice = advise(TYPES[key], context, CATALOG)
+    assert advice.conclusion in expected
+    assert advice.avoid
+
+
+def test_new_dishes_carry_tags_through_the_catalog():
+    skewers, sashimi = CATALOG.get("dish:lamb_skewers"), CATALOG.get("dish:sashimi")
+    assert skewers.name == "烤羊肉串" and "spicy" in skewers.tags
+    assert sashimi.name == "生鱼片" and "刺身" in sashimi.aliases and "raw_cold" in sashimi.tags
+    assert "dish:lamb_skewers" in TYPES["bbq"].dishes and "dish:sashimi" in TYPES["japanese"].dishes
+
+
+def test_rice_is_not_a_representative_dish():
+    assert all("cfcd:012401x" not in rtype.dishes for rtype in load_types())
 
 
 def test_porridge_is_fine_with_no_spicy_order():
@@ -165,6 +216,18 @@ def test_rules_match_colloquial_text():
     assert match_rules("健身后想吃肉") == ("high_protein",)
     assert match_rules("想减脂") == ("light_meal",)
     assert match_rules("随便看看附近有什么") == ()
+    assert match_rules("想吃不辣的") == ("not_spicy",)
+
+
+def test_rules_skip_negated_mentions():
+    assert "dessert" not in match_rules("不想吃甜的")
+    assert "noodles" not in match_rules("不想吃面")
+    assert "dessert" not in match_rules("别喝奶茶")
+    assert "dessert" not in match_rules("不要蛋糕")
+    assert match_rules("不想吃面，想吃饺子") == ("dumpling",)
+    # 同一个说法只要有一处没被否定就算命中
+    assert match_rules("不要奶茶，要奶茶") == ("dessert",)
+    assert match_rules("不吃肉") == ("vegetarian",)
     assert match_rules("") == ()
 
 

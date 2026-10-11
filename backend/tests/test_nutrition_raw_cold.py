@@ -26,7 +26,10 @@ FRUIT_CATEGORY = "水果类及其制品"
 DRINK_CATEGORIES = ("补充-饮料", "补充-酒类", "补充-饮品", "乳类及其制品-液态乳", "乳类及其制品-酸奶")
 SOY_DRINKS = {"cfcd:031402": "豆奶", "cfcd:031403": "豆汁（生）", "cfcd:031404": "酸豆奶", "cfcd:031405": "豆浆",
               "cfcd:031406": "豆浆（甜）"}  # 归在干豆类大豆小类里的饮品，按编号列为不确定成员；豆浆粉、豆奶粉不算
-RAW_COLD_MEMBERS = {"supplement:ice_cream", "dish:cucumber_salad", "dish:century_egg_tofu"}  # 与本次修复前相同
+RAW_COLD_MEMBERS = {
+    "supplement:ice_cream", "dish:cucumber_salad", "dish:century_egg_tofu",  # 与本次修复前相同
+    "dish:sashimi",  # 步骤 10 新增的生鱼片，在配方中显式声明生冷
+}
 # 按名称里的明确字样（干、罐头、糖水、饼、蜜枣）认定为加工或晒干的水果制品，逐个核对过
 PROCESSED_FRUITS = {
     "cfcd:061302": "红果（干）", "cfcd:062206": "杏干", "cfcd:062302": "枣（干）", "cfcd:062303": "枣（干，大）",
