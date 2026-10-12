@@ -1,7 +1,7 @@
 // 手动记一餐：搜索食物（后端的提示原文显示，例如名称相近时的说明），结果是账目行；选中后按克数，
 // 或按这种食物的常用份量（单位加份数）填写；日期默认查询参数或今天、餐次默认查询参数或按时间的默认值；
 // 操作坞“保存”，成功后回到那一天的饮食记录并轻提示“已记下”。
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Button as AriaButton } from 'react-aria-components'
 import { useNavigate } from 'react-router'
 import { ApiError } from '../../api/errors'
@@ -19,6 +19,7 @@ import { useToast } from '../../components/Toast'
 import { defaultMealType, todayISO } from '../../lib/dates'
 import { MEAL_LABELS, type MealType } from '../../lib/labels'
 import '../../styles/components/meals.css'
+import { useSingleFlight } from '../../lib/singleFlight'
 import { errorsOf } from '../onboarding/fieldErrors'
 import { useQueryParams } from './queryParams'
 
@@ -66,6 +67,9 @@ export default function MealNewPage() {
     (MEAL_TYPES as string[]).includes(mealParam) ? (mealParam as MealType) : defaultMealType(new Date()),
   )
   const create = useCreateMeal()
+  // 双击“保存”时 isPending 还没渲染出来：用锁保证只记一次
+  const flight = useSingleFlight()
+  const saved = useRef(false) // 记下之后、离开这一页之前不再保存
   const errors = errorsOf(create.error)
   const portions = food.data?.portions ?? []
   const byPortion = mode === 'portion' && portions.length > 0
@@ -82,12 +86,12 @@ export default function MealNewPage() {
     const body: MealInput = byPortion
       ? { eaten_on: date, meal_type: meal, food_id: picked.id, portion: { unit: unitValue, count: numberOrText(count) } }
       : { eaten_on: date, meal_type: meal, food_id: picked.id, grams: numberOrText(grams) }
-    create.mutate(body, {
-      onSuccess: () => {
-        toast.show('已记下')
-        void navigate(`/records?tab=diet&date=${date}`)
-      },
-    })
+    if (saved.current) return
+    flight(() => create.mutateAsync(body))?.then(() => {
+      saved.current = true
+      toast.show('已记下')
+      void navigate(`/records?tab=diet&date=${date}`)
+    }, () => undefined) // 错误由 create.error 显示
   }
 
   const results = search.data?.results ?? []

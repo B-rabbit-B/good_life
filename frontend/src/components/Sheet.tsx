@@ -13,7 +13,12 @@ const MAX_BLUR_SHARE = 0.4
 
 type Phase = 'pre' | 'entering' | 'open'
 
-function SheetBody({ titleKey, children, footer }: { titleKey: TitleKey; children: ReactNode; footer?: ReactNode }) {
+/**
+ * 面板标题：写死的标题用宋体（titleKey，lib/titles.json）；宋体子集里没有的字用黑体写（title）。
+ */
+export type SheetTitle = { titleKey: TitleKey; title?: never } | { title: string; titleKey?: never }
+
+function SheetBody({ titleKey, title, children, footer }: SheetTitle & { children: ReactNode; footer?: ReactNode }) {
   const titleId = useId()
   const dialogRef = useRef<HTMLElement>(null)
   const [phase, setPhase] = useState<Phase>('pre')
@@ -23,12 +28,18 @@ function SheetBody({ titleKey, children, footer }: { titleKey: TitleKey; childre
   useSheetGlass(true)
 
   // 面板高度随内容变化（例如出现错误说明）：一直量，高过视口 40% 就用实色
+  // 视口变了（转屏、软键盘、调整窗口）也重量
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog || typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(() => setTall(dialog.offsetHeight > window.innerHeight * MAX_BLUR_SHARE))
+    const measure = () => setTall(dialog.offsetHeight > window.innerHeight * MAX_BLUR_SHARE)
+    const observer = new ResizeObserver(measure)
     observer.observe(dialog)
-    return () => observer.disconnect()
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
   }, [])
 
   // 第一帧画在起点（实色、在屏幕下面、遮罩透明），下一帧去掉起点让过渡开始；滑入结束后去掉 data-entering，磨砂淡入
@@ -69,7 +80,9 @@ function SheetBody({ titleKey, children, footer }: { titleKey: TitleKey; childre
           data-entering={phase === 'open' ? undefined : ''}
           data-solid={tall ? '' : undefined}
         >
-          <Title k={titleKey} level="title" as="h2" id={titleId} />
+          {titleKey
+            ? <Title k={titleKey} level="title" as="h2" id={titleId} />
+            : <h2 className="sheet-h" id={titleId}>{title}</h2>}
           {children}
           {footer && <div className="sheet-foot">{footer}</div>}
         </Dialog>
@@ -84,10 +97,9 @@ function SheetBody({ titleKey, children, footer }: { titleKey: TitleKey; childre
  * 停稳后磨砂只过渡底色淡入；面板高过视口 40% 时一直是实色（data-solid，模糊总面积的上限）；
  * 从打开到退出动画结束，根节点带 data-sheet-open，遮罩下的外壳关模糊、轻提示隐藏。
  */
-export function Sheet({ isOpen, onClose, titleKey, children, footer }: {
+export function Sheet({ isOpen, onClose, children, footer, ...heading }: SheetTitle & {
   isOpen: boolean
   onClose: () => void
-  titleKey: TitleKey
   children: ReactNode
   footer?: ReactNode
 }) {
@@ -101,7 +113,7 @@ export function Sheet({ isOpen, onClose, titleKey, children, footer }: {
       className="sheet-layer"
       UNSTABLE_portalContainer={shellRoot()}
     >
-      <SheetBody titleKey={titleKey} footer={footer}>{children}</SheetBody>
+      <SheetBody {...heading} footer={footer}>{children}</SheetBody>
     </ModalOverlay>
   )
 }

@@ -1,15 +1,19 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ApiError } from '../../api/errors'
 import type { PhotoItemOut } from '../../api/types'
 import { Button } from '../../components/Button'
 import { Sheet } from '../../components/Sheet'
 import { TextField } from '../../components/TextField'
 import { fmtNum } from '../../lib/format'
+import { useSingleFlight } from '../../lib/singleFlight'
 import { errorsOf, FORM_ERROR, otherErrors } from '../onboarding/fieldErrors'
 import { FormError } from '../onboarding/FormError'
 import type { ItemChange } from './itemsUpdate'
 
 type EditChange = Extract<ItemChange, { kind: 'edit' }>
+
+// app/photos/recognition.py 的 MAX_NAME_LENGTH：菜名与份量说法最多 30 个字
+const MAX_NAME_LENGTH = 30
 
 const FIELD_LABELS: Record<string, string> = { name: '菜名', portion_text: '份量说法', grams: '克数' }
 
@@ -24,6 +28,8 @@ function EditForm({ item, onClose, onSave }: {
   const [grams, setGrams] = useState(original)
   const [error, setError] = useState<unknown>(null)
   const [pending, setPending] = useState(false)
+  const flight = useSingleFlight()
+  const saved = useRef(false) // 保存成功、面板正在关上时不再保存
   const errors = errorsOf(error)
 
   const save = () => {
@@ -39,18 +45,27 @@ function EditForm({ item, onClose, onSave }: {
       onClose()
       return
     }
-    setPending(true)
-    setError(null)
-    onSave(change)
-      .then(() => onClose())
+    if (saved.current) return
+    const run = flight(() => {
+      setPending(true)
+      setError(null)
+      return onSave(change)
+    })
+    run?.then(() => {
+      saved.current = true
+      onClose()
+    })
       .catch((caught: unknown) => setError(caught))
       .finally(() => setPending(false))
   }
 
   return (
     <>
-      <TextField label="菜名" value={name} onChange={setName} error={errors.name} maxLength={50} />
-      <TextField label="份量说法" value={portion} onChange={setPortion} error={errors.portion_text} hint="例如 一碗、半条、一小碟" />
+      <TextField label="菜名" value={name} onChange={setName} error={errors.name} maxLength={MAX_NAME_LENGTH} />
+      <TextField
+        label="份量说法" value={portion} onChange={setPortion} error={errors.portion_text} maxLength={MAX_NAME_LENGTH}
+        hint="例如 一碗、半条、一小碟"
+      />
       <TextField label="克数" value={grams} onChange={setGrams} error={errors.grams} inputMode="decimal" suffix="克" />
       <FormError messages={otherErrors(errors, ['name', 'portion_text', 'grams'], FIELD_LABELS)} />
       {error instanceof ApiError && errors[FORM_ERROR] && <p className="t-cap">错误码 {error.code}</p>}

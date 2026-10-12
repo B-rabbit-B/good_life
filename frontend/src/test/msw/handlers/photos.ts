@@ -13,6 +13,10 @@ export interface PhotosOptions {
   hold?: Promise<void>
   /** confirm 的错误；只对第一次请求生效 */
   confirmError?: { status: number; code: string; message: string }
+  /** 删除的错误；每次请求都返回 */
+  deleteError?: { status: number; code: string; message: string }
+  /** 取图的错误（只对保留了图片的记录）；每次请求都返回 */
+  imageError?: { status: number; code: string; message: string }
 }
 
 const error = (status: number, code: string, message: string) => HttpResponse.json({ error: { code, message } }, { status })
@@ -49,6 +53,8 @@ export function photosHandlers(opts: PhotosOptions = {}) {
   const discards: string[] = []
   const imageRequests: string[] = []
   const creates: number[] = []
+  const deletes: string[] = []
+  let listRequests = 0
   let confirmError = opts.confirmError
 
   const handlers: HttpHandler[] = [
@@ -61,11 +67,21 @@ export function photosHandlers(opts: PhotosOptions = {}) {
       records.set(result.id, result)
       return HttpResponse.json(result, { status: 201 })
     }),
-    http.get('/api/photos/recognitions', () => HttpResponse.json([...records.values()].map((record) => {
-      const summary: Partial<RecognitionOut> = { ...record }
-      delete summary.evaluation // 列表不带评价
-      return summary
-    }))),
+    http.get('/api/photos/recognitions', () => {
+      listRequests += 1
+      return HttpResponse.json([...records.values()].map((record) => {
+        const summary: Partial<RecognitionOut> = { ...record }
+        delete summary.evaluation // 列表不带评价
+        return summary
+      }))
+    }),
+    http.delete('/api/photos/recognitions/:id', ({ params }) => {
+      const id = String(params.id)
+      deletes.push(id)
+      if (opts.deleteError) return error(opts.deleteError.status, opts.deleteError.code, opts.deleteError.message)
+      if (!records.delete(id)) return error(404, 'not_found', '记录不存在')
+      return new HttpResponse(null, { status: 204 })
+    }),
     http.get('/api/photos/recognitions/:id', ({ params }) => {
       const record = records.get(String(params.id))
       return record ? HttpResponse.json(record) : error(404, 'not_found', '记录不存在')
@@ -124,11 +140,18 @@ export function photosHandlers(opts: PhotosOptions = {}) {
       const id = String(params.id)
       imageRequests.push(id)
       const record = records.get(id)
+      if (record?.image_kept && opts.imageError) {
+        return error(opts.imageError.status, opts.imageError.code, opts.imageError.message)
+      }
       if (!record?.image_kept) {
         return error(404, 'photo_image_not_kept', '这次识别没有保留图片（默认不保留）；需要保留时请在上传时选择“保留图片”')
       }
       return new HttpResponse(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), { headers: { 'Content-Type': 'image/jpeg' } })
     }),
   ]
-  return { handlers, records, updates, confirms, discards, imageRequests, creates }
+  return {
+    handlers, records, updates, confirms, discards, imageRequests, creates, deletes,
+    /** GET 列表的次数 */
+    listRequests: () => listRequests,
+  }
 }

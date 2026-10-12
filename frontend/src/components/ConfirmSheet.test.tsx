@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/errors'
-import { ConfirmSheet } from './ConfirmSheet'
+import { ConfirmSheet, type ConfirmSheetProps } from './ConfirmSheet'
 
 const ACK = '我知道解除后不能撤销，需要重新录入才能恢复这条约束'
 const WILL = [
@@ -11,7 +11,7 @@ const WILL = [
   { text: '解除不能撤销。以后需要时，请重新录入。', irreversible: true },
 ]
 
-function renderSheet(props: Partial<Parameters<typeof ConfirmSheet>[0]> = {}) {
+function renderSheet(props: Partial<Omit<ConfirmSheetProps, 'titleKey' | 'title'>> = {}) {
   const onConfirm = props.onConfirm ?? vi.fn(() => Promise.resolve())
   render(
     <ConfirmSheet
@@ -119,5 +119,28 @@ describe('ConfirmSheet', () => {
     renderSheet({ onClose })
     await userEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('confirms once on a double press', async () => {
+    let finish = () => {}
+    const onConfirm = vi.fn(() => new Promise<void>((resolve) => {
+      finish = resolve
+    }))
+    renderSheet({ onConfirm })
+    await userEvent.dblClick(screen.getByRole('button', { name: '确认解除' }))
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+    finish()
+  })
+
+  it('titles the sheet in the sans when the words are not in the serif subset', () => {
+    render(
+      <ConfirmSheet
+        isOpen onClose={() => {}} title="删除这条识别（连同照片）" confirmLabel="删除" onConfirm={() => Promise.resolve()}
+      />,
+    )
+    const heading = screen.getByRole('heading', { name: '删除这条识别（连同照片）' })
+    expect(heading).toHaveClass('sheet-h')
+    expect(heading).not.toHaveClass('t-title')
+    expect(screen.getByRole('dialog', { name: '删除这条识别（连同照片）' })).toBeInTheDocument()
   })
 })

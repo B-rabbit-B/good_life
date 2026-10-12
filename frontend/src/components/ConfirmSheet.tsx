@@ -1,17 +1,16 @@
 import { useState, type ReactNode } from 'react'
 import type { ApiError } from '../api/errors'
-import type { TitleKey } from '../lib/titles'
+import { useSingleFlight } from '../lib/singleFlight'
 import '../styles/components/field-input.css'
 import { Button } from './Button'
 import { Checkbox } from './Checkbox'
 import { Icon } from './Icon'
-import { Sheet } from './Sheet'
+import { Sheet, type SheetTitle } from './Sheet'
 import { WillList, type WillItem } from './WillList'
 
-export interface ConfirmSheetProps {
+export type ConfirmSheetProps = SheetTitle & {
   isOpen: boolean
   onClose: () => void
-  titleKey: TitleKey
   /** 引文框里的原文（医嘱内容、来源） */
   quote?: ReactNode
   /** “确认后会发生”清单 */
@@ -29,14 +28,18 @@ export interface ConfirmSheetProps {
 }
 
 function ConfirmBody({ quote, will, confirmLabel, confirmVariant, ack, secondary, note, onConfirm, onClose, error, resultText }:
-  Omit<ConfirmSheetProps, 'isOpen' | 'titleKey'>) {
+  Omit<ConfirmSheetProps, 'isOpen' | 'titleKey' | 'title'>) {
   const [acked, setAcked] = useState(false)
   const [pending, setPending] = useState(false)
+  // 双击时 pending 还没来得及渲染，第二次按下照样会进来：用 ref 守住，同一时间只确认一次
+  const flight = useSingleFlight()
   const confirm = () => {
-    if (pending) return
-    setPending(true)
+    const run = flight(() => {
+      setPending(true)
+      return onConfirm()
+    })
     // 失败由调用方通过 error 显示；这里吞掉拒绝，免得成为未处理的 Promise 拒绝（例如传入 mutation.mutateAsync）
-    void onConfirm().catch(() => {}).finally(() => setPending(false))
+    void run?.catch(() => {}).finally(() => setPending(false))
   }
   return (
     <>
@@ -74,9 +77,10 @@ function ConfirmBody({ quote, will, confirmLabel, confirmVariant, ack, secondary
  * 关键动作的二次确认面板：引文框、“确认后会发生”清单、（不可撤销时）必勾的一句话、确认按钮与次按钮。
  * 确认中按钮不可重复点；失败时在按钮上方原样显示后端说明与错误码；结果用 aria-live="assertive" 播报。
  */
-export function ConfirmSheet({ isOpen, onClose, titleKey, ...body }: ConfirmSheetProps) {
+export function ConfirmSheet({ isOpen, onClose, titleKey, title, ...body }: ConfirmSheetProps) {
+  const heading: SheetTitle = titleKey ? { titleKey } : { title: title ?? '' }
   return (
-    <Sheet isOpen={isOpen} onClose={onClose} titleKey={titleKey}>
+    <Sheet isOpen={isOpen} onClose={onClose} {...heading}>
       <ConfirmBody onClose={onClose} {...body} />
     </Sheet>
   )

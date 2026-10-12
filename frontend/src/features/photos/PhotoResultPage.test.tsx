@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { qk } from '../../api/keys'
 import { sensitiveAreaMismatch } from '../../app/sensitiveAreas'
 import { addDays, todayISO } from '../../lib/dates'
 import { REVIEW_REASON_LABELS } from '../../lib/labels'
@@ -58,7 +59,7 @@ describe('photo result page', () => {
     const beefRow = itemOf('酸汤肥牛')
     expect(beefRow).toHaveTextContent('待确认')
     expect(within(beefRow).getByText(REVIEW_REASON_LABELS.needs_confirmation)).toBeInTheDocument()
-    expect(within(beefRow).getByRole('radiogroup', { name: '选择对应的食物' })).toBeInTheDocument()
+    expect(within(beefRow).getByRole('radiogroup', { name: '选择酸汤肥牛对应的食物' })).toBeInTheDocument()
 
     expect(screen.getByText('有 2 项建议核对')).toBeInTheDocument()
     expect(screen.getByText('草稿')).toBeInTheDocument()
@@ -72,7 +73,7 @@ describe('photo result page', () => {
   it('picks a candidate by sending its food_id', async () => {
     const user = userEvent.setup()
     const { photos } = renderResult()
-    const group = await screen.findByRole('radiogroup', { name: '选择对应的食物' })
+    const group = await screen.findByRole('radiogroup', { name: '选择酸汤肥牛对应的食物' })
     await user.click(within(group).getByRole('radio', { name: '肥牛（火锅用）' }))
     await waitFor(() => expect(photos.updates).toHaveLength(1))
     expect(photos.updates[0]?.body).toEqual({
@@ -213,7 +214,12 @@ describe('photo result page', () => {
   it('loads the image only when it was kept', async () => {
     const createObjectURL = vi.fn(() => 'blob:kept-photo')
     const revokeObjectURL = vi.fn()
-    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }))
+    // 换成一个子类，不动全局的 URL 本身（afterEach 里 unstubAllGlobals 换回原来的）
+    class TestURL extends URL {
+      static override createObjectURL = createObjectURL
+      static override revokeObjectURL = revokeObjectURL
+    }
+    vi.stubGlobal('URL', TestURL)
 
     const first = renderResult()
     await loaded()
@@ -244,5 +250,91 @@ describe('photo result page', () => {
     renderResult({ records: [] })
     expect(await screen.findByRole('alert')).toHaveTextContent('记录不存在')
     expect(screen.getByText('错误码 not_found')).toBeInTheDocument()
+  })
+
+  it('confirms once on a double press', async () => {
+    // 两次按下之间不让出事件循环：按钮的 isPending 来不及画出来（真机上快速双击就是这样）
+    const user = userEvent.setup({ delay: null })
+    const { photos, router } = renderResult({ records: [recognition({ items: [rice(), fish()] })] })
+    await user.dblClick(await screen.findByRole('button', { name: '确认入库' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/records'))
+    expect(photos.confirms).toHaveLength(1)
+    expect(screen.queryByText(/不能再修改或确认/)).not.toBeInTheDocument()
+  })
+
+  it('deletes an item once on a double press', async () => {
+    const user = userEvent.setup()
+    const { photos } = renderResult()
+    await loaded()
+    await user.dblClick(within(itemOf('卤猪肝')).getByRole('button', { name: '删除这一项' }))
+    await waitFor(() => expect(itemOf('杂粮饭')).toBeInTheDocument())
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(photos.updates).toHaveLength(1)
+  })
+
+  it('limits the dish name and the portion to the backend length', async () => {
+    const user = userEvent.setup()
+    renderResult()
+    await loaded()
+    await user.click(within(itemOf('卤猪肝')).getByRole('button', { name: '修改' }))
+    const sheet = await screen.findByRole('dialog', { name: '修改这一项' })
+    expect(within(sheet).getByLabelText('菜名')).toHaveAttribute('maxlength', '30')
+    expect(within(sheet).getByLabelText('份量说法')).toHaveAttribute('maxlength', '30')
+  })
+
+  it('refreshes the other drafts but not the kept photos after confirming', async () => {
+    const user = userEvent.setup()
+    const { queryClient } = renderResult({ records: [recognition({ items: [rice(), fish()] })] })
+    queryClient.setQueryData(qk.recognition('other-draft'), recognition({ id: 'other-draft' }))
+    queryClient.setQueryData(qk.recognitionImage('other-draft'), new Blob(['jpeg']))
+    await user.click(await screen.findByRole('button', { name: '确认入库' }))
+    await waitFor(() => expect(queryClient.getQueryState(qk.recognition('other-draft'))?.isInvalidated).toBe(true))
+    expect(queryClient.getQueryState(qk.recognitionImage('other-draft'))?.isInvalidated).toBe(false)
+  })
+
+  it('deletes the recognition and its kept photo after confirming in a sheet', async () => {
+    const user = userEvent.setup()
+    const confirmed = recognition({
+      status: 'confirmed', evaluation: null, eaten_on: todayISO(), meal_type: 'dinner', items: [rice()], image_kept: true,
+    })
+    const { photos, router, queryClient } = renderResult({ records: [confirmed] })
+    await loaded()
+    await user.click(screen.getByRole('button', { name: '删除这条识别（连同照片）' }))
+    const sheet = await screen.findByRole('dialog', { name: '删除这条识别（连同照片）' })
+    expect(within(sheet).getByRole('heading', { name: '删除这条识别（连同照片）' })).toHaveClass('sheet-h')
+    expect(sheet).toHaveTextContent('这条识别记录与保留的照片一起删除')
+    expect(sheet).toHaveTextContent('已经写入饮食记录的条目不受影响')
+    expect(sheet).toHaveTextContent('删除后不能恢复')
+    await user.click(within(sheet).getByRole('button', { name: '删除' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/photos/new'))
+    expect(photos.deletes).toEqual([REC_ID])
+    expect(await screen.findByText('已删除这条识别')).toBeInTheDocument()
+    await waitFor(() => expect(queryClient.getQueryData(qk.recognition(REC_ID))).toBeUndefined())
+    expect(queryClient.getQueryData(qk.recognitionImage(REC_ID))).toBeUndefined()
+  })
+
+  it('offers delete for a draft too and shows a backend error in the sheet', async () => {
+    const user = userEvent.setup()
+    const { router } = renderResult({
+      records: [recognition()],
+      deleteError: { status: 500, code: 'internal_error', message: '服务出了点问题，请稍后再试' },
+    })
+    await loaded()
+    await user.click(screen.getByRole('button', { name: '删除这条识别（连同照片）' }))
+    const sheet = await screen.findByRole('dialog', { name: '删除这条识别（连同照片）' })
+    expect(sheet).toHaveTextContent('这条识别记录被删除（这次没有保留照片）')
+    await user.click(within(sheet).getByRole('button', { name: '删除' }))
+    const alert = await within(sheet).findByRole('alert')
+    expect(alert).toHaveTextContent('服务出了点问题，请稍后再试')
+    expect(alert).toHaveTextContent('错误码 internal_error')
+    expect(router.state.location.pathname).toBe(`/photos/${REC_ID}`)
+  })
+
+  it('says when the kept photo cannot be loaded', async () => {
+    renderResult({
+      records: [recognition({ image_kept: true })],
+      imageError: { status: 404, code: 'photo_image_not_kept', message: '这次识别没有保留图片' },
+    })
+    expect(await screen.findByText('读取失败', { exact: false })).toBeInTheDocument()
   })
 })

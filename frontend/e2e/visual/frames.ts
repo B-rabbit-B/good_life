@@ -192,8 +192,8 @@ export const FRAMES: FrameSpec[] = [
         offline: false, latency: 30_000, downloadThroughput: -1, uploadThroughput: -1,
       })
       await page.locator('input[type="file"]:not([capture])').setInputFiles(join(FIXTURES, 'meal.jpg'))
-      await page.getByText('正在认菜和份量').waitFor()
-      await page.getByText('上传完成').waitFor()
+      // 换步时给读屏的那一句：上传完成、正在认菜
+      await page.getByText('上传完成，正在认菜和份量', { exact: true }).waitFor({ state: 'attached' })
       await page.waitForTimeout(300)
     } },
   { id: '04b', widths: [360, 390], prepare: async ({ request, page }) => {

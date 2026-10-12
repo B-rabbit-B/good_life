@@ -59,7 +59,7 @@ export function ItemRow({ item, conclusion, editable, busy, onEdit, onDelete, on
       {editable && waiting && (
         <div className="cands">
           {item.candidates.length > 0 && (
-            <RadioGroup aria-label="选择对应的食物" value={picked} onChange={pick} isDisabled={busy}>
+            <RadioGroup aria-label={`选择${item.name}对应的食物`} value={picked} onChange={pick} isDisabled={busy}>
               {item.candidates.map((candidate) => (
                 <Radio key={candidate.food_id} value={candidate.food_id} className="cand">
                   {({ isSelected }) => (

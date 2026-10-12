@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react'
-import type { ReactElement } from 'react'
+import { StrictMode, type ReactElement } from 'react'
 import { createMemoryRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 import { onTestFinished } from 'vitest'
@@ -46,11 +46,11 @@ function ensureShellRoot(): void {
   onTestFinished(() => shell.remove())
 }
 
-/** 用应用的全套 Provider（与 App.tsx 同序）渲染一个路由器。 */
-export function renderRouter(router: AppRouter, queryClient: QueryClient = createTestQueryClient()) {
+/** 用应用的全套 Provider（与 App.tsx 同序）渲染一个路由器；strict 时像 main.tsx 一样包在 StrictMode 里。 */
+export function renderRouter(router: AppRouter, queryClient: QueryClient = createTestQueryClient(), strict = false) {
   ensureShellRoot()
   onTestFinished(() => router.dispose())
-  const result = render(
+  const app = (
     <QueryClientProvider client={queryClient}>
       <GlassModeProvider>
         <CoverProvider>
@@ -59,8 +59,9 @@ export function renderRouter(router: AppRouter, queryClient: QueryClient = creat
           </ToastProvider>
         </CoverProvider>
       </GlassModeProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
+  const result = render(strict ? <StrictMode>{app}</StrictMode> : app)
   return { ...result, router, queryClient }
 }
 
@@ -70,7 +71,14 @@ export function renderRouter(router: AppRouter, queryClient: QueryClient = creat
  */
 export function renderRoute(
   path: string,
-  opts: { token?: string | null; capabilities?: Partial<Capabilities>; profile?: Partial<ProfileOut>; accepted?: boolean } = {},
+  opts: {
+    token?: string | null
+    capabilities?: Partial<Capabilities>
+    profile?: Partial<ProfileOut>
+    accepted?: boolean
+    /** 包在 StrictMode 里（副作用跑两遍、初始化函数调两次） */
+    strict?: boolean
+  } = {},
 ): RenderResult & { router: AppRouter; queryClient: QueryClient } {
   const { token = TEST_TOKEN } = opts
   if (token === null) clearToken()
@@ -78,5 +86,5 @@ export function renderRoute(
   server.use(...coreHandlers({
     token: token ?? TEST_TOKEN, accepted: opts.accepted, profile: opts.profile, capabilities: opts.capabilities,
   }))
-  return renderRouter(createMemoryRouter(routes, { initialEntries: [path] }))
+  return renderRouter(createMemoryRouter(routes, { initialEntries: [path] }), undefined, opts.strict)
 }

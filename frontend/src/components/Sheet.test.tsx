@@ -71,6 +71,35 @@ describe('Sheet', () => {
     }
   })
 
+  it('measures again when the viewport resizes', async () => {
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(private readonly callback: () => void) {}
+      observe() {
+        this.callback()
+      }
+      disconnect() {}
+      unobserve() {}
+    })
+    const offset = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => 300)
+    const viewport = window.innerHeight
+    try {
+      renderHarness()
+      await userEvent.click(screen.getByRole('button', { name: '打开面板' }))
+      const dialog = await screen.findByRole('dialog')
+      expect(dialog).not.toHaveAttribute('data-solid')
+      // 横屏或软键盘：视口变矮到 600，300 超过 40%
+      window.innerHeight = 600
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+      expect(dialog).toHaveAttribute('data-solid', '')
+    } finally {
+      window.innerHeight = viewport
+      offset.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('closes on escape', async () => {
     renderHarness()
     await userEvent.click(screen.getByRole('button', { name: '打开面板' }))

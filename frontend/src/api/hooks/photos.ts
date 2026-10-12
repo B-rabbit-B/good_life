@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
 import { api, handleErrorResponse, networkError } from '../client'
 import { qk } from '../keys'
@@ -21,6 +21,17 @@ export function useRecognition(id: string) {
   return useQuery({
     queryKey: qk.recognition(id),
     queryFn: ({ signal }) => api<RecognitionOut>(`${base}/${id}`, { signal }),
+  })
+}
+
+/**
+ * 当日摄入变了（确认入库、手动记一餐）：其他草稿的整餐评价是按当日摄入算的，连同列表一起重新取。
+ * 保留的图片（键的第四段是 image）不变，不重取；except 是刚写进缓存的那一条。
+ */
+export function invalidateRecognitionRecords(queryClient: QueryClient, except?: string): Promise<void> {
+  return queryClient.invalidateQueries({
+    queryKey: qk.recognitions,
+    predicate: (query) => query.queryKey.length <= 3 && (except === undefined || query.queryKey[2] !== except),
   })
 }
 
@@ -55,6 +66,7 @@ export function useConfirmRecognition(id: string) {
     onSuccess: async (record, { eaten_on }) => {
       await Promise.all([
         store(record),
+        invalidateRecognitionRecords(queryClient, record.id),
         queryClient.invalidateQueries({ queryKey: qk.summary(eaten_on) }),
         queryClient.invalidateQueries({ queryKey: qk.meals(eaten_on) }),
       ])
@@ -67,6 +79,18 @@ export function useDiscardRecognition(id: string) {
   return useMutation({
     mutationFn: () => api<RecognitionOut>(`${base}/${id}/discard`, { method: 'POST' }),
     onSuccess: store,
+  })
+}
+
+/**
+ * 删除一条识别（连同保留的图片；已经写入的饮食记录不受影响）。成功后刷新列表；
+ * 这一条与它的图片的缓存由页面在离开后移除（页面还在时移除会让它重新请求、看到 404）。
+ */
+export function useDeleteRecognition(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => api<void>(`${base}/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.recognitions, exact: true }),
   })
 }
 
@@ -88,9 +112,9 @@ async function fetchImage(id: string, signal: AbortSignal): Promise<Blob> {
 
 /**
  * 保留的照片：只在 image_kept 为真时请求（enabled）。图片不留在查询缓存里（gcTime 0），离开页面就丢掉。
- * 返回图片的字节；显示时用 useObjectUrl 生成 object URL（卸载时释放）。
+ * 返回图片的字节（没取到时为 null）与是否取失败；显示时用 useObjectUrl 生成 object URL（卸载时释放）。
  */
-export function useRecognitionImage(id: string, enabled: boolean): Blob | null {
+export function useRecognitionImage(id: string, enabled: boolean): { blob: Blob | null; failed: boolean } {
   const image = useQuery({
     queryKey: qk.recognitionImage(id),
     queryFn: ({ signal }) => fetchImage(id, signal),
@@ -98,7 +122,8 @@ export function useRecognitionImage(id: string, enabled: boolean): Blob | null {
     gcTime: 0,
     staleTime: Infinity,
   })
-  return enabled ? image.data ?? null : null
+  if (!enabled) return { blob: null, failed: false }
+  return { blob: image.data ?? null, failed: image.isError && image.data === undefined }
 }
 
 /**

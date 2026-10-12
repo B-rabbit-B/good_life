@@ -7,6 +7,8 @@
 .ph-pick .chk{color:var(--ink)}
 .ph-drafts{padding:4px 0}
 .ph-drafts .t-h{padding:12px var(--plate-pad) 4px;font-size:var(--fs-16)}
+.ph-list-h{margin:0;padding:12px var(--plate-pad) 4px;font-size:var(--fs-16);font-weight:700;line-height:1.45}
+.ph-cancelled{margin:0;color:var(--ink-2)}
 .ph-draft{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px;padding:0 6px 0 var(--plate-pad);border-top:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:.9375rem}
 .ph-draft .v{margin-left:auto;font-size:var(--fs-14);color:var(--ink-3);white-space:nowrap}
 .ph-draft .ic{color:var(--ink-3)}

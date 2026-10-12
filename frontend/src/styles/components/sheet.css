@@ -9,6 +9,8 @@
 .sheet::-webkit-scrollbar{display:none}
 .sheet::before{content:"";position:absolute;left:24px;right:24px;top:0;height:1px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff 20%,#fff 80%,rgba(255,255,255,0))}
 .sheet .t-title{margin:0 0 12px;outline:none}
+/* 宋体子集里没有的标题用黑体，字号与行高同 .t-title */
+.sheet-h{margin:0 0 12px;outline:none;font-size:var(--fs-22);line-height:1.4;font-weight:700}
 .sheet .note{font-size:var(--fs-12);color:var(--ink-3);margin:10px 0 0;text-align:center}
 .sheet-foot{display:grid;gap:10px;margin-top:16px}
 .sheet-lead{margin:14px 0 0;font-size:var(--fs-14);line-height:1.65;font-weight:600}

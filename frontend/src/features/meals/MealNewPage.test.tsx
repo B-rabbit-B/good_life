@@ -1,7 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { qk } from '../../api/keys'
 import { addDays, todayISO } from '../../lib/dates'
+import { recognition } from '../../test/fixtures/photos'
 import { PARTIAL_MATCH_MESSAGE, partialSearchResult, searchResult } from '../../test/fixtures/nutrition'
 import { nutritionHandlers, type NutritionOptions } from '../../test/msw/handlers/nutrition'
 import { server } from '../../test/msw/server'
@@ -93,5 +95,29 @@ describe('meal new page', () => {
     expect(router.state.location.search).toBe(`?tab=diet&date=${yesterday}`)
     expect(nutrition.created[0]).toMatchObject({ eaten_on: yesterday, meal_type: 'breakfast' })
     expect(await screen.findByText('已记下')).toBeInTheDocument()
+  })
+
+  it('saves once on a double press', async () => {
+    const user = userEvent.setup()
+    const { nutrition, router } = renderMealNew()
+    await chooseRice(user)
+    await user.type(screen.getByLabelText('克数'), '200')
+    // 两次按下之间不让出事件循环：保存按钮的 isPending 来不及画出来
+    const fast = userEvent.setup({ delay: null })
+    await fast.dblClick(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/records'))
+    expect(nutrition.created).toHaveLength(1)
+  })
+
+  it('refreshes draft evaluations after a manual meal', async () => {
+    const user = userEvent.setup()
+    const { queryClient } = renderMealNew()
+    queryClient.setQueryData(qk.recognition('a-draft'), recognition({ id: 'a-draft' }))
+    queryClient.setQueryData(qk.recognitionImage('a-draft'), new Blob(['jpeg']))
+    await chooseRice(user)
+    await user.type(screen.getByLabelText('克数'), '200')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(queryClient.getQueryState(qk.recognition('a-draft'))?.isInvalidated).toBe(true))
+    expect(queryClient.getQueryState(qk.recognitionImage('a-draft'))?.isInvalidated).toBe(false)
   })
 })

@@ -96,7 +96,7 @@ test('recognises a meal photo, picks a candidate and confirms it into the diary'
   }
 
   // 选候选：待确认项变成已匹配，确认入库可用
-  await expect(page.getByRole('radiogroup', { name: '选择对应的食物' }).getByRole('radio').first()).toBeVisible()
+  await expect(page.getByRole('radiogroup', { name: '选择卤猪肝对应的食物' }).getByRole('radio').first()).toBeVisible()
   await candidates.first().click() // 点的是整行（单选框本身只给读屏）
   const ready = page.getByRole('button', { name: '确认入库' })
   await expect(ready).toBeEnabled()
@@ -105,6 +105,27 @@ test('recognises a meal photo, picks a candidate and confirms it into the diary'
   await expect(page).toHaveURL(/\/records\?tab=diet&date=\d{4}-\d{2}-\d{2}$/)
   await expect(page.getByText('来自拍照识别')).toBeVisible()
   await expect(page.getByText('麻婆豆腐', { exact: false }).first()).toBeVisible()
+})
+
+test('takes a photo picked in the chat dock, recognises it and deletes the recognition', async ({ page, request }) => {
+  const token = await photoUser(request)
+  await openAs(page, token, '/chat')
+  // 对话底座的相册（第二个文件输入框）：选图后交给拍照页，拍照页接过就开始识别
+  await page.locator('.slab input[type="file"]').nth(1).setInputFiles(MEAL_JPG)
+  await expect(page).toHaveURL(RESULT_PATH, { timeout: 30_000 })
+  await expect(page.locator('.item-n>span', { hasText: '麻婆豆腐' })).toBeVisible()
+  await expectPageRules(page)
+
+  // 删除这条识别：面板写清后果，删除后回到拍照页，列表里没有它
+  await page.getByRole('button', { name: '删除这条识别（连同照片）' }).click()
+  const sheet = page.getByRole('dialog', { name: '删除这条识别（连同照片）' })
+  await expect(sheet).toContainText('已经写入饮食记录的条目不受影响')
+  await waitForSheet(page)
+  await expectBlurBudget(page, { allowNone: true })
+  await sheet.getByRole('button', { name: '删除', exact: true }).click()
+  await expect(page).toHaveURL(/\/photos\/new$/)
+  await expect(page.getByText('已删除这条识别')).toBeVisible()
+  await expect(page.getByRole('region', { name: '未处理的草稿' })).toHaveCount(0)
 })
 
 test('lays out the diary ledger, the nutrient bars and the meals', async ({ page, request }) => {

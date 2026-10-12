@@ -7,8 +7,8 @@ import { useNavigate, useParams } from 'react-router'
 import { networkError } from '../../api/client'
 import { ApiError } from '../../api/errors'
 import {
-  useConfirmRecognition, useDiscardRecognition, useObjectUrl, useRecognition, useRecognitionImage,
-  useUpdateRecognitionItems,
+  useConfirmRecognition, useDeleteRecognition, useDiscardRecognition, useObjectUrl, useRecognition,
+  useRecognitionImage, useUpdateRecognitionItems,
 } from '../../api/hooks/photos'
 import { qk } from '../../api/keys'
 import type { PhotoItemOut, RecognitionOut } from '../../api/types'
@@ -29,6 +29,7 @@ import { useToast } from '../../components/Toast'
 import { dayLabel, defaultMealType, formatMonthDay, todayISO } from '../../lib/dates'
 import { fmtFixed, fmtNum } from '../../lib/format'
 import { MEAL_LABELS, type MealType } from '../../lib/labels'
+import { useSingleFlight } from '../../lib/singleFlight'
 import '../../styles/components/photos.css'
 import { ItemEditSheet } from './ItemEditSheet'
 import { ItemRow } from './ItemRow'
@@ -41,6 +42,9 @@ const STATUS_TEXT: Record<RecognitionOut['status'], string> = { draft: '草稿',
 const BACK_TO_ITEMS = new Set(['photo_items_need_confirmation', 'photo_grams_out_of_range'])
 
 const asApiError = (error: unknown) => (error instanceof ApiError ? error : networkError())
+// 另一个修正还没回来时跳过这一次（不提示错误）
+const SKIPPED = new Error('上一个修正还没完成')
+const DELETE_TITLE = '删除这条识别（连同照片）'
 
 /** 第一个需要处理的项：待确认的，其次克数不在常见范围的，再次任何建议核对的，最后第一项 */
 function firstToHandle(items: PhotoItemOut[]): PhotoItemOut | undefined {
@@ -55,12 +59,14 @@ function KeptImage({ blob }: { blob: Blob }) {
   return <img ref={ref} alt="这次识别保留的照片" />
 }
 
-/** 缩略图：保留了照片才去取（image_kept），否则写“图片 未保留” */
+/** 缩略图：保留了照片才去取（image_kept），否则写“图片 未保留”；取不到时写“读取失败” */
 function Thumbnail({ record }: { record: RecognitionOut }) {
-  const blob = useRecognitionImage(record.id, record.image_kept)
+  const { blob, failed } = useRecognitionImage(record.id, record.image_kept)
+  let state = '未保留'
+  if (record.image_kept) state = failed ? '读取失败' : '读取中'
   return (
     <Sensitive area="dishes" className="ph-img">
-      {blob ? <KeptImage blob={blob} /> : <span>图片<br />{record.image_kept ? '读取中' : '未保留'}</span>}
+      {blob ? <KeptImage blob={blob} /> : <span>图片<br />{state}</span>}
     </Sensitive>
   )
 }
@@ -88,6 +94,14 @@ function ResultBody({ record }: { record: RecognitionOut }) {
   const update = useUpdateRecognitionItems(record.id)
   const confirm = useConfirmRecognition(record.id)
   const discard = useDiscardRecognition(record.id)
+  const remove = useDeleteRecognition(record.id)
+  // 双击或连按时 isPending 还没渲染出来，第二次按下照样会发请求：确认与修正各用一把锁
+  const confirmFlight = useSingleFlight()
+  const itemFlight = useSingleFlight()
+  // 请求回来到页面按新记录重画之间还隔着一拍：已经改过的那一版记录不再接受修正，确认成功后也不再确认
+  const revised = useRef<RecognitionOut | null>(null)
+  const confirmed = useRef(false)
+  const [removeOpen, setRemoveOpen] = useState(false)
   const [editing, setEditing] = useState<PhotoItemOut | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
@@ -100,10 +114,18 @@ function ResultBody({ record }: { record: RecognitionOut }) {
   const waiting = record.items.filter((item) => item.status === 'needs_confirmation').length
   const flagged = record.items.filter((item) => item.review_reasons.length > 0).length
 
-  const change = (next: ItemChange) => update.mutateAsync(toItemsUpdate(record.items, next))
+  const change = (next: ItemChange) => {
+    if (revised.current === record) return Promise.reject(SKIPPED)
+    const run = itemFlight(async () => {
+      const saved = await update.mutateAsync(toItemsUpdate(record.items, next))
+      revised.current = record
+      return saved
+    })
+    return run ?? Promise.reject(SKIPPED)
+  }
   const quietly = (next: ItemChange) =>
     change(next).catch((error: unknown) => {
-      toast.show(asApiError(error).message)
+      if (error !== SKIPPED) toast.show(asApiError(error).message)
       throw error
     })
 
@@ -113,15 +135,29 @@ function ResultBody({ record }: { record: RecognitionOut }) {
   }
 
   const onConfirm = () => {
-    confirm.mutate({ eaten_on: date, meal_type: meal }, {
-      onSuccess: (saved) => void navigate(`/records?tab=diet&date=${saved.eaten_on ?? date}`),
-      onError: (error) => {
+    if (confirmed.current) return
+    const run = confirmFlight(() => confirm.mutateAsync({ eaten_on: date, meal_type: meal }))
+    run?.then(
+      (saved) => {
+        confirmed.current = true
+        void navigate(`/records?tab=diet&date=${saved.eaten_on ?? date}`)
+      },
+      (error: unknown) => {
         const apiError = asApiError(error)
         toast.show(apiError.message)
         void queryClient.invalidateQueries({ queryKey: qk.recognition(record.id) })
         if (BACK_TO_ITEMS.has(apiError.code)) focusItem(firstToHandle(record.items))
       },
-    })
+    )
+  }
+
+  const onRemove = async () => {
+    await remove.mutateAsync()
+    setRemoveOpen(false)
+    toast.show('已删除这条识别')
+    await navigate('/photos/new', { replace: true })
+    // 离开结果页之后再移除这一条与它的图片的缓存（还在页面上时移除会让它重新请求）
+    queryClient.removeQueries({ queryKey: qk.recognition(record.id) })
   }
 
   return (
@@ -199,6 +235,19 @@ function ResultBody({ record }: { record: RecognitionOut }) {
           <ButtonLink to={`/records?tab=diet&date=${record.eaten_on}`} variant="quiet" block>查看这天的饮食记录</ButtonLink>
         </div>
       )}
+      <div className="ph-discard">
+        <Button variant="text" ink onPress={() => setRemoveOpen(true)}>{DELETE_TITLE}</Button>
+      </div>
+      <ConfirmSheet
+        isOpen={removeOpen} onClose={() => setRemoveOpen(false)} title={DELETE_TITLE}
+        will={[
+          { text: record.image_kept ? '这条识别记录与保留的照片一起删除' : '这条识别记录被删除（这次没有保留照片）' },
+          { text: '已经写入饮食记录的条目不受影响，需要时到饮食记录里修改' },
+          { text: '删除后不能恢复', irreversible: true },
+        ]}
+        confirmLabel="删除" confirmVariant="danger" error={remove.error ? asApiError(remove.error) : null}
+        onConfirm={onRemove}
+      />
     </>
   )
 }

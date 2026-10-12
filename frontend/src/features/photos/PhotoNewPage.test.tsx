@@ -1,17 +1,20 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { qk } from '../../api/keys'
+import { clearToken } from '../../api/token'
 import { setPendingPhoto, takePendingPhoto } from '../../lib/photoHandoff'
 import { gate } from '../../test/chat'
 import { recognition, REC_ID } from '../../test/fixtures/photos'
 import { photosHandlers, type PhotosOptions } from '../../test/msw/handlers/photos'
 import { server } from '../../test/msw/server'
 import { renderRoute } from '../../test/render'
+import { RecognitionProgress } from './RecognitionProgress'
 
 const photo = () => new File(['jpeg-bytes'], 'dinner.jpg', { type: 'image/jpeg' })
 
-function renderPhotoNew(opts: PhotosOptions = {}) {
-  const result = renderRoute('/photos/new')
+function renderPhotoNew(opts: PhotosOptions = {}, strict = false) {
+  const result = renderRoute('/photos/new', { strict })
   const photos = photosHandlers(opts)
   server.use(...photos.handlers)
   return { ...result, photos }
@@ -155,10 +158,95 @@ describe('photo new page', () => {
     await pickFromGallery(user)
     await user.click(await screen.findByRole('button', { name: '取消识别' }))
     expect(await screen.findByRole('button', { name: '拍照' })).toBeInTheDocument()
+    expect(screen.getByText(/已取消识别。如果照片已经传完，识别仍会在后台完成/)).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: '识别进度' })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     held.open()
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(router.state.location.pathname).toBe('/photos/new')
+  })
+
+  it('refreshes the drafts after a cancel so a draft saved by the server shows up', async () => {
+    const user = userEvent.setup()
+    const held = gate()
+    const { photos, queryClient } = renderPhotoNew({ hold: held.promise, create: recognition() })
+    // 与应用的查询客户端一样 30 秒内不算过期：列表只会因为失效而重新取
+    queryClient.setQueryDefaults(qk.recognitions, { staleTime: 30_000 })
+    await pickFromGallery(user)
+    await user.click(await screen.findByRole('button', { name: '取消识别' }))
+    await waitFor(() => expect(photos.listRequests()).toBe(2)) // 进入页面一次，取消后立刻一次
+    // 后端在取消之后才识别完、保存了草稿；稍后的那次刷新把它取回来
+    held.open()
+    await waitFor(() => expect(photos.records.size).toBe(1))
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await vi.advanceTimersByTimeAsync(15_000)
+    } finally {
+      vi.useRealTimers()
+    }
+    const drafts = await screen.findByRole('region', { name: '未处理的草稿' })
+    expect(within(drafts).getAllByRole('link')).toHaveLength(1)
+  })
+
+  it('lists confirmed and discarded recognitions so a kept photo can be found and deleted', async () => {
+    renderPhotoNew({
+      records: [
+        recognition({ id: 'rec-confirmed', status: 'confirmed', evaluation: null, image_kept: true }),
+        recognition({ id: 'rec-discarded', status: 'discarded', evaluation: null }),
+      ],
+    })
+    const recent = await screen.findByRole('region', { name: '最近的识别' })
+    expect(within(recent).getByRole('heading', { name: '最近的识别' })).not.toHaveClass('t-h')
+    const links = within(recent).getAllByRole('link')
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/photos/rec-confirmed', '/photos/rec-discarded'])
+    expect(links[0]).toHaveTextContent('已确认入库，保留了照片')
+    expect(links[1]).toHaveTextContent('已放弃')
+    expect(screen.queryByRole('region', { name: '未处理的草稿' })).not.toBeInTheDocument()
+  })
+
+  it('keeps a result that arrives after logout out of the cache', async () => {
+    const user = userEvent.setup()
+    const held = gate()
+    const { router, queryClient } = renderPhotoNew({ hold: held.promise, create: recognition() })
+    await pickFromGallery(user)
+    await screen.findByRole('list', { name: '识别进度' })
+    // 退出登录：令牌清掉，回到登录页（拍照页卸载）
+    clearToken()
+    await router.navigate('/login')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    held.open()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(queryClient.getQueryData(qk.recognition(REC_ID))).toBeUndefined()
+  })
+
+  it('takes a handed over photo once under strict mode', async () => {
+    const held = gate()
+    setPendingPhoto(photo())
+    const { photos } = renderPhotoNew({ hold: held.promise, create: recognition() }, true)
+    expect(await screen.findByRole('list', { name: '识别进度' })).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(photos.creates).toHaveLength(1)
+    expect(takePendingPhoto()).toBeNull()
+    held.open()
+  })
+
+  it('announces step changes but not every upload percentage', async () => {
+    const user = userEvent.setup()
+    const held = gate()
+    renderPhotoNew({ hold: held.promise, create: recognition() })
+    await pickFromGallery(user)
+    const steps = await screen.findByRole('list', { name: '识别进度' })
+    expect(steps).not.toHaveAttribute('aria-live')
+    expect(steps.parentElement?.querySelector('[role="status"]')).toHaveTextContent(/正在(压缩|上传)照片/)
+    held.open()
+  })
+
+  it('shows the upload percentage as a progress bar', () => {
+    render(<RecognitionProgress phase="uploading" size={1_258_291} sent={629_145} total={1_258_291} />)
+    const bar = screen.getByRole('progressbar', { name: '上传进度' })
+    expect(bar).toHaveAttribute('aria-valuenow', '50')
+    expect(bar).toHaveTextContent('已传 50%')
+    expect(screen.getByRole('status')).toHaveTextContent('正在上传照片')
+    expect(screen.getByRole('list', { name: '识别进度' })).toHaveTextContent('压缩后 1.2 MB')
   })
 })
