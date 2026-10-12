@@ -2,9 +2,10 @@
 
 用法：在后端目录运行 uv run python -m app.e2e_server --port 8765 --dist <前端构建目录> --fixtures <测试图片目录>
 （前端的 scripts/e2e-server.mjs 会先构建前端再调用它，Playwright 通过它启动）。
-启动时把测试库 goodlife_test 迁移到最新并清空全部表，所以不能与后端 pytest 同时运行。
+启动时把测试库 goodlife_test 迁移到最新并清空全部表，所以不能与后端 pytest 同时运行；
+TEST_DATABASE_URL 指向的库名不以 _test 结尾时拒绝启动，免得清空别的库。
 模型与高德只用 127.0.0.1 上的模拟服务（沿用第二阶段整体验收的模拟模型与模拟高德），密钥都是演示用的假密钥；
-不读取 .env 里的数据库、令牌与加密密钥（由下面的测试值覆盖）。
+不读 backend/.env：需要的配置全部由下面的测试值显式给出。
 """
 
 import argparse
@@ -18,7 +19,9 @@ from pathlib import Path
 from fastapi import FastAPI
 from PIL import Image
 
-from app.config import get_settings
+from sqlalchemy.engine import make_url
+
+from app.config import Settings, get_settings
 from app.phase2_acceptance import DEMO_AMAP_KEY, MEAL_COLOUR, VISION_MODEL_ID, WHITE, _AcceptanceModel, _MockAmap
 from app.phase2_demo import DEMO_MODEL_ID, DEMO_MODEL_KEY, _Handler
 
@@ -100,17 +103,32 @@ def _migrate_and_clear() -> None:
         conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
 
 
+def e2e_database_url() -> str:
+    """端到端测试用的数据库地址；库名不以 _test 结尾时退出（启动时会清空全部表）。"""
+    url = os.environ.get("TEST_DATABASE_URL", DEFAULT_DATABASE_URL)
+    database = make_url(url).database or ""
+    if not database.endswith("_test"):
+        raise SystemExit(f"拒绝启动：端到端测试会清空数据库，库名必须以 _test 结尾"
+                         f"（TEST_DATABASE_URL 指向的库是 {database!r}）")
+    return url
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="端到端测试用的后端")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--dist", type=Path, default=None)
     parser.add_argument("--fixtures", type=Path, required=True)
     args = parser.parse_args(argv)
+    database_url = e2e_database_url()  # 先检查库名，再动任何东西
 
-    os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", DEFAULT_DATABASE_URL)
+    # 在任何地方读取配置之前：不读 .env 文件，需要的值全部显式给出
+    Settings.model_config["env_file"] = None
+    os.environ["DATABASE_URL"] = database_url
     os.environ["JWT_SECRET"] = TEST_JWT_SECRET
     os.environ["FIELD_ENCRYPTION_KEY"] = TEST_FIELD_ENCRYPTION_KEY
     os.environ["LLM_ALLOW_PRIVATE_HOSTS"] = "true"  # 模拟服务在 127.0.0.1
+    os.environ["FRONTEND_DIST_DIR"] = ""  # 前端由 build_app 按 --dist 挂载
+    get_settings.cache_clear()
     model = E2EModel(date.today())
     amap = _MockAmap()
     try:

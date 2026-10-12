@@ -4,6 +4,8 @@
 //   SourceSerif4Variable-Roman.ttf  github.com/adobe-fonts/source-serif 的发布包 VAR/（OFL-1.1）
 // 输出（提交）：public/fonts/gl-serif-700.woff2、public/fonts/gl-num-500.woff2、
 //   src/styles/fonts.css、src/styles/fonts-manifest.json
+// 两个子集是 OFL 所说的修改版：改名为 GL Serif 与 GL Num（不用保留字体名“Source”），保留版权与许可证名称记录，
+// 许可证全文与版权见 public/fonts/OFL.txt。
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -28,7 +30,8 @@ function run(command, args) {
     cwd: root,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
-    env: { ...process.env, PYTHONUTF8: '1' },
+    // 固定时间戳：fontTools 按 SOURCE_DATE_EPOCH 写 head.modified，同样的输入生成逐字节相同的文件
+    env: { ...process.env, PYTHONUTF8: '1', SOURCE_DATE_EPOCH: '1760227200' },
   })
   if (result.error) throw result.error
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} 失败（退出码 ${result.status}）`)
@@ -36,7 +39,14 @@ function run(command, args) {
 }
 
 // 去掉 CFF 提示、展开子程序：字形不变（手机高分屏不用提示），woff2 压缩后宋体子集小约四分之一
-const PYFTSUBSET = ['--from', 'fonttools[woff]', 'pyftsubset', '--no-hinting', '--desubroutinize']
+// 名称记录保留 0（版权）、13 与 14（许可证说明与网址），以及 1 到 6（字体名，随后由 font_names.py 改名）
+const PYFTSUBSET = ['--from', 'fonttools[woff]', 'pyftsubset', '--no-hinting', '--desubroutinize',
+  '--name-IDs=0,1,2,3,4,5,6,13,14']
+
+function rename(file, family, style, note) {
+  run('uv', ['run', '--no-project', '--with', 'fonttools[woff]', 'python', 'scripts/font_names.py', file, family, style,
+    note])
+}
 
 function fontMetrics(font, coversFile) {
   const args = ['run', '--no-project', '--with', 'fonttools', 'python', 'scripts/font_metrics.py', font]
@@ -66,6 +76,8 @@ try {
   writeFileSync(textFile, wanted, 'utf8')
   run('uvx', [...PYFTSUBSET, SERIF_SOURCE, `--text-file=${textFile}`, '--flavor=woff2',
     '--layout-features=palt,kern', `--output-file=${SERIF_OUT}`])
+  rename(SERIF_OUT, 'GL Serif', 'Bold',
+    'Modified Version (subset, renamed). See OFL.txt.')
   const serif = fontMetrics(SERIF_SOURCE, textFile)
   const missing = Array.from(wanted).filter((char) => !serif.covered.includes(char))
   if (missing.length > 0) throw new Error(`思源宋体缺这些字：${missing.join('')}`)
@@ -76,6 +88,8 @@ try {
     '-o', NUM_INSTANCE])
   run('uvx', [...PYFTSUBSET, NUM_INSTANCE, `--text=${NUM_CHARS}`, '--flavor=woff2',
     '--layout-features=tnum,lnum', `--output-file=${NUM_OUT}`])
+  rename(NUM_OUT, 'GL Num', 'Medium',
+    'Modified Version (instanced, subset, renamed; not Source Serif 4). See OFL.txt.')
   const num = fontMetrics(NUM_INSTANCE)
 
   const percent = (value) => `${(value * 100).toFixed(2)}%`

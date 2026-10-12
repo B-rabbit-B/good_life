@@ -4,7 +4,7 @@ import manifest from '../styles/fonts-manifest.json'
 import { SERIF_EXTRA, TITLES } from './titles'
 
 const SERIF_MAX_BYTES = 40 * 1024
-const PRELOAD_MAX_BYTES = 45 * 1024 // 45,056 B：宋体上限 40 KB 加数字子集与约 2 KB 余量
+const PRELOAD_MAX_BYTES = 45 * 1024 // 45 KiB（46,080 B）：宋体上限 40 KiB 加数字子集与约 3 KiB 余量
 
 describe('fixed titles and font subsets', () => {
   it('serif subset covers every fixed title', () => {

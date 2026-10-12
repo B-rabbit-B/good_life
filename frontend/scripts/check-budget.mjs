@@ -1,4 +1,4 @@
-// 首屏预算（对话路由，gzip 后）：脚本 150 KB、样式 22 KB；预加载字体合计 45 KB。pnpm build:check 在构建后运行。
+// 首屏预算（对话路由，gzip 后）：脚本 150 KB、样式 22 KB；预加载字体合计 45 KiB（46,080 B）。pnpm build:check 在构建后运行。
 // 计入的块：index.html 入口与对话页（src/features/chat/ChatPage.tsx），以及它们静态导入的全部块；
 // 对话页还不存在时（任务 6 之前）只检查入口。
 import { readdirSync, readFileSync, statSync } from 'node:fs'

@@ -1,6 +1,8 @@
-"""端到端测试用的后端：信息接口不被前端单页应用遮住，模拟模型校验密钥，测试图片的颜色符合模拟看图模型的约定。"""
+"""端到端测试用的后端：信息接口不被前端单页应用遮住，模拟模型校验密钥，测试图片的颜色符合模拟看图模型的约定，
+库名不以 _test 结尾时拒绝启动。"""
 
 import json
+import os
 import shutil
 import tempfile
 import urllib.error
@@ -12,7 +14,8 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageStat
 
-from app.e2e_server import BAD_KEY, E2EModel, build_app, write_fixtures
+from app.config import Settings
+from app.e2e_server import BAD_KEY, E2EModel, build_app, main, write_fixtures
 from app.phase2_acceptance import MEAL_COLOUR, VISION_MODEL_ID
 from app.phase2_demo import DEMO_MODEL_ID, DEMO_MODEL_KEY
 
@@ -75,3 +78,20 @@ def test_fixtures_have_the_expected_colours(scratch):
     meal = _mean(scratch / "fixtures" / "meal.jpg")
     assert all(abs(channel - expected) < 3 for channel, expected in zip(meal, MEAL_COLOUR, strict=True))
     assert min(_mean(scratch / "fixtures" / "white.jpg")) > 250
+
+
+@pytest.mark.parametrize("url", [
+    "postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433/goodlife",
+    "postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433/goodlife_test_copy",
+    "postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433",
+])
+def test_e2e_server_refuses_a_database_not_named_test(scratch, monkeypatch, url):
+    monkeypatch.setenv("TEST_DATABASE_URL", url)
+    before = (os.environ["DATABASE_URL"], Settings.model_config.get("env_file"))
+    fixtures = scratch / "fixtures"
+    with pytest.raises(SystemExit) as refused:
+        main(["--port", "0", "--fixtures", str(fixtures)])
+    assert "_test" in str(refused.value.code)
+    # 在检查之前什么都没动：环境变量、配置与测试图片目录都还是原样，也没有启动模拟服务或连库
+    assert (os.environ["DATABASE_URL"], Settings.model_config.get("env_file")) == before
+    assert not fixtures.exists()
