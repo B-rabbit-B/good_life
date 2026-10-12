@@ -68,7 +68,7 @@ export function OpeningCard({ opening, target, onCollapsed }: {
       {sheet !== 'closed' && target && (
         <Suspense fallback={null}>
           <ContinueSheet
-            item={target} dueReason={context.dueReason} isOpen={sheet === 'open'}
+            item={target} dueReason={context.dueReason} isOpen={sheet === 'open'} area="opening"
             onClose={() => setSheet('loaded')}
             onDone={() => answer.mutate(opening.id, { onSuccess: onCollapsed })}
           />

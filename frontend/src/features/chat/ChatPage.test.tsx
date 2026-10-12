@@ -1,6 +1,8 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
+import { qk } from '../../api/keys'
 import { sensitiveAreaMismatch } from '../../app/sensitiveAreas'
 import { HEALTH_DISCLAIMER } from '../../lib/contract'
 import { takePendingPhoto } from '../../lib/photoHandoff'
@@ -9,6 +11,7 @@ import {
   assistantMessage, assistantText, conversation, noticeLines, opening, SEVERE_REPLY, userMessage,
 } from '../../test/fixtures/agent'
 import { dueItem, proposalItem, proposedEvent, reviewDueEvent } from '../../test/fixtures/medical'
+import { server } from '../../test/msw/server'
 
 const ANSWER = '今晚可以换成清蒸鱼或鸡胸肉，配一碗杂粮粥，蛋白质够，也清淡。'
 const NOTICE = noticeLines([['卤猪肝', '避免动物内脏与浓肉汤（高嘌呤）']])
@@ -52,7 +55,9 @@ describe('chat page', () => {
     renderChat({ conversations: [conversation([
       userMessage('胸口很闷，一直出冷汗'), assistantMessage(SEVERE_REPLY, { flags: ['risk_severe_symptom'] }),
     ])] })
-    const care = await screen.findByRole('alert')
+    // 历史里的就医提示是 note（打开页面时不再播报），刚流出来的那一条才是 alert（见 useChatStream.test）
+    const care = await screen.findByRole('note', { name: '请尽快就医' })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(within(care).getByRole('heading', { name: '请尽快就医' })).toBeInTheDocument()
     expect(within(care).getByText(SEVERE_REPLY)).toBeInTheDocument()
     expect(within(care).getByRole('link', { name: '拨打 120' })).toHaveAttribute('href', 'tel:120')
@@ -210,5 +215,93 @@ describe('chat page', () => {
     hold.open()
     await screen.findByText('今晚吃清蒸鱼配米饭，清淡又下饭。')
     await waitFor(() => expect(messages).not.toHaveAttribute('aria-busy'))
+  })
+  it('waits for the conversation list before sending', async () => {
+    const user = userEvent.setup()
+    const list = gate()
+    const { chat } = renderChat({ conversations: [conversation([userMessage('昨天的话'), assistantMessage(assistantText('昨天的回答。'))])] })
+    const summaries = chat.conversations.map(({ id, title, created_at, updated_at }) => ({ id, title, created_at, updated_at }))
+    server.use(http.get('/api/agent/conversations', async () => {
+      await list.promise
+      return HttpResponse.json(summaries)
+    }))
+    await sendText(user, '晚饭吃什么')
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    expect(chat.posts).toEqual([])
+    list.open()
+    await screen.findByText('昨天的回答。')
+    await waitFor(() => expect(screen.getByRole('button', { name: '发送' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '发送' }))
+    await screen.findByText('好的。')
+    // 发进了已有的会话，没有新建一个把历史挡掉
+    expect(chat.posts.map((post) => post.conversationId)).toEqual([chat.conversations[0]?.id])
+    expect(chat.conversations).toHaveLength(1)
+    expect(screen.getByText('昨天的回答。')).toBeInTheDocument()
+  })
+
+  it('does not start a conversation when the list fails', async () => {
+    const user = userEvent.setup()
+    const { chat } = renderChat({ conversations: [conversation([userMessage('昨天的话')])] })
+    server.use(http.get('/api/agent/conversations', () =>
+      HttpResponse.json({ error: { code: 'internal_error', message: '服务器内部错误' } }, { status: 500 })))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('服务器内部错误')
+    await sendText(user, '晚饭吃什么')
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    expect(chat.posts).toEqual([])
+    expect(chat.conversations).toHaveLength(1)
+  })
+
+  it('shows the history while the opening is still loading', async () => {
+    const slow = gate()
+    const due = dueItem()
+    renderChat({
+      conversations: [conversation([userMessage('昨天的话'), assistantMessage(assistantText('昨天的回答。'))])],
+      reviews: [due, proposalItem()], events: { [due.id]: [reviewDueEvent()] },
+    })
+    server.use(http.get('/api/agent/opening', async () => {
+      await slow.promise
+      return HttpResponse.json({ opening: opening() })
+    }))
+    // 历史马上出来，开场的位置预留着；待处理条先只占住收起时的高度
+    expect(await screen.findByText('昨天的回答。')).toBeInTheDocument()
+    expect(document.querySelector('.open-slot')).not.toBeNull()
+    expect(document.querySelector('header .rv1-hold')).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /医嘱待处理|有解除建议|待复核/ })).not.toBeInTheDocument()
+    slow.open()
+    expect(await screen.findByRole('group', { name: /你有一条医嘱/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '运动限制 有解除建议' })).toBeInTheDocument()
+    expect(document.querySelector('.rv1-hold')).toBeNull()
+    expect(document.querySelector('.open-slot')).toBeNull()
+  })
+
+  it('keeps the chat when a background refetch fails', async () => {
+    const { queryClient } = renderChat({
+      conversations: [conversation([userMessage('昨天的话'), assistantMessage(assistantText('昨天的回答。'))])],
+    })
+    await screen.findByText('昨天的回答。')
+    server.use(
+      http.get('/api/agent/conversations', () => new HttpResponse('bad gateway', { status: 502 })),
+      http.get('/api/agent/conversations/:id', () => new HttpResponse('bad gateway', { status: 502 })),
+    )
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.conversations })
+    })
+    await waitFor(() => expect(queryClient.getQueryState(qk.conversations)?.status).toBe('error'))
+    expect(screen.getByText('昨天的回答。')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '发送' })).toBeInTheDocument()
+  })
+
+  it('keeps focus in the input after sending with the button', async () => {
+    const user = userEvent.setup()
+    renderChat()
+    const input = await screen.findByRole('textbox', { name: '给助手发消息' })
+    await waitFor(() => expect(document.querySelector('.msgs')).not.toBeNull())
+    await user.type(input, '晚饭吃什么')
+    await user.click(screen.getByRole('button', { name: '发送' }))
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    expect(input).toHaveFocus()
+    await screen.findByText('好的。')
   })
 })

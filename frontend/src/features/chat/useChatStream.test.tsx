@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { gate, renderChat, sendText } from '../../test/chat'
-import { assistantText } from '../../test/fixtures/agent'
+import { assistantText, SEVERE_REPLY } from '../../test/fixtures/agent'
 import { setMediaMatches } from '../../test/setup'
 import { THINKING_TEXT } from './AssistantMessage'
 
@@ -36,6 +36,7 @@ describe('chat stream', () => {
     // 第一段到了：气泡里只有这一段，光标在末尾，免责句还没出现
     await waitFor(() => expect(bubbles('.msg-a')[0]).toHaveTextContent(ANSWER.slice(0, 8)))
     const live = bubbles('.msg-a')[0] as HTMLElement
+    const liveUser = bubbles('.msg-u')[0]
     expect(live.querySelector('.ans')?.textContent).toBe(ANSWER.slice(0, 8))
     expect(live.querySelector('.caret')).not.toBeNull()
     hold.open()
@@ -45,6 +46,8 @@ describe('chat stream', () => {
     const saved = chat.conversations[0]?.messages[1]
     await waitFor(() => expect(bubbles('.msg-a')).toHaveLength(1))
     expect(bubbles('.msg-u')).toHaveLength(1)
+    // 存好的用户消息沿用流式时的节点：消息流是 aria-live，换节点会让读屏把这句话再念一遍
+    expect(bubbles('.msg-u')[0]).toBe(liveUser)
     expect(within(bubbles('.msg-a')[0] as HTMLElement).getByText('仅供参考')).toBeInTheDocument()
     expect(saved?.role).toBe('assistant')
     expect(chat.posts.map((post) => post.body)).toEqual([{ text: '晚饭吃什么', stream: true }])
@@ -104,5 +107,15 @@ describe('chat stream', () => {
     expect(screen.getByRole('link', { name: '去添加模型服务' })).toHaveAttribute('href', '/settings/models/new')
     expect(screen.getByText('晚饭吃什么').closest('.msg-u')).not.toBeNull()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+  it('announces a fresh care reply as an alert', async () => {
+    const user = userEvent.setup()
+    const { chat } = renderChat({ reply: () => ({ text: SEVERE_REPLY, flags: ['risk_severe_symptom'] }) })
+    await sendText(user, '胸口很闷，一直出冷汗')
+    const care = await screen.findByRole('alert', { name: '请尽快就医' })
+    expect(care).toHaveTextContent(SEVERE_REPLY)
+    expect(screen.queryByRole('group', { name: '快捷操作' })).not.toBeInTheDocument()
+    // 存好之后（下次打开页面时）它就只是 note
+    await waitFor(() => expect(chat.conversations[0]?.messages).toHaveLength(2))
   })
 })

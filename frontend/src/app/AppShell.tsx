@@ -1,5 +1,5 @@
 // 应用外壳：背景场、唯一的滚动容器 <main data-scroller>、页面（Outlet），以及按路由的 handle 决定的底部导航。
-// 浮起的导航、对话底座与操作坞不占文档流，滚动容器的底部留白由这里直接给（导航 104、对话底座 196、
+// 浮起的导航、对话底座与操作坞不占文档流，滚动容器的底部留白由这里直接给（导航 104、对话底座按实际高度、
 // 操作坞 112 或 172、都没有 28），保证最后一行能滚出来。
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -9,6 +9,7 @@ import { qk } from '../api/keys'
 import { useCapabilities } from '../api/hooks/profile'
 import { BottomNav } from '../components/BottomNav'
 import { Field } from '../components/Field'
+import { clearPendingPhoto } from '../lib/photoHandoff'
 import { ShellPortal } from '../components/ShellPortal'
 import '../styles/components/app-shell.css'
 import { useRemoveBootShell } from './BootSplash'
@@ -21,7 +22,9 @@ import { ShellContext, type DockSize, type ShellContextValue } from './shellCont
 
 export { useDockPadding, useHeaderCover, useScroller, useSensitivePage } from './shellContext'
 
-const PADDING = { tabs: 104, chat: 196, none: 28 } as const
+// 对话底座的高度会变（多行输入、就医提示时没有快捷操作、键盘弹起时没有导航）：底座把实际高度写在 --dock-h，
+// 留白 = 底座高度 + 下沿 18 + 20；量到之前按 158 算（158 + 38 = 196）
+const PADDING = { tabs: 104, chat: 'calc(var(--dock-h, 158px) + 38px)', none: 28 } as const
 const DOCK_PADDING: Record<DockSize, number> = { short: 112, tall: 172 }
 const NO_HANDLE: RouteHandle = { nav: 'none', sensitive: false }
 
@@ -59,6 +62,7 @@ export function AppShell() {
   // 登录失效：取消进行中的查询，回登录页并显示“登录已过期”，页面卸载之后再清缓存
   // （先清缓存的话，还挂着的查询会不带令牌重新请求，又触发一次 401）
   useEffect(() => onUnauthorized(() => {
+    clearPendingPhoto()
     void (async () => {
       await queryClient.cancelQueries()
       await navigate(PATHS.login, { replace: true, state: { expired: true } satisfies LoginState })

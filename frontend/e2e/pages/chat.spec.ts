@@ -30,6 +30,8 @@ async function chatUser(request: APIRequestContext, history: string[] = []): Pro
 
 async function send(page: Page, text: string): Promise<void> {
   await page.getByRole('textbox', { name: '给助手发消息' }).fill(text)
+  // 会话列表取到之前不能发送
+  await expect(page.getByRole('button', { name: '发送' })).toBeEnabled()
   await page.keyboard.press('Enter')
 }
 
@@ -66,17 +68,42 @@ async function expectBlurBudget(page: Page): Promise<void> {
       const filter = style.backdropFilter || (style as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter
       return Boolean(filter) && filter !== 'none'
     }
+    const visible = (top: number, bottom: number, width: number) =>
+      Math.max(0, Math.min(bottom, innerHeight) - Math.max(top, 0)) * Math.min(width, innerWidth)
     let area = 0
     for (const el of Array.from(document.querySelectorAll('*'))) {
       const box = el.getBoundingClientRect()
-      const visible = Math.max(0, Math.min(box.bottom, innerHeight) - Math.max(box.top, 0)) * Math.min(box.width, innerWidth)
-      if (blurred(getComputedStyle(el))) area += visible
-      if (blurred(getComputedStyle(el, '::before')) && getComputedStyle(el, '::before').opacity !== '0') area += visible
+      if (blurred(getComputedStyle(el))) area += visible(box.top, box.bottom, box.width)
+      // 画在 ::before 上的玻璃层（吸顶页头）：按伪元素自己的位置与高度算
+      const before = getComputedStyle(el, '::before')
+      if (blurred(before) && before.opacity !== '0') {
+        const top = box.top + (Number.parseFloat(before.top) || 0)
+        const height = Number.parseFloat(before.height) || box.height
+        area += visible(top, top + height, Number.parseFloat(before.width) || box.width)
+      }
     }
     return area / (innerWidth * innerHeight)
   })
   expect(share, '模糊面积占视口').toBeGreaterThan(0)
   expect(share, '模糊面积占视口').toBeLessThanOrEqual(0.4)
+}
+
+/** 面板滑入停稳：data-entering 去掉、面板与遮罩上的过渡与动画都结束（量尺寸前要等它，否则量到的是半路的大小） */
+async function waitForSheet(page: Page): Promise<void> {
+  const sheet = page.locator('.sheet')
+  await expect(sheet).not.toHaveAttribute('data-entering', /.*/)
+  await page.locator('.sheet-layer').evaluate((el) =>
+    Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)))
+}
+
+/** 把今天的开场都拒掉（拒掉一类，下一类才会出现） */
+async function declineOpenings(request: APIRequestContext, token: string): Promise<void> {
+  const headers = { Authorization: `Bearer ${token}` }
+  for (let i = 0; i < 5; i += 1) {
+    const body = (await (await request.get('/api/agent/opening', { headers })).json()) as { opening: { id: string } | null }
+    if (!body.opening) return
+    await request.post(`/api/agent/opening/${body.opening.id}/decline`, { headers })
+  }
 }
 
 const radius = (page: Page, selector: string) =>
@@ -110,6 +137,16 @@ test('lays out the chat with history, a streamed answer and the dock', async ({ 
   await expect.poll(() => header.evaluate((el) => getComputedStyle(el, '::before').opacity)).toBe('1')
   await expectGlass(page, true)
   await expectBlurBudget(page)
+
+  // 多行草稿让底座变高：滚动容器的底部留白跟着底座的实际高度
+  const input = page.getByRole('textbox', { name: '给助手发消息' })
+  await input.fill('第一行\n第二行\n第三行\n第四行')
+  await expect.poll(async () => (await page.locator('.slab').boundingBox())?.height ?? 0).toBeGreaterThan(158)
+  const slabHeight = (await page.locator('.slab').boundingBox())?.height ?? 0
+  const padding = await page.locator('[data-scroller]').evaluate((el) => Number.parseFloat(getComputedStyle(el).paddingBottom))
+  expect(padding, '底部留白 = 底座高度 + 38').toBeCloseTo(slabHeight + 38, 0)
+  await input.fill('')
+  await expect.poll(async () => (await page.locator('.slab').boundingBox())?.height ?? 0).toBeCloseTo(158, 0)
 
   await expectCoverWorks(page)
 
@@ -201,6 +238,7 @@ test('opens with the due review and keeps the proposal in the strip', async ({ p
   const sheet = page.getByRole('dialog', { name: '继续遵守这条医嘱' })
   await expect(sheet).toBeVisible()
   await expect(sheet.getByText('已到复查日期，请确认是否还需要继续遵守')).toBeVisible()
+  await waitForSheet(page)
   await expectPageRules(page)
   await sheet.getByRole('button', { name: '继续遵守' }).click()
   await expect(sheet).toHaveCount(0)
@@ -208,3 +246,46 @@ test('opens with the due review and keeps the proposal in the strip', async ({ p
   await expect(card).toHaveCount(0)
   await expect(strip).toBeVisible()
 })
+
+test('keeps the expanded strip within the blur budget and every action reachable', async ({ page, request }) => {
+  const user = await createUser(request, { profile: 'complete' })
+  await seedModelService(request, user.token, await e2eInfo(request))
+  let conversation: string | undefined
+  for (const text of ['练完腿，晚饭吃什么好？', '晚饭吃什么', '那明天早饭呢', '好的']) {
+    conversation = (await sendMessage(request, user.token, text, conversation)).conversation_id
+  }
+  for (const [i, content] of ['低盐饮食，每日钠不超过 2000 毫克', '每日饮水不少于 1500 毫升', '每周复查血压 2 次'].entries()) {
+    await seedReviewDueItem(request, user.token, { ...SALT, content, subjects: [`盐${i}`] })
+  }
+  for (const item of [KNEE, { ...KNEE, content: '术后三个月内不做深蹲，负重不超过 10 千克', subjects: ['深蹲'] }]) {
+    const active = await seedActiveItem(request, user.token, item)
+    await seedProposal(request, user.token, active.id, '用户转述医生说已经好了')
+  }
+  await declineOpenings(request, user.token)
+  await openAs(page, user.token, '/chat')
+
+  const strip = page.getByRole('button', { name: '医嘱待处理 5 条' })
+  await expect(strip).toBeVisible()
+  await page.locator('[data-scroller]').evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
+  await expect(page.locator('header.top')).toHaveClass(/stuck/)
+  await strip.click()
+  await expect(page.locator('.rvx-i')).toHaveCount(5)
+  await page.waitForTimeout(300)
+  await expectBlurBudget(page)
+
+  // 每一条的动作都能滚到、在视口里、不被对话底座挡住，并且真的点得到
+  const slabTop = (await page.locator('.slab').boundingBox())?.y ?? 0
+  const actions = page.locator('.rvx .acts-r').getByRole('button').or(page.locator('.rvx .acts-r').getByRole('link'))
+  expect(await actions.count()).toBe(10)
+  for (const action of await actions.all()) {
+    await action.scrollIntoViewIfNeeded()
+    const box = await action.boundingBox()
+    if (!box) throw new Error('量不到条子里的动作')
+    expect(box.y, '动作在视口里').toBeGreaterThanOrEqual(0)
+    expect(box.y + box.height, '动作不在对话底座下面').toBeLessThanOrEqual(slabTop)
+    await action.click({ trial: true })
+  }
+  await expectBlurBudget(page)
+  await expectTouchTargets(page)
+})
+

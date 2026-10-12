@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { MedicalItemOut } from '../../api/types'
+import { CoverProvider } from '../../components/cover'
 import { GlassModeProvider } from '../../components/glass/GlassModeProvider'
 import { ToastProvider } from '../../components/Toast'
 import { addMonths, todayISO } from '../../lib/dates'
@@ -20,9 +21,11 @@ function renderSheet(item: MedicalItemOut, dueReason: string | null, opts: Medic
     const [open, setOpen] = useState(true)
     return (
       <GlassModeProvider>
-        <ToastProvider>
-          <ContinueSheet item={item} dueReason={dueReason} isOpen={open} onClose={() => setOpen(false)} onDone={onDone} />
-        </ToastProvider>
+        <CoverProvider>
+          <ToastProvider>
+            <ContinueSheet item={item} dueReason={dueReason} isOpen={open} onClose={() => setOpen(false)} onDone={onDone} />
+          </ToastProvider>
+        </CoverProvider>
       </GlassModeProvider>
     )
   }
@@ -41,6 +44,8 @@ describe('continue sheet', () => {
     expect(within(sheet).getByText('饮食要求')).toBeInTheDocument()
     expect(within(sheet).getByText('低盐饮食，每日钠不超过 2000 毫克')).toBeInTheDocument()
     expect(within(sheet).getByText('生效 2026-07-12')).toBeInTheDocument()
+    // 医嘱原文在敏感区里（默认是医嘱页的 content；对话页按入口传 opening 或 reviewBar）
+    expect(within(sheet).getByText('低盐饮食，每日钠不超过 2000 毫克').closest('[data-sensitive-area="content"]')).not.toBeNull()
     expect(within(sheet).getByText('两个日期一起提交，留空的一项会被清除。')).toBeInTheDocument()
     expect(screen.getByLabelText('复查日期')).toHaveValue('2026-12-01')
     expect(screen.getByLabelText('预计结束')).toHaveValue('2026-10-13')
@@ -104,7 +109,14 @@ describe('continue sheet', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(message)
     expect(alert).toHaveTextContent('错误码 still_due')
+    // 用户保留了预填的、本身已到期的预计结束：后端的说明写在这一项下面，这一项标红并拿到焦点；前端不自己拦
     expect(alert.closest('.dt-row')).toBe(row('预计结束'))
+    const end = screen.getByLabelText('预计结束')
+    await waitFor(() => expect(end).toHaveFocus())
+    expect(end).toHaveAttribute('aria-invalid', 'true')
+    expect(end).toHaveAttribute('aria-describedby', alert.id)
+    expect(end.closest('.sel')).toHaveClass('bad')
+    expect(screen.getByLabelText('复查日期').closest('.sel')).not.toHaveClass('bad')
     expect(screen.getByRole('dialog', { name: '继续遵守这条医嘱' })).toBeInTheDocument()
   })
 

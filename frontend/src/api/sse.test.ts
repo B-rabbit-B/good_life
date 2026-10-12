@@ -140,6 +140,23 @@ describe('stream message', () => {
     expect(listener).toHaveBeenCalledTimes(1)
   })
 
+  it('clears the token on a 401 inside a non 200 event stream', async () => {
+    setToken('stale')
+    const listener = vi.fn()
+    const stop = onUnauthorized(listener)
+    server.use(http.post(URL, () => sse(
+      ['event: error\ndata: {"code":"invalid_token","message":"登录已失效，请重新登录"}\n\n'], { status: 401 },
+    )))
+    const events: StreamEvent[] = []
+    const error = await caught(streamMessage('c1', '晚饭吃什么', { onEvent: (event) => events.push(event) }))
+    stop()
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 401, code: 'invalid_token', message: '登录已失效，请重新登录' })
+    expect(events).toEqual([])
+    expect(getToken()).toBeNull()
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
   it('maps a network failure to network_error', async () => {
     server.use(http.post(URL, () => HttpResponse.error()))
     expect(await caught(collect())).toMatchObject({ status: 0, code: 'network_error' })

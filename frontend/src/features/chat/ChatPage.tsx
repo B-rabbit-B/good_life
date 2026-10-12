@@ -36,9 +36,10 @@ function lastIsRisk(messages: MessageOut[], liveFlags: string[] | undefined): bo
 
 /**
  * 对话页：页头（对话、今天的日期与星期、待处理条），消息流（历史、开场卡片、本次的流式回答、没有模型时的提示），
- * 对话底座。会话取最近的一个，没有时第一次发送前新建。
- * 首屏不跳动：会话与待处理列表都到了才画消息流（待处理列表不空时还要等开场，免得开场那一条从待处理条里跳走）；
- * 开场还没到时在它的位置预留高度。
+ * 对话底座。会话取最近的一个；会话列表取到之前不能发送，列表取到且为空时第一次发送前新建。
+ * 首屏不跳动：会话与待处理列表都到了才画消息流；开场（可能要等模型改写措辞）不挡历史，还没到时在它的位置预留高度；
+ * 待处理列表不空而开场还没到时，待处理条先只占住收起时的高度（开场问的那一条要从条里拿掉）。
+ * 后台重新请求失败时缓存里的会话照常显示，只有一条数据都没有时才显示失败。
  */
 export default function ChatPage() {
   useSensitivePage('chat')
@@ -53,20 +54,23 @@ export default function ChatPage() {
   const assignments = useAssignments()
   const scroller = useScroller()
 
+  const listed = conversations.data
   const ensureConversation = useCallback(async () => {
     if (conversationId) return conversationId
+    // 只有取到了会话列表、并且确实是空的，才新建（列表没取到时新建会把已有的历史挡掉）
+    if (listed === undefined) throw networkError()
     const created = await create.mutateAsync()
     setCreatedId(created.id)
     return created.id
-  }, [conversationId, create])
-  const { live, send, retry, toolsByMessage } = useChatStream(conversationId, ensureConversation)
+  }, [conversationId, listed, create])
+  const { live, send, retry, toolsByMessage, userKeyByAnswer } = useChatStream(conversationId, ensureConversation)
 
   const messages = conversation.data?.messages ?? NO_MESSAGES
   const reviewItems = caps.medical ? (reviews.data ?? []) : []
   const reviewsSettled = !caps.medical || reviews.isSuccess || reviews.isError
   const openingSettled = opening.isSuccess || opening.isError
-  const conversationReady = conversations.isSuccess && (conversationId === null || conversation.isSuccess)
-  const ready = conversationReady && reviewsSettled && (reviewItems.length === 0 || openingSettled)
+  const conversationReady = conversations.data !== undefined && (conversationId === null || conversation.data !== undefined)
+  const ready = conversationReady && reviewsSettled
 
   // 打开页面时已有几条消息：开场卡片接在它们后面，之后的消息再往后（列表只在末尾追加）
   const [anchorCount, setAnchorCount] = useState<number | null>(null)
@@ -105,11 +109,13 @@ export default function ChatPage() {
   }
 
   let body
-  if (conversations.isError || conversation.isError) {
-    const failed = conversations.error ?? conversation.error
+  const listFailed = conversations.isError && conversations.data === undefined
+  const detailFailed = conversationId !== null && conversation.isError && conversation.data === undefined
+  if (listFailed || detailFailed) {
+    const failed = listFailed ? conversations.error : conversation.error
     const error = failed instanceof ApiError ? failed : networkError()
     body = (
-      <ErrorState error={error} onRetry={() => void (conversations.isError ? conversations.refetch() : conversation.refetch())} />
+      <ErrorState error={error} onRetry={() => void (listFailed ? conversations.refetch() : conversation.refetch())} />
     )
   } else if (!ready) {
     body = <LoadingState variant="list" text="正在读取对话" />
@@ -120,7 +126,7 @@ export default function ChatPage() {
     body = (
       <MessageList
         messages={messages} anchorCount={anchorCount ?? messages.length} slot={slot} live={live} caps={caps}
-        toolsByMessage={toolsByMessage} onRetry={() => void retry()}
+        toolsByMessage={toolsByMessage} userKeyByAnswer={userKeyByAnswer} onRetry={() => void retry()}
         tail={openingSettled && noModel ? <NoModelPrompt /> : null}
       />
     )
@@ -130,11 +136,13 @@ export default function ChatPage() {
   return (
     <>
       <PageHeader titleKey="chat" variant="chat" caption={`${formatMonthDay(today)} ${formatWeekday(today)}`}>
-        {ready && stripItems.length > 0 && <PendingStrip items={stripItems} />}
+        {ready && reviewItems.length > 0 && !openingSettled && <div className="rv1-hold" aria-hidden="true" />}
+        {ready && openingSettled && stripItems.length > 0 && <PendingStrip items={stripItems} />}
       </PageHeader>
       {body}
       <ChatDock
         caps={caps} onSend={onSend} busy={live?.phase === 'waiting' || live?.phase === 'streaming'}
+        ready={conversations.data !== undefined}
         hideQuickActions={lastIsRisk(messages, live?.phase === 'done' ? live.turn?.flags : undefined)}
       />
     </>

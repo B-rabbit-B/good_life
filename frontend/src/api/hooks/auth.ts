@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router'
 import { PATHS } from '../../app/paths'
 import { api } from '../client'
 import { qk } from '../keys'
+import { clearPendingPhoto } from '../../lib/photoHandoff'
 import { clearToken, setToken } from '../token'
 import type { LoginRequest, RegisterRequest, TokenResponse, UserOut } from '../types'
 
@@ -61,6 +62,7 @@ export function useLogout() {
       await queryClient.cancelQueries()
       await api<undefined>('/api/auth/logout', { method: 'POST', notifyUnauthorized: false }).catch(() => undefined)
       clearToken()
+      clearPendingPhoto()
       loggedOut.current = true
       await navigate(PATHS.login, { replace: true })
       if (!mounted.current) queryClient.clear()

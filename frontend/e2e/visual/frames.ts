@@ -80,19 +80,22 @@ async function chatUser(request: APIRequestContext, opts: { history?: string[]; 
 
 async function sendInApp(page: Page, text: string, done: string): Promise<void> {
   await page.getByRole('textbox', { name: '给助手发消息' }).fill(text)
-  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: '发送' }).click() // 会话列表取到之前不可用，click 会等它可用
   await page.locator(done).last().waitFor()
   await page.waitForTimeout(400) // 依据与附注淡入
 }
 
 const scrollToEnd = (page: Page) => page.locator('[data-scroller]').evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
 
-/** 03f：一个用户气泡停在吸顶页头下，另一个停在对话底座下（逐个滚动位置找第一个满足的） */
+/**
+ * 03f：一个用户气泡的中线停在吸顶页头的玻璃下，另一个停在对话底座快捷操作那一行下（逐个滚动位置找第一个满足的）；
+ * 找不到就失败，不截一张没有气泡在玻璃下的图
+ */
 async function bubblesUnderGlass(page: Page): Promise<void> {
-  await page.locator('[data-scroller]').evaluate((scroller) => {
+  const found = await page.locator('[data-scroller]').evaluate((scroller) => {
     const header = document.querySelector('header.top')?.getBoundingClientRect()
     const slab = document.querySelector('.slab')?.getBoundingClientRect()
-    if (!header || !slab) return
+    if (!header || !slab) return false
     const bubbles = Array.from(document.querySelectorAll('.msg-u>span')).map((el) => {
       const box = el.getBoundingClientRect()
       return box.top + scroller.scrollTop + box.height / 2
@@ -100,14 +103,16 @@ async function bubblesUnderGlass(page: Page): Promise<void> {
     const max = scroller.scrollHeight - scroller.clientHeight
     for (let top = 0; top <= max; top += 2) {
       const mids = bubbles.map((mid) => mid - top)
-      const underHeader = mids.some((mid) => mid > header.top + 8 && mid < header.bottom - 8)
-      const underDock = mids.some((mid) => mid > slab.top + 12 && mid < slab.top + 96) // 快捷操作与输入行下面
+      const underHeader = mids.some((mid) => mid > header.top + 16 && mid < header.bottom - 20)
+      const underDock = mids.some((mid) => mid > slab.top + 8 && mid < slab.top + 46) // 快捷操作那一行（输入框是 80% 白，会把气泡盖住）
       if (underHeader && underDock) {
         scroller.scrollTo({ top })
-        return
+        return true
       }
     }
+    return false
   })
+  if (!found) throw new Error('03f：找不到让两个用户气泡分别停在页头与底座下面的滚动位置')
   await page.waitForTimeout(300)
 }
 
@@ -165,7 +170,10 @@ export const FRAMES: FrameSpec[] = [
     await page.waitForTimeout(300) // 箭头翻转
   } },
   { id: '03f', widths: [360, 390], prepare: async ({ request, page }) =>
-    signedIn(page, await chatUser(request, { history: [...HISTORY, '晚饭吃什么', '那明天早饭呢', '好的', '晚饭想吃卤猪肝配白粥，可以吗？'], due: true, declined: true }), '/chat'),
+    signedIn(page, await chatUser(request, { history: [
+      ...HISTORY, '晚饭吃什么', '那明天早饭照今天这样安排可以吗', '好的，我先按这个来，过两天再问你',
+      '谢谢你这么细心地帮我安排', '明白了，晚上我会少放点盐', '晚饭想吃卤猪肝配白粥，可以吗？',
+    ], due: true, declined: true }), '/chat'),
   after: bubblesUnderGlass },
   // 设计系统一节对样张页
   { id: 'ds', widths: [360, 390], prepare: galleryBlock('ds') },

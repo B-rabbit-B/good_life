@@ -1,7 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { server } from './msw/server'
+
+// 页面都是按路由按需加载的：整套并行跑、模块还没转换好时，第一次 findBy 要等路由的块加载完（默认 1 秒不够）
+configure({ asyncUtilTimeout: 3000 })
 
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' })

@@ -41,6 +41,8 @@
 .open .acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
 /* 开场还没取回时预留的位置（取回后由卡片占住，不推动下面的内容） */
 .open-slot{min-height:9.5rem}
+/* 开场还没到而待处理列表不空：待处理条先占住收起时的高度（与 .rv1-wrap 加 .rv1 一样：2 + 44 + 6） */
+.rv1-hold{height:44px;margin:2px var(--plate-x) 6px}
 
 /* 对话底座：快捷操作、输入行与导航共用一块活玻璃，左右各 8、下沿 18；高 158（8 + 42 + 50 + 58），与启动外壳一致 */
 .slab{position:fixed;left:8px;right:8px;bottom:var(--float-bottom);z-index:8;border-radius:var(--r-5);padding:8px 6px 0}
@@ -50,9 +52,9 @@
 .cmp{display:flex;align-items:flex-end;gap:2px;padding:0 0 6px}
 .slab>.cmp:first-child{padding-top:2px}
 .cmp-in{display:block;flex:1;min-width:0;height:44px;max-height:7.75rem;margin:0 4px;padding:10px 16px;border:0;border-radius:var(--r-4);background:rgba(255,255,255,.8);box-shadow:inset 0 0 0 1px var(--line-2),inset 0 1px 2px rgba(14,27,51,.05);font-size:.9375rem;line-height:1.6;color:var(--ink);resize:none;outline:none;overflow-y:auto;scrollbar-width:none}
-.cmp-in::placeholder{color:var(--ink-3);opacity:1}
+.cmp-in::placeholder{color:var(--ink-2);opacity:1}
 .cmp-in:placeholder-shown{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.cmp-in:focus{box-shadow:inset 0 0 0 2px var(--accent);background:#fff}
+.cmp-in:focus{box-shadow:inset 0 0 0 2px var(--accent);background:#fff;outline:2px solid transparent;outline-offset:-2px}
 .send{flex:none;width:44px;height:44px;border-radius:50%;color:#fff;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(180deg,var(--accent-hi),#1D54A0);box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 4px 10px -6px rgba(31,88,168,.9)}
 .send:disabled{background:rgba(14,27,51,.08);color:var(--ink-2);box-shadow:none;cursor:not-allowed}
 .cmp input[type="file"]{display:none}
@@ -68,4 +70,6 @@ body:has(.slab) .toast-region{bottom:calc(var(--float-bottom) + 170px)}
   .open::before{forced-color-adjust:none;background:CanvasText}
   .qa a,.send{border:1px solid ButtonText}
   .cmp-in{border:1px solid CanvasText}
+  /* 强制颜色下 box-shadow 不画：透明描边会变成系统色，聚焦时看得见 */
+  .cmp-in:focus{outline-color:Highlight}
 }

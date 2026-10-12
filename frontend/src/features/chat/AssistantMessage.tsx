@@ -22,15 +22,18 @@ export interface AssistantMessageData {
 }
 
 /**
- * 一条助手回答。风险话题只画“系统”加就医提示（后端的固定回复原文），不接任何别的内容。
+ * 一条助手回答。风险话题只画“系统”加就医提示（后端的固定回复原文），不接任何别的内容；本次流式的这一条是 alert，
+ * 历史里的是 note（不在每次打开页面时重复播报）。
  * 其余是白瓷气泡：回答、依据折叠（有依据时）、“仅供参考”与免责句；输出检查附加的医嘱提醒画成气泡外的系统附注；
  * 固定的安全回答在气泡下注明不是模型生成的；有医嘱解除线索时只给一个“去医嘱页处理”的跳转；
  * toolsUsed（只有本次流式回答才有）给对应的“去看看”跳转。live 时依据、附注与“仅供参考”淡入上移 4 像素。
  */
-export function AssistantMessage({ message, caps, live = false, toolsUsed = [] }: {
+export function AssistantMessage({ message, caps, live = false, streamed = live, toolsUsed = [] }: {
   message: AssistantMessageData
   caps: Capabilities
   live?: boolean
+  /** 本次打开页面后流式得到的（存好之后也是）：就医提示保持 alert，不在存好时改成 note */
+  streamed?: boolean
   toolsUsed?: string[]
 }) {
   const risk = riskCategory(message.flags)
@@ -38,7 +41,7 @@ export function AssistantMessage({ message, caps, live = false, toolsUsed = [] }
     return (
       <div className="msg-sys">
         <div className="who">系统</div>
-        <CareBlock titleKey={RISK_TITLE_KEYS[risk]} text={message.text} phones={RISK_PHONES[risk]} />
+        <CareBlock titleKey={RISK_TITLE_KEYS[risk]} text={message.text} phones={RISK_PHONES[risk]} role={streamed ? 'alert' : 'note'} />
       </div>
     )
   }

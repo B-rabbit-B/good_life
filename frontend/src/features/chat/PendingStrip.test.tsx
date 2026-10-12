@@ -10,8 +10,7 @@ const item = (content: string) => screen.getByText(content).closest('.rvx-i') as
 describe('pending strip', () => {
   it('describes a single item by category and state', async () => {
     const first = renderChat({ reviews: [dueItem()] })
-    // 文件里的第一个测试：冷启动时模块转换慢，等久一点
-    const due = await screen.findByRole('button', { name: '饮食要求 待复核' }, { timeout: 3000 })
+    const due = await screen.findByRole('button', { name: '饮食要求 待复核' })
     expect(due).toHaveAttribute('aria-expanded', 'false')
     expect(due.closest('header')).not.toBeNull()
     expect(screen.queryByText('低盐饮食，每日钠不超过 2000 毫克')).not.toBeInTheDocument()

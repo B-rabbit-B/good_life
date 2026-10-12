@@ -47,7 +47,9 @@ describe('app shell', () => {
     expect(navs).toHaveLength(1)
     expect(navs[0]).toHaveClass('embedded')
     expect(navs[0]?.closest('.slab')).not.toBeNull()
-    expect(scroller().style.paddingBottom).toBe('196px')
+    // 留白跟着底座的实际高度（--dock-h，由底座量出写在根节点上），量到之前按 158 + 38 = 196
+    expect(scroller().style.paddingBottom).toBe('calc(var(--dock-h, 158px) + 38px)')
+    expect(document.documentElement.style.getPropertyValue('--dock-h')).toMatch(/^\d+px$/)
   })
 
   it('removes the boot shell after the first frame', async () => {

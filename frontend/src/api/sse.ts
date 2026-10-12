@@ -1,7 +1,7 @@
 // 对话的流式读取：fetch 加 ReadableStream 自己解析 text/event-stream（不用 EventSource：它只能 GET、不能带令牌，
 // 也读不出非 200 的错误响应）。后端先跑完一轮再按段推送若干 delta，最后是 done；出错时整个响应是非 200 的事件流，
 // 里面只有一个 error 事件。请求本身的错误（未登录、会话不存在、参数不合法）是普通的 JSON 错误体。
-import { handleErrorResponse, networkError } from './client'
+import { handleErrorResponse, isSessionEnded, networkError } from './client'
 import { getToken } from './token'
 
 export interface TurnDone {
@@ -147,7 +147,7 @@ async function readEvents(response: Response, onEvent: (event: StreamEvent) => v
 /**
  * 发一条消息并流式读取回答：POST /api/agent/conversations/{id}/messages {text, stream: true}。
  * - 200：逐个交出 delta，最后 done（或流中途的 error）；流在 done 之前断开时抛 network_error。
- * - 非 200 的事件流：读完，交出其中的 error 事件（带 HTTP 状态码）。
+ * - 非 200 的事件流：读完，交出其中的 error 事件（带 HTTP 状态码）；401 且是登录失效时按接口客户端的规则清令牌、通知并抛 ApiError。
  * - 非 200 的 JSON：按接口客户端的规则抛 ApiError（401 登录失效时清令牌并通知）。
  * - 网络失败抛 network_error；调用方主动取消时原样抛出 AbortError。
  */
@@ -172,9 +172,22 @@ export async function streamMessage(
   const eventStream = (response.headers.get('Content-Type') ?? '').includes('text/event-stream')
   if (!response.ok && !eventStream) return handleErrorResponse(response)
 
-  const finished = await readEvents(response, opts.onEvent, opts.signal)
-  if (finished) return
-  if (response.ok) throw networkError()
-  // 非 200 的事件流里没有 error 事件：按 HTTP 状态报错
-  opts.onEvent(errorEvent('', response.status))
+  if (response.ok) {
+    if (!(await readEvents(response, opts.onEvent, opts.signal))) throw networkError()
+    return
+  }
+
+  // 非 200 的事件流：读完，取其中的 error 事件；没有时按 HTTP 状态报错
+  const errors: Extract<StreamEvent, { type: 'error' }>[] = []
+  await readEvents(response, (event) => {
+    if (event.type === 'error') errors.push(event)
+  }, opts.signal)
+  const error = errors[0] ?? (errorEvent('', response.status) as Extract<StreamEvent, { type: 'error' }>)
+  if (response.status === 401 && isSessionEnded(error.code)) {
+    // 登录失效按接口客户端的同一规则：清令牌、通知外壳回登录页，并抛出 ApiError
+    return handleErrorResponse(new Response(JSON.stringify({ error: { code: error.code, message: error.message } }), {
+      status: 401, headers: { 'Content-Type': 'application/json' },
+    }))
+  }
+  opts.onEvent(error)
 }

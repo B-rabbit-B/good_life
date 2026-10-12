@@ -7,6 +7,8 @@ import { streamMessage, type TurnDone } from '../../api/sse'
 import { usePrefersReducedMotion } from '../../lib/motion'
 
 export interface LiveTurn {
+  /** 这一轮的用户气泡的 React 键：存好后列表里那条用户消息沿用它（不换节点，读屏不会把这句话再念一遍） */
+  key: string
   userText: string
   /** 已经流入的整段文字（按动画帧合批更新） */
   text: string
@@ -27,7 +29,8 @@ const nextFrame = (callback: () => void): (() => void) => {
 /**
  * 发消息与流式回答。发送后立刻有用户气泡与“正在查询……”；delta 按动画帧合批（减弱动效时攒到 done 一次显示）；
  * done 后刷新会话，会话里出现编号相同的助手消息时临时的这一轮就不再返回（列表里那条接上，不闪、不重复）；
- * 出错时保留用户原话，retry 用同一句话重发。toolsByMessage 记下本次打开页面以来每条流式回答用过的工具。
+ * 出错时保留用户原话，retry 用同一句话重发。toolsByMessage 记下本次打开页面以来每条流式回答用过的工具；
+ * userKeyByAnswer 记下每条流式回答前面那个用户气泡的键（存好后沿用，不换节点）。
  */
 export function useChatStream(conversationId: string | null, ensureConversation: () => Promise<string>) {
   const queryClient = useQueryClient()
@@ -35,6 +38,7 @@ export function useChatStream(conversationId: string | null, ensureConversation:
   const reducedRef = useRef(reduced)
   const [live, setLive] = useState<LiveTurn | null>(null)
   const [toolsByMessage, setToolsByMessage] = useState<Record<string, string[]>>({})
+  const [userKeyByAnswer, setUserKeyByAnswer] = useState<Record<string, string>>({})
   const turnRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const conversation = useConversation(conversationId)
@@ -51,7 +55,8 @@ export function useChatStream(conversationId: string | null, ensureConversation:
     turnRef.current += 1
     const turn = turnRef.current
     const current = () => turnRef.current === turn
-    setLive({ userText: text, text: '', phase: 'waiting' })
+    const key = `turn-${turn}`
+    setLive({ key, userText: text, text: '', phase: 'waiting' })
 
     let acc = ''
     let cancelFrame: (() => void) | null = null
@@ -59,11 +64,11 @@ export function useChatStream(conversationId: string | null, ensureConversation:
       cancelFrame = null
       if (!current() || reducedRef.current) return
       const snapshot = acc
-      setLive({ userText: text, text: snapshot, phase: 'streaming' })
+      setLive({ key, userText: text, text: snapshot, phase: 'streaming' })
     }
     const fail = (error: ApiError) => {
       cancelFrame?.()
-      if (current()) setLive({ userText: text, text: '', phase: 'error', error })
+      if (current()) setLive({ key, userText: text, text: '', phase: 'error', error })
     }
 
     try {
@@ -79,7 +84,8 @@ export function useChatStream(conversationId: string | null, ensureConversation:
             cancelFrame?.()
             const done = event.turn
             setToolsByMessage((tools) => ({ ...tools, [done.message_id]: done.tools_used }))
-            setLive({ userText: text, text: acc, phase: 'done', turn: done })
+            setUserKeyByAnswer((keys) => ({ ...keys, [done.message_id]: key }))
+            setLive({ key, userText: text, text: acc, phase: 'done', turn: done })
             void queryClient.invalidateQueries({ queryKey: qk.conversation(id) })
             void queryClient.invalidateQueries({ queryKey: qk.conversations, exact: true })
           } else {
@@ -99,5 +105,5 @@ export function useChatStream(conversationId: string | null, ensureConversation:
 
   // 会话里已经有这条助手消息了：临时的这一轮交给列表
   const saved = live?.turn ? conversation.data?.messages.some((m) => m.id === live.turn?.message_id) : false
-  return { live: saved ? null : live, send, retry, toolsByMessage }
+  return { live: saved ? null : live, send, retry, toolsByMessage, userKeyByAnswer }
 }

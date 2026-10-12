@@ -5,6 +5,11 @@ export function setPendingPhoto(file: File): void {
   pending = file
 }
 
+/** 退出登录或登录失效时丢掉还没交出去的照片（不留给下一个登录的人） */
+export function clearPendingPhoto(): void {
+  pending = null
+}
+
 /** 拍照识别页打开时取走对话页交来的照片；没有时为 null */
 export function takePendingPhoto(): File | null {
   const file = pending

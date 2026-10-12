@@ -63,7 +63,10 @@ function StripItem({ item }: { item: MedicalItemOut }) {
       </div>
       {sheet !== 'closed' && (
         <Suspense fallback={null}>
-          <ContinueSheet item={item} dueReason={context.dueReason} isOpen={sheet === 'open'} onClose={() => setSheet('loaded')} />
+          <ContinueSheet
+            item={item} dueReason={context.dueReason} isOpen={sheet === 'open'} area="reviewBar"
+            onClose={() => setSheet('loaded')}
+          />
         </Suspense>
       )}
     </div>
