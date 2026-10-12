@@ -21,8 +21,17 @@ const NUM_INSTANCE = at('.font-cache/ss4-500.ttf')
 const SERIF_OUT = 'public/fonts/gl-serif-700.woff2'
 const NUM_OUT = 'public/fonts/gl-num-500.woff2'
 const NUM_CHARS = '0123456789,.:/-×%'
-const FALLBACK_SRC = 'local("PingFang SC"), local("Microsoft YaHei"), local("Noto Sans CJK SC")'
-// 回退黑体的数字平均字宽（em）：微软雅黑常规体实测 1201/2048。苹方与思源黑体的数字宽度与它接近。
+// local() 只认字体的完整名或 PostScript 名，不认字族名，所以每个字重各列一组：苹方、微软雅黑、思源黑体（Noto Sans CJK）
+const FALLBACK_SRC = {
+  serif: ['PingFangSC-Semibold', 'PingFang SC Semibold', 'Microsoft YaHei Bold', 'MicrosoftYaHei-Bold',
+    'NotoSansCJKsc-Bold', 'Noto Sans CJK SC Bold'],
+  // 数字是 500：苹方与思源黑体用 Medium；微软雅黑没有 Medium，用常规体
+  num: ['PingFangSC-Medium', 'PingFang SC Medium', 'Microsoft YaHei', 'MicrosoftYaHei',
+    'NotoSansCJKsc-Medium', 'Noto Sans CJK SC Medium'],
+}
+const localSrc = (names) => names.map((name) => `local("${name}")`).join(', ')
+// 回退黑体的数字平均字宽（em）：微软雅黑常规体（msyh.ttc，Microsoft YaHei / MicrosoftYaHei）实测 1201/2048。
+// 苹方 Medium 与思源黑体 Medium 没有在本机实测（Windows 上没有这两个字体）。
 const FALLBACK_DIGIT_EM = 1201 / 2048
 
 function run(command, args) {
@@ -123,14 +132,14 @@ try {
     '/* 字体到达前的回退：系统黑体按网页字体的度量对齐，换字体时不跳动 */',
     '@font-face {',
     "  font-family: 'GL Serif Fallback';",
-    `  src: ${FALLBACK_SRC};`,
+    `  src: ${localSrc(FALLBACK_SRC.serif)};`,
     '  font-weight: 700;',
     ...overrides(serif, serifAdjust),
     '}',
     '',
     '@font-face {',
     "  font-family: 'GL Num Fallback';",
-    `  src: ${FALLBACK_SRC};`,
+    `  src: ${localSrc(FALLBACK_SRC.num)};`,
     '  font-weight: 500;',
     ...overrides(num, numAdjust),
     '}',

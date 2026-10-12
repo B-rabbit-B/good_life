@@ -1,0 +1,35 @@
+/* 按钮：瓷釉质感，高 48、圆角 16；小号 36、圆角 10，点按区用 ::before 补到 44（设计稿第 243 至 261 行） */
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:var(--r-3);font-size:var(--fs-16);font-weight:600;letter-spacing:.03em;white-space:nowrap;transition:background var(--d-1) var(--ease-std),transform var(--d-1) var(--ease-std),box-shadow var(--d-1) var(--ease-std)}
+.btn:active,.btn[data-pressed]{transform:scale(.98)}
+.btn-pri{color:#fff;background:linear-gradient(180deg,var(--accent-hi),#1D54A0);box-shadow:inset 0 1px 0 rgba(255,255,255,.24),inset 0 -1px 0 rgba(0,0,0,.14),0 1px 2px rgba(14,27,51,.2),0 8px 16px -12px rgba(31,88,168,.9)}
+.btn-pri:active,.btn-pri[data-pressed]{background:var(--accent-press)}
+.btn-qt{color:var(--ink);background:linear-gradient(180deg,#FFFFFF,#F5F8FC);box-shadow:inset 0 0 0 1px var(--line-2),inset 0 1px 0 #fff,0 1px 2px rgba(14,27,51,.06)}
+.btn-dng{color:#fff;background:linear-gradient(180deg,var(--danger-hi),#A8231B);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.14),0 1px 2px rgba(14,27,51,.2)}
+.btn-dng:active,.btn-dng[data-pressed]{background:var(--danger-press)}
+.btn-dng-qt{color:var(--danger);background:#fff;box-shadow:inset 0 0 0 1px rgba(179,38,30,.55),0 1px 2px rgba(14,27,51,.06)}
+.btn-txt{position:relative;min-height:44px;min-width:44px;padding:0 8px;color:var(--accent);font-weight:500;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:var(--fs-14);border-radius:var(--r-2);white-space:nowrap}
+.btn-txt:active,.btn-txt[data-pressed]{background:var(--accent-wash)}
+.btn-txt.ink{color:var(--ink)}
+.btn-txt[disabled]{color:var(--ink-3);cursor:not-allowed}
+/* 直接落在背景场上的钴蓝文字按钮：垫一层 72% 白，保证在背景场最深处仍有 4.5:1 */
+.on-field{background:rgba(255,255,255,.72);border-radius:var(--r-pill);padding:0 14px}
+.btn-sm{min-height:36px;padding:0 14px;font-size:var(--fs-14);border-radius:var(--r-2)}
+.btn-sm::before{content:"";position:absolute;top:-4px;bottom:-4px;left:0;right:0}
+.btn-blk{display:flex;width:100%}
+.btn[disabled],.btn[aria-disabled="true"]{background:#E2E8F1;color:var(--ink-3);cursor:not-allowed;transform:none;box-shadow:inset 0 0 0 1px rgba(14,27,51,.05)}
+.btn-qt[disabled],.btn-qt[aria-disabled="true"]{background:none;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-2)}
+.btn[data-pending]{cursor:progress}
+
+/* 图标按钮：44 点按区；返回键是 44 点按区里一颗 36 的瓷扣 */
+.ibtn{position:relative;min-width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-3);color:var(--ink-2)}
+.ibtn:active,.ibtn[data-pressed]{background:rgba(14,27,51,.06)}
+.ibtn[aria-pressed="true"]{color:var(--accent)}
+.back{isolation:isolate;color:var(--ink)}
+.back::before{content:"";position:absolute;top:4px;left:4px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.82);box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(14,27,51,.09),0 2px 6px -3px rgba(14,27,51,.3);z-index:-1}
+.back:active,.back[data-pressed]{background:none}
+
+@media (forced-colors:active){
+  /* 全局 button{border:0} 会让按钮在强制颜色下变成一行字，所以加真边框 */
+  .btn{border:1px solid ButtonText}
+  .btn[disabled],.btn[aria-disabled="true"]{border-color:GrayText;color:GrayText}
+}

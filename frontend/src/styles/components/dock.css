@@ -1,0 +1,5 @@
+/* 底部操作坞：浮起的活玻璃，左右各 8、下沿 18（含安全区），内容从下面滚过（设计稿第 328 至 331 行）。
+   滚动容器的底部留白由布局给：操作坞 112，高的（.tall，带勾选或说明）172。 */
+.stick{position:fixed;left:8px;right:8px;bottom:var(--float-bottom);z-index:8;padding:12px;border-radius:var(--r-5)}
+.stick .t-cap{display:block;color:var(--ink-2)}
+.stick .chk{color:var(--ink)}

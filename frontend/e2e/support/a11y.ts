@@ -20,6 +20,14 @@ export async function expectTouchTargets(page: Page): Promise<void> {
         const label = el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 20) ?? ''
         return `<${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}> ${label}`
       }
+      // React Aria 把原生单选框、勾选框与开关放在一个 1 × 1、overflow:hidden 的隐藏外层里（控件本身仍是原生大小）
+      const insideVisuallyHidden = (el: Element) => {
+        for (let node = el.parentElement, depth = 0; node && depth < 3; node = node.parentElement, depth += 1) {
+          const r = node.getBoundingClientRect()
+          if (r.width <= 1 && r.height <= 1 && getComputedStyle(node).overflow === 'hidden') return true
+        }
+        return false
+      }
       const out: string[] = []
       for (const el of Array.from(document.querySelectorAll(selector))) {
         if (el instanceof HTMLInputElement && el.type === 'hidden') continue
@@ -27,6 +35,7 @@ export async function expectTouchTargets(page: Page): Promise<void> {
         const rect = el.getBoundingClientRect()
         // 1 像素以内的是只给读屏用的隐藏控件（例如 React Aria 的原生单选框），不算触控目标
         if (style.display === 'none' || style.visibility === 'hidden' || rect.width <= 1 || rect.height <= 1) continue
+        if (insideVisuallyHidden(el)) continue
         if (!el.hasAttribute('data-hit44')) {
           if (rect.width < min || rect.height < min) {
             out.push(`${describe(el)}：${rect.width.toFixed(1)}×${rect.height.toFixed(1)}`)
@@ -113,6 +122,8 @@ const opaque = (color: string) => {
 /**
  * 点遮盖后每个 [data-sensitive] 都有 aria-hidden="true" 与 inert，::after 是不透明斜纹且没有任何滤镜；
  * 连按 Tab 焦点不会进入敏感区；再点恢复。
+ * Tab 这一步只在 Chromium 里断言：WebKit 默认 Tab 会跳过链接与按钮，连按 Tab 本来就进不去，断言没有意义；
+ * 在 WebKit 里由上面的 inert 与 aria-hidden 属性检查代替。
  */
 export async function expectCoverWorks(page: Page): Promise<void> {
   expect(await page.locator('[data-sensitive]').count(), '页面上没有敏感区').toBeGreaterThan(0)
@@ -126,11 +137,13 @@ export async function expectCoverWorks(page: Page): Promise<void> {
     expect([state.filter, state.backdropFilter, state.webkitBackdropFilter]).toEqual(['none', 'none', 'none'])
   }
 
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
-  for (let i = 0; i < 40; i += 1) {
-    await page.keyboard.press('Tab')
-    const inside = await page.evaluate(() => document.activeElement?.closest('[data-sensitive]') != null)
-    expect(inside, '焦点进入了被遮盖的敏感区').toBe(false)
+  if (page.context().browser()?.browserType().name() === 'chromium') {
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    for (let i = 0; i < 40; i += 1) {
+      await page.keyboard.press('Tab')
+      const inside = await page.evaluate(() => document.activeElement?.closest('[data-sensitive]') != null)
+      expect(inside, '焦点进入了被遮盖的敏感区').toBe(false)
+    }
   }
 
   await page.getByRole('button', { name: UNCOVER_NAME, exact: true }).first().click()

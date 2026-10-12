@@ -1,0 +1,39 @@
+/* 状态组件：加载（骨架加扫光）、失败、无数据、数据不足、需要授权；等待中的一行字加流式光标（设计稿第 723 至 735、433 至 436 行） */
+.state{padding:20px var(--gutter) 24px}
+.st-p{margin:0;font-size:var(--fs-14);color:var(--ink-2);line-height:1.65}
+.st-p+.st-p{margin-top:4px}
+.st-code{margin:6px 0 0;font-size:var(--fs-12);color:var(--ink-3)}
+.st-acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.st-note{margin:20px 0 0;color:var(--ink-2)}
+.prog{display:flex;gap:4px;margin-top:16px}
+.prog i{flex:1;height:6px;border-radius:var(--r-pill);background:rgba(14,27,51,.1)}
+.prog i.on{background:var(--accent)}
+.prog+.t-cap{margin:6px 0 0}
+
+/* 骨架：圆角浅青条，低亮度屏上也看得见；亮带 1400 毫秒扫过 */
+.ld{padding-bottom:20px}
+.ld .plate{padding:16px}
+.ld-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.ld-row>.sk.sk{margin-top:0}
+.ld-text{margin:16px var(--gutter) 0;color:var(--ink-2)}
+.sk{background:var(--skel);border-radius:8px;height:14px;position:relative;overflow:hidden}
+.sk+.sk{margin-top:14px}
+.sk::after{content:"";position:absolute;top:0;bottom:0;left:0;width:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);transform:translateX(-100%);animation:sk-sweep 1.4s var(--ease-std) infinite}
+@keyframes sk-sweep{to{transform:translateX(100%)}}
+
+/* 等待中的一行字：末尾钴蓝光标闪烁 */
+.thought{margin:0;font-size:var(--fs-16);line-height:1.8;color:var(--ink-2)}
+.caret{display:inline-block;width:2px;height:1.05em;border-radius:1px;background:var(--accent);vertical-align:-3px;margin-left:1px;animation:caret-blink 1s steps(1) infinite}
+@keyframes caret-blink{50%{opacity:0}}
+
+@media (prefers-reduced-motion: reduce){
+  .sk::after{display:none}
+  .caret{animation:none}
+}
+
+@media (forced-colors:active){
+  .prog i,.caret{forced-color-adjust:none}
+  .prog i{background:GrayText}
+  .prog i.on{background:CanvasText}
+  .caret{background:Highlight}
+}

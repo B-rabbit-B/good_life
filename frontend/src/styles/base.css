@@ -1,0 +1,46 @@
+/* 重置与基础排版：对照设计稿 .app 的产品界面规则（第 98 至 104、175 至 191 行），去掉展示页外框 */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;background:#ECF2FB}
+body{margin:0;min-height:100vh;background:#F7FAFE;color:var(--ink);font-family:var(--font-sans);font-size:var(--fs-16);line-height:1.7;line-break:strict;text-spacing-trim:trim-start;hanging-punctuation:allow-end;-webkit-tap-highlight-color:transparent}
+p,li{text-wrap:pretty}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@supports not selector(:focus-visible){
+  :focus{outline:2px solid var(--accent);outline-offset:2px}
+}
+
+/* 背景场：应用根节点的静态背景，固定在视口上，只绘制一次 */
+.field{position:fixed;top:0;right:0;bottom:0;left:0;z-index:-1;pointer-events:none;background:var(--field);background-size:160px 160px,auto,auto,auto,auto,auto}
+
+/* 图标：24 格、1.5 线宽；玻璃上 1.7 */
+.ic{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic-s{width:18px;height:18px}
+.ic-m{width:20px;height:20px}
+.ic-g,.chrome .ic,.top .ic{stroke-width:1.7}
+
+/* 数字：16 号以下系统黑体表格数字；.ns 是 16 号以上的 Source Serif 4（GL Num） */
+.n{font-family:var(--font-sans);font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1}
+.ns{font-family:var(--font-num);font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1;font-weight:500;font-variation-settings:"opsz" 16}
+
+/* 宋体标题：只由 components/Title.tsx 输出这几个类名 */
+.t-display{font-family:var(--font-display);font-weight:700;font-size:var(--fs-28);line-height:1.3;letter-spacing:.01em;font-feature-settings:"palt" 1;margin:0}
+.t-title{font-family:var(--font-display);font-weight:700;font-size:var(--fs-22);line-height:1.4;margin:0}
+.t-h{font-family:var(--font-display);font-weight:700;font-size:var(--fs-18);line-height:1.45;margin:0}
+.st-h{font-family:var(--font-display);font-weight:700;font-size:1.25rem;margin:12px 0 4px;line-height:1.4}
+.t-small{font-size:var(--fs-14);line-height:1.65}
+.t-cap{font-size:var(--fs-12);line-height:1.5;color:var(--ink-3)}
+.mute{color:var(--ink-3)}
+.ink2{color:var(--ink-2)}
+.nw{white-space:nowrap}
+.hr{height:1px;background:var(--line);border:0;margin:0}
+.pad{padding:0 var(--gutter)}
+
+/* 只给读屏的文字（aria-live 区域等） */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+/* 减弱动效：动画与过渡压到 1 毫秒；各组件另写自己的静止规则 */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:1ms !important;animation-iteration-count:1 !important;transition-duration:1ms !important;transition-delay:0s !important}
+}

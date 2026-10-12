@@ -1,0 +1,15 @@
+/* 页头：放在滚动区顶部吸顶；静止时透明，列表滚到它下面时玻璃层（::before）用透明度淡入（设计稿第 200 至 215 行）。
+   上沿加安全区；没有底部导航的二级页，遮盖按钮在右上角。 */
+.top{position:sticky;top:0;z-index:6;padding-top:env(safe-area-inset-top);padding-bottom:4px;border-radius:0 0 var(--r-4) var(--r-4)}
+.top::before{content:"";position:absolute;top:0;right:0;bottom:0;left:0;z-index:-1;border-radius:inherit;opacity:0;transition:opacity var(--d-frost) linear}
+.top.stuck::before{opacity:1}
+.top .t-cap{color:var(--ink-2)}
+.top-sentinel{height:1px;margin-bottom:-1px;pointer-events:none}
+.hdr{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:52px;padding:0 8px 0 var(--gutter)}
+.hdr-sub{padding-left:8px}
+.hdr-l{display:flex;align-items:center;gap:4px;min-width:0}
+.hdr-r{display:flex;align-items:center;flex:none}
+.hdr-big{padding:4px 12px 10px var(--gutter);align-items:flex-end;min-height:60px}
+.hdr-cap{margin-right:12px}
+.hdr-big .hdr-cap{margin-right:0;padding-bottom:6px}
+.cover-note{display:flex;align-items:center;gap:6px;margin:4px var(--gutter) 6px;font-size:var(--fs-14);color:var(--ink-2)}

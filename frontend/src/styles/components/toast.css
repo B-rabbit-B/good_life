@@ -1,0 +1,4 @@
+/* 轻提示：活玻璃胶囊，aria-live="polite"；面板打开时不显示（与面板互斥，占一层模糊名额） */
+.toast-region{position:fixed;left:0;right:0;bottom:calc(var(--float-bottom) + 76px);z-index:9;display:flex;justify-content:center;padding:0 var(--gutter);pointer-events:none}
+.toast{max-width:100%;padding:10px 18px;border-radius:var(--r-pill);font-size:var(--fs-14);line-height:1.6;color:var(--ink);pointer-events:auto;animation:toast-in var(--d-2) var(--ease-out)}
+@keyframes toast-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}

@@ -1,0 +1,10 @@
+/* 把握程度：五格 6×8、圆角 2，旁边写“高、中、低”（设计稿第 275 至 279 行） */
+.conf{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.cells{display:inline-flex;gap:2px}
+.cells b{width:6px;height:8px;border-radius:2px;background:#D3DDEA}
+.cells b.on{background:var(--ink-2)}
+
+@media (forced-colors:active){
+  .cells b{forced-color-adjust:none;background:Canvas;outline:1px solid CanvasText;outline-offset:-1px}
+  .cells b.on{background:CanvasText}
+}

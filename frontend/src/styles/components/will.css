@@ -1,0 +1,11 @@
+/* “确认后会发生”清单：不可撤销的一项朱色（设计稿第 344 至 349 行） */
+.will{margin:6px 0 0;padding:0;list-style:none}
+.will li{display:grid;grid-template-columns:16px 1fr;gap:6px;font-size:var(--fs-14);line-height:1.6;padding:8px 0;border-bottom:1px solid rgba(14,27,51,.08)}
+.will li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ink-3);margin-top:.62em}
+.will li:last-child{border-bottom:0}
+.will li.irrev{color:var(--danger)}
+.will li.irrev::before{background:var(--danger)}
+
+@media (forced-colors:active){
+  .will li::before{forced-color-adjust:none;background:CanvasText}
+}

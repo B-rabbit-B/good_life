@@ -1,0 +1,119 @@
+/* 组件样张页（只在开发模式或 VITE_GALLERY=1 时可用）：按设计稿“设计系统”一节与“状态、异常与变体”的 12 块面板排版，
+   版式规则对照 index.html 第 723 至 796、863 至 884 行（窄屏版本）。 */
+.gal{padding-bottom:calc(104px + env(safe-area-inset-bottom))}
+.gal.with-dock{padding-bottom:calc(172px + env(safe-area-inset-bottom))}
+.gal-intro{margin:0 var(--gutter) 20px;font-size:var(--fs-14);color:var(--ink-2)}
+.gal [id]{scroll-margin-top:72px}
+
+/* 设计系统一节：白底大块，窄屏单列 */
+.gal-ds{display:grid;grid-template-columns:minmax(0,1fr);gap:40px;padding:24px 16px;background:linear-gradient(180deg,#FFFFFF,#F8FAFD);border-top:1px solid #C9D3E0;border-bottom:1px solid #C9D3E0}
+.gal-ds>section{min-width:0}
+.gal-h{margin:0 0 4px;font-size:1.25rem;line-height:1.4;font-weight:700}
+.gal-h+p{margin:0 0 16px;font-size:.8125rem;color:var(--ink-3);line-height:1.6}
+.gal-sub{margin:24px 0 8px;font-size:var(--fs-14);font-weight:600;color:var(--ink)}
+.sw{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.sw div{font-size:var(--fs-12);color:var(--ink-3);line-height:1.5}
+.sw i{display:block;height:56px;border-radius:var(--r-2);margin-bottom:8px;box-shadow:inset 0 0 0 1px rgba(14,27,51,.08)}
+.sw b{display:block;color:var(--ink);font-size:.8125rem}
+.ts{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px 16px;align-items:baseline}
+.ts>span:nth-child(odd){font-size:var(--fs-12);color:var(--ink-3)}
+.gal-mo-c{position:relative;font-size:1.0625rem;font-weight:500;line-height:1.55;padding-left:12px}
+.gal-mo-c::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:2px;border-radius:var(--r-pill);background:#6B7A93}
+.sp{display:flex;align-items:flex-end;flex-wrap:wrap;gap:14px}
+.sp div{text-align:center;font-size:var(--fs-12);color:var(--ink-3)}
+.sp i{display:block;background:var(--accent-wash);box-shadow:inset 0 0 0 1px var(--accent);border-radius:2px;margin:0 auto 6px}
+.radii{display:flex;flex-wrap:wrap;gap:14px;margin-top:20px}
+.radii div{text-align:center;font-size:var(--fs-12);color:var(--ink-3);line-height:1.4}
+.radii i{display:block;width:64px;height:48px;margin:0 auto 6px;background:var(--accent-wash);box-shadow:inset 0 0 0 1px var(--accent)}
+.comp{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.comp+.comp{margin-top:14px}
+.comp>.tg-row{min-width:140px;gap:10px;font-size:.8125rem;color:var(--ink-2)}
+.comp>.fld{padding-top:0}
+.comp>.fld .fld-l{margin-bottom:4px}
+.comp>.fld .opts{min-width:200px}
+.gal-fieldbg .fold-wrap{margin-top:0;border-top:0}
+.gal-ds .thought{margin-top:12px}
+.gal-two{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;margin-top:20px}
+.gal-fieldbg{padding:14px 0;border-radius:var(--r-4);background:var(--field);background-size:160px 160px,auto,auto,auto,auto,auto}
+.gal-fieldbg .slip{margin:0 12px 0 24px}
+.gal-fieldbg .plate{margin:12px 12px 0}
+.gal-two .plate.jump{margin:0}
+.gal-plate{margin:12px 0 0}
+.gal-plate.plate{margin-left:0;margin-right:0}
+.gal-list{list-style:none;margin:0;padding:0}
+.gal-list li{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:.9375rem;align-items:start}
+.gal-list li:last-child{border-bottom:0}
+.gal-list small{display:block;font-size:var(--fs-12);color:var(--ink-3)}
+.gal-ledger{padding:16px var(--plate-pad) 14px}
+.gal-ledger-figs{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.gal-ledger-big{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}
+.gal-ledger-big .ns{font-size:var(--fs-44);line-height:1;letter-spacing:-.015em}
+.gal-ledger-big>span:not(.ns){font-size:var(--fs-14);color:var(--ink-3);white-space:nowrap}
+.gal-ledger-rem{text-align:right;font-size:.8125rem;color:var(--ink-3);line-height:1.4;white-space:nowrap}
+.gal-ledger-rem .ns{display:block;font-size:var(--fs-22);color:var(--accent)}
+
+/* 材质样张：同一段背景场与一块钴蓝、一块朱色上压四种面 */
+.mats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.mat{position:relative;isolation:isolate;height:150px;border-radius:var(--r-4);overflow:hidden;background:var(--field);background-size:160px 160px,auto,auto,auto,auto,auto}
+.mat .under{position:absolute;left:12px;top:72px;right:12px;font-size:.8125rem;line-height:1.5;color:var(--ink)}
+.mat .under i{display:block;height:22px;margin-top:6px;border-radius:8px;background:var(--accent);width:70%}
+.mat .under i+i{background:var(--danger);width:45%}
+.mat .face{position:absolute;left:12px;right:12px;bottom:12px;height:72px;margin:0;border-radius:var(--r-4);padding:10px 14px;font-size:.8125rem;line-height:1.5}
+.mat .face b{display:block;font-size:var(--fs-14)}
+.mat .face span{color:var(--ink-2)}
+/* 降级对照：不带 data-tier 的实色外壳，任何玻璃模式下都是实色 */
+.gl-solid{background-color:var(--chrome-solid) !important;background-image:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}
+.proof{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.pf{position:relative;isolation:isolate;height:96px;border-radius:var(--r-3);overflow:hidden}
+.pf-bd{position:absolute;top:0;right:0;bottom:0;left:0}
+.pf-g{position:absolute;top:0;right:0;bottom:0;left:0;margin:0;padding:8px 12px;font-size:.8125rem;line-height:1.5;border-radius:0 !important;box-shadow:none !important}
+.pf-g b{display:block;font-size:var(--fs-12);font-weight:400;color:var(--ink-2)}
+.pf-g .c1{color:var(--ink);font-weight:600}
+.pf-g .c2{color:var(--ink-2)}
+.pf-g .c3{color:var(--ink-3)}
+.pf-g .r{position:absolute;right:10px;bottom:6px;font-size:var(--fs-12);color:var(--ink-2);font-variant-numeric:tabular-nums}
+.budget{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 24px;font-size:.8125rem;line-height:1.6;color:var(--ink-2)}
+.budget b{display:block;color:var(--ink);font-size:var(--fs-14)}
+.icons{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 8px}
+.icons div{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--ink-3)}
+.mot{display:block;overflow-x:auto;width:100%;border-collapse:collapse;font-size:.8125rem}
+.mot th{text-align:left;font-weight:400;color:var(--ink-3);font-size:var(--fs-12);border-bottom:1px solid var(--line-2);padding:6px 8px 6px 0;white-space:nowrap}
+.mot td{padding:9px 8px 9px 0;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55;min-width:5em}
+.mot button{color:var(--accent);font-size:.8125rem;min-height:44px;min-width:44px}
+
+/* 状态面板：背景场浅版，窄屏通栏 */
+.gal-states{display:grid;gap:40px;margin-top:40px}
+.gal-panel{position:relative;background:var(--field-lite);background-size:160px 160px,auto,auto,auto;border-top:1px solid #C3CEDD;border-bottom:1px solid #C3CEDD}
+.gal-cap{display:block;margin:0;padding:20px var(--gutter) 0;font-size:var(--fs-12);line-height:1.5;color:var(--ink-3)}
+.gal-panel .state{padding-top:0}
+.gal-panel .ld .plate:first-child{margin-top:12px}
+.gal-panel .st-acts.col{flex-direction:column}
+.gal-panel .hr{margin:24px var(--gutter) 0}
+.gal-panel-in{padding:12px var(--gutter) 24px}
+.gal-panel-in .plate{margin-left:0;margin-right:0}
+.gal-panel .care{margin-top:12px}
+.gal-note{margin:12px 0 0;font-size:var(--fs-12);line-height:1.5;color:var(--ink-2)}
+.gal-st-p{margin:10px 0 0;font-size:var(--fs-14);color:var(--ink-2);line-height:1.65}
+.gal-cover-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* 医嘱条目（遮盖面板用的示例内容） */
+.gmo{padding:16px 0 14px;border-bottom:1px solid var(--line)}
+.gmo:last-child{border-bottom:0}
+.gmo-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.gmo-cat{font-size:var(--fs-12);color:var(--ink-3);letter-spacing:.04em}
+.gmo-st{font-size:var(--fs-12);font-weight:600;color:var(--ink-2);white-space:nowrap}
+.gmo .gal-mo-c{margin:6px 0 0}
+.gmo .acts{display:flex;justify-content:flex-end;gap:10px;padding-top:10px}
+
+/* 导航演示：给玻璃一段会被模糊的内容 */
+.navdemo{position:relative;isolation:isolate;height:118px;border-radius:var(--r-4);overflow:hidden;background:var(--field);background-size:160px 160px,auto,auto,auto,auto,auto;box-shadow:inset 0 0 0 1px rgba(14,27,51,.08)}
+.navdemo .under{position:absolute;left:14px;right:14px;top:10px;font-size:var(--fs-14);line-height:1.6;color:var(--ink)}
+.navdemo .under b{display:inline-block;margin-top:4px;padding:4px 12px;border-radius:10px;background:var(--accent);color:#fff;font-weight:600}
+.navdemo .rnav{position:absolute;bottom:10px;left:8px;right:8px}
+.gl-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.gl-pair>div{position:relative;isolation:isolate;height:170px;border-radius:var(--r-4);overflow:hidden;background:var(--field);background-size:160px 160px,auto,auto,auto,auto,auto}
+.gl-pair .under{position:absolute;left:10px;right:10px;bottom:14px;font-size:.8125rem;line-height:1.55}
+.gl-pair .under i{display:block;height:48px;margin-top:6px;border-radius:12px;background:var(--accent)}
+.gl-pair .face{position:absolute;left:8px;right:8px;bottom:8px;height:56px;border-radius:var(--r-5);display:flex;align-items:center;justify-content:center;gap:18px;font-size:var(--fs-14);color:var(--ink-2)}
+.gl-pair .face b{color:var(--ink)}
+.gl-pair .glc{position:absolute;left:10px;top:10px;margin:0;font-size:var(--fs-12);color:var(--ink-2);background:rgba(255,255,255,.8);padding:0 8px;border-radius:var(--r-pill)}

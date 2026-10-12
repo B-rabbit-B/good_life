@@ -1,0 +1,84 @@
+/* 设计令牌：docs/superpowers/design/step11/index.html 顶部 :root 原样搬入。
+   改动三处：--font-display 与 --font-num 换成自托管子集与度量对齐的回退；--fs-* 改用 rem（数值不变，跟随浏览器字号设置）。 */
+:root{
+  /* 墨：深海军蓝一族，正文与标题 */
+  --ink:#0E1B33;
+  --ink-2:#33435E;
+  --ink-3:#4E5D76;        /* 玻璃上不用，见“玻璃上的文字” */
+  --ink-4:#8C9BB3;        /* 只画刻度，永远不用于文字 */
+  /* 瓷胎（不透明面板）与细线 */
+  --plate:#FFFFFF;
+  --plate-2:#F3F6FB;      /* 面板里的填充区：输入框、引文、轨道 */
+  --line:#E3E9F2;         /* 面板内细分隔 */
+  --line-2:#C9D4E3;       /* 控件边 */
+  --line-3:#97A6BD;       /* “仅供参考”与“系统附注”边框 */
+  --skel:#D9E3F0;
+  /* 釉下青：唯一强调色（钴蓝） */
+  --accent:#1F58A8;
+  --accent-hi:#2A66B8;
+  --accent-press:#174684;
+  --accent-wash:#E8F0FA;
+  --sky:#4F7FC2;          /* 只做图形（第三餐刻度、柱），不做文字 */
+  --sky-soft:#9DBAE3;
+  /* 语义色 */
+  --ok:#1E6B4C;
+  --ok-wash:#E6F2EC;
+  --warn:#8A5300;
+  --warn-line:#B07A1E;
+  --warn-wash:#FBF2E1;
+  --warn-ink:#5C3700;
+  --danger:#B3261E;
+  --danger-hi:#BD3027;
+  --danger-press:#94201A;
+  --danger-wash:#FBE9E7;
+  --scrim:rgba(10,22,44,.38);
+
+  /* 背景场：天青到冰白，带两道柔光与两条极细的瓷口高光弧，供玻璃折射 */
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .06 0 0 0 0 .11 0 0 0 0 .2 0 0 0 .9 -.35'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E");
+  --field:
+    var(--grain),
+    radial-gradient(120% 55% at 10% -6%, rgba(255,255,255,.95) 0 28%, rgba(255,255,255,0) 64%),
+    radial-gradient(circle at -30% 118%, rgba(255,255,255,0) 0 499px, rgba(255,255,255,.4) 500px 501.5px, rgba(255,255,255,0) 503px),
+    radial-gradient(70% 34% at 106% 40%, rgba(150,186,232,.4), rgba(150,186,232,0) 72%),
+    radial-gradient(90% 44% at -10% 84%, rgba(140,178,228,.55), rgba(140,178,228,0) 74%),
+    linear-gradient(180deg,#F7FAFE 0%,#ECF2FB 40%,#D9E6F6 100%);
+  --field-lite:
+    var(--grain),
+    radial-gradient(90% 70% at 0% 0%, rgba(255,255,255,.9), rgba(255,255,255,0) 70%),
+    radial-gradient(60% 50% at 100% 100%, rgba(170,200,238,.35), rgba(170,200,238,0) 75%),
+    linear-gradient(180deg,#F8FBFE,#EDF3FB);
+
+  /* 材质：活玻璃（真模糊，只给不随内容滚动的外壳） */
+  --chrome-tint:rgba(246,249,253,.70);
+  --chrome-solid:#EAF1FA;            /* 降级后的实色 */
+  --blur-chrome:16px;
+  --sheet-tint:rgba(248,250,254,.88);
+  --sheet-solid:#F8FAFE;
+  --blur-sheet:24px;
+  --sat:1.4;
+  --chrome-edge:inset 0 1px 0 rgba(255,255,255,.9),inset 0 0 0 1px rgba(255,255,255,.4),0 0 0 1px rgba(14,27,51,.08),0 12px 30px -16px rgba(14,27,51,.38);
+  /* 材质：静玻璃（不模糊，列表里的开场卡与附注；背景场本身已柔化） */
+  --still-tint:linear-gradient(180deg,rgba(255,255,255,.80),rgba(255,255,255,.66));
+  --still-solid:#F4F8FC;
+  --still-edge:inset 0 1px 0 #fff,inset 0 0 0 1px rgba(255,255,255,.55),0 0 0 1px rgba(31,88,168,.12),0 10px 24px -18px rgba(14,27,51,.4);
+  /* 材质：瓷胎（不透明，承载密集数据） */
+  --plate-face:linear-gradient(180deg,#FFFFFF 0%,#FBFCFE 100%);
+  --plate-edge:inset 0 1px 0 #fff,0 0 0 1px rgba(14,27,51,.07),0 1px 2px rgba(14,27,51,.05);
+
+  --font-sans:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","MiSans","Hiragino Sans GB","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
+  --font-display:"GL Serif","GL Serif Fallback",var(--font-sans);
+  --font-num:"GL Num","GL Num Fallback",var(--font-sans);
+
+  --fs-12:.75rem; --fs-14:.875rem; --fs-16:1rem; --fs-18:1.125rem; --fs-22:1.375rem; --fs-28:1.75rem; --fs-44:2.75rem;
+  --gutter:20px; --plate-x:12px; --plate-pad:16px;
+  /* 圆角阶梯 */
+  --r-1:6px; --r-2:10px; --r-3:16px; --r-4:22px; --r-5:28px; --r-pill:999px;
+  --d-1:120ms; --d-2:200ms; --d-3:320ms; --d-4:480ms; --d-frost:160ms;
+  --ease-out:cubic-bezier(.2,.7,.2,1);
+  --ease-sheet:cubic-bezier(.32,.72,0,1);
+  --ease-std:cubic-bezier(.4,0,.2,1);
+
+  /* 浮起的导航、底座、操作坞离屏幕下沿的距离；面板下沿的安全区 */
+  --float-bottom:max(calc(env(safe-area-inset-bottom) - 16px), 18px);
+  --sheet-bottom:max(env(safe-area-inset-bottom), 8px);
+}

@@ -1,0 +1,29 @@
+/* 能量账本刻度：每格 25 千卡；三餐海军蓝、钴蓝、天青（第四段 --sky-soft）；需要线与“需要 N”收在面板内
+   （设计稿第 526 至 539 行）。每格从底部长出 480 毫秒，从左到右错开 6 毫秒。 */
+.lt{position:relative;margin-top:16px;height:60px}
+.lt-ticks{position:absolute;left:0;right:3px;top:0;height:30px;display:flex;justify-content:space-between;align-items:flex-end}
+.lt-ticks i{width:2px;height:10px;border-radius:2px 2px 0 0;background:#CFDAE8;transform-origin:bottom}
+.lt-ticks i.s1{background:var(--ink);height:30px}
+.lt-ticks i.s2{background:var(--accent);height:26px}
+.lt-ticks i.s3{background:var(--sky);height:22px}
+.lt-ticks i.s4{background:var(--sky-soft);height:18px}
+.lt-base{position:absolute;left:0;right:0;top:30px;height:1px;background:var(--ink-2)}
+.lt-need{position:absolute;top:-8px;width:3px;height:40px;margin-left:-3px;border-radius:var(--r-pill);background:var(--accent)}
+.lt-scale{position:absolute;left:0;right:0;top:36px;height:20px;font-size:var(--fs-12);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.lt-scale span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.lt-scale span:first-child{transform:none}
+.lt-scale .need{color:var(--accent);font-weight:600}
+.lt-scale .need.end{transform:translateX(-100%)}
+.lt-scale .need.start{transform:none}
+.lt-anim .lt-ticks i{animation:lt-grow var(--d-4) var(--ease-out) both;animation-delay:calc(var(--i) * 6ms)}
+@keyframes lt-grow{from{transform:scaleY(.1);opacity:.3}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  .lt-anim .lt-ticks i{animation:none}
+}
+
+@media (forced-colors:active){
+  .lt-ticks i,.lt-base,.lt-need{forced-color-adjust:none}
+  .lt-ticks i{background:GrayText}
+  .lt-ticks i.s1,.lt-ticks i.s2,.lt-ticks i.s3,.lt-ticks i.s4,.lt-base{background:CanvasText}
+  .lt-need{background:Highlight}
+}

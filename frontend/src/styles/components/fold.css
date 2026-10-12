@@ -1,0 +1,18 @@
+/* 依据折叠：React Aria Disclosure，默认折叠；grid-template-rows 0fr 到 1fr 过渡（设计稿第 439 至 447 行） */
+.fold-wrap{margin-top:10px;border-top:1px solid var(--line)}
+.fold{display:flex;align-items:center;gap:6px;min-height:44px;font-size:var(--fs-14);color:var(--ink-2);width:100%;text-align:left}
+.fold .ic{width:18px;height:18px;transition:transform var(--d-2) var(--ease-std)}
+.fold[aria-expanded="true"] .ic{transform:rotate(180deg)}
+.fold em{font-style:normal;display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--plate-2);color:var(--ink-2);font-size:var(--fs-12)}
+.fold .sp{flex:1}
+/* React Aria 收起后给面板加 hidden="until-found"；这里让它仍按 0fr 排版，过渡才有起点 */
+.fold-b,.fold-b[hidden]{display:grid;grid-template-rows:0fr;content-visibility:visible;transition:grid-template-rows var(--d-2) var(--ease-std)}
+.fold-b>div{overflow:hidden;visibility:hidden;transition:visibility 0s linear var(--d-2)}
+.fold-wrap[data-expanded] .fold-b{grid-template-rows:1fr}
+.fold-wrap[data-expanded] .fold-b>div{visibility:visible;transition-delay:0s}
+@supports not (grid-template-rows:0fr){
+  .fold-b,.fold-b[hidden]{display:none}
+  .fold-wrap[data-expanded] .fold-b{display:block}
+}
+.ev{margin:0;padding:2px 0 10px;list-style:none;font-size:.8125rem;line-height:1.6;color:var(--ink-2)}
+.ev li+li{margin-top:2px}

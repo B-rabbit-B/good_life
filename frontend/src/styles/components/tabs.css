@@ -1,0 +1,20 @@
+/* 分段标签（一级，抬起的瓷白滑块）、文字标签（二级，18 × 3 钴蓝胶囊）与分段单选（设计稿第 234 至 241、311 至 314 行） */
+.ttabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;margin:2px var(--gutter) 6px;padding:3px;border-radius:var(--r-3);background:rgba(14,27,51,.06);box-shadow:inset 0 1px 1px rgba(14,27,51,.05)}
+.ttab{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 10px;border-radius:13px;font-size:var(--fs-16);color:var(--ink-2);white-space:nowrap;cursor:pointer;outline:none}
+.ttab[aria-selected="true"]{color:var(--ink);font-weight:600;background:linear-gradient(180deg,#FFFFFF,#F7F9FD);box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(14,27,51,.06),0 1px 3px rgba(14,27,51,.12)}
+.ttab[data-focus-visible]{outline:2px solid var(--accent);outline-offset:2px}
+.cnt{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);font-size:var(--fs-12);font-weight:600;line-height:1;color:var(--warn);background:var(--warn-wash);font-variant-numeric:tabular-nums}
+.ttabs.sm{display:flex;gap:20px;margin:0 var(--gutter) 4px;padding:0;background:none;box-shadow:none;border-radius:0}
+.ttabs.sm .ttab{font-size:var(--fs-14);padding:0 8px;margin:0 -8px;border-radius:var(--r-2);background:none;box-shadow:none}
+.ttabs.sm .ttab[aria-selected="true"]::after{content:"";position:absolute;left:50%;bottom:4px;width:18px;height:3px;margin-left:-9px;border-radius:var(--r-pill);background:var(--accent)}
+
+.opts{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;padding:3px;border-radius:var(--r-3);background:rgba(14,27,51,.06)}
+.opt{min-height:44px;display:flex;align-items:center;justify-content:center;font-size:.9375rem;color:var(--ink-2);border-radius:13px;white-space:nowrap;cursor:pointer}
+.opt[data-selected]{background:linear-gradient(180deg,#FFFFFF,#F7F9FD);color:var(--ink);font-weight:600;box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(14,27,51,.06),0 1px 3px rgba(14,27,51,.12)}
+.opt[data-focus-visible]{outline:2px solid var(--accent);outline-offset:2px}
+
+@media (forced-colors:active){
+  .opts,.ttabs:not(.sm){border:1px solid CanvasText}
+  .opt[data-selected],.ttab[aria-selected="true"]{outline:2px solid Highlight;outline-offset:-2px}
+  .ttabs.sm .ttab[aria-selected="true"]::after{forced-color-adjust:none;background:Highlight}
+}
