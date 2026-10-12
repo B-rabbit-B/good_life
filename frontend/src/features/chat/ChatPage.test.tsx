@@ -11,6 +11,8 @@ import {
   assistantMessage, assistantText, conversation, noticeLines, opening, SEVERE_REPLY, userMessage,
 } from '../../test/fixtures/agent'
 import { dueItem, proposalItem, proposedEvent, reviewDueEvent } from '../../test/fixtures/medical'
+import { recognition } from '../../test/fixtures/photos'
+import { photosHandlers } from '../../test/msw/handlers/photos'
 import { server } from '../../test/msw/server'
 
 const ANSWER = '今晚可以换成清蒸鱼或鸡胸肉，配一碗杂粮粥，蛋白质够，也清淡。'
@@ -176,14 +178,20 @@ describe('chat page', () => {
 
   it('hands a picked photo to the photo page', async () => {
     const user = userEvent.setup()
+    const held = gate()
     const { router } = renderChat()
+    const photos = photosHandlers({ hold: held.promise, create: recognition() })
+    server.use(...photos.handlers)
     await screen.findByRole('button', { name: '从相册选图' })
     const gallery = document.querySelectorAll<HTMLInputElement>('.slab input[type="file"]')[1] as HTMLInputElement
     const photo = new File(['jpeg'], 'dinner.jpg', { type: 'image/jpeg' })
     await user.upload(gallery, photo)
     await waitFor(() => expect(router.state.location.pathname).toBe('/photos/new'))
-    expect(takePendingPhoto()).toBe(photo)
+    // 拍照页接过照片就开始识别：出现识别进度并发出一次识别请求；照片已被取走
+    expect(await screen.findByRole('list', { name: '识别进度' })).toBeInTheDocument()
+    await waitFor(() => expect(photos.creates).toHaveLength(1))
     expect(takePendingPhoto()).toBeNull()
+    held.open()
   })
 
   it('wraps the stream and the strip in sensitive regions', async () => {

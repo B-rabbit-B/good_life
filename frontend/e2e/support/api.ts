@@ -1,5 +1,6 @@
 // 端到端测试的数据准备：全部经后端的真实接口（app.e2e_server 启动的测试库），不直接写数据库。
 import { expect, type APIRequestContext, type Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import type { components } from '../../src/api/schema'
 
 type Schemas = components['schemas']
@@ -152,6 +153,58 @@ export async function sendMessage(
     token, data: { text, stream: false },
   })
   return { ...turn, conversation_id: id }
+}
+
+/** 上传一张测试图片识别为草稿（看图模型是本地模拟服务：meal.jpg 认作麻婆豆腐加米饭） */
+export async function recognizePhoto(
+  request: APIRequestContext,
+  token: string,
+  file: string,
+): Promise<Schemas['RecognitionOut']> {
+  const response = await request.post('/api/photos/recognitions', {
+    headers: auth(token),
+    multipart: {
+      file: { name: 'meal.jpg', mimeType: 'image/jpeg', buffer: readFileSync(file) },
+      keep_image: 'false',
+    },
+  })
+  expect(response.status(), `识别返回 ${response.status()}：${await response.text()}`).toBe(201)
+  return (await response.json()) as Schemas['RecognitionOut']
+}
+
+/** 在识别草稿里加一个营养库里没有完全一致名称的菜，出现待确认项（原有的项按 id 与 food_id 原样保留） */
+export function addPendingDish(
+  request: APIRequestContext,
+  token: string,
+  record: Schemas['RecognitionOut'],
+  dish: { name: string; portion_text: string },
+): Promise<Schemas['RecognitionOut']> {
+  const items = [
+    ...record.items.map((item) => (item.food_id ? { id: item.id, name: item.name, food_id: item.food_id } : { id: item.id, name: item.name })),
+    dish,
+  ]
+  return call(request, 'PUT', `/api/photos/recognitions/${record.id}/items`, { token, data: { items } })
+}
+
+/** 确认入库为今天的某一餐 */
+export function confirmRecognition(
+  request: APIRequestContext,
+  token: string,
+  id: string,
+  mealType: Schemas['ConfirmIn']['meal_type'],
+): Promise<Schemas['RecognitionOut']> {
+  return call(request, 'POST', `/api/photos/recognitions/${id}/confirm`, {
+    token, data: { eaten_on: localToday(), meal_type: mealType },
+  })
+}
+
+/** 手动记今天的一项 */
+export function logMeal(
+  request: APIRequestContext,
+  token: string,
+  meal: { meal_type: Schemas['MealCreate']['meal_type']; food_id: string; grams: number },
+): Promise<Schemas['MealOut']> {
+  return call(request, 'POST', '/api/nutrition/meals', { token, data: { eaten_on: localToday(), ...meal } })
 }
 
 /** 以这个令牌登录的身份打开页面：先打开 / 写入令牌，再跳到目标路径。 */

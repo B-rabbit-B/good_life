@@ -188,6 +188,44 @@ export async function expectGlass(page: Page, on: boolean): Promise<void> {
   }
 }
 
+/** 面板滑入停稳：data-entering 去掉、面板与遮罩上的过渡与动画都结束（量尺寸前要等它，否则量到的是半路的大小） */
+export async function waitForSheet(page: Page): Promise<void> {
+  const sheet = page.locator('.sheet')
+  await expect(sheet).not.toHaveAttribute('data-entering', /.*/)
+  await page.locator('.sheet-layer').evaluate((el) =>
+    Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)))
+}
+
+/**
+ * 有模糊的外壳（页头玻璃层、底座、操作坞、面板）合计面积不超过视口的 40%（DESIGN.md 第十二节）。
+ * 默认还要求确实有模糊；allowNone 时允许一层都没有（例如打开了实色的高面板，遮罩下的外壳也关了模糊）。
+ */
+export async function expectBlurBudget(page: Page, { allowNone = false }: { allowNone?: boolean } = {}): Promise<void> {
+  const share = await page.evaluate(() => {
+    const blurred = (style: CSSStyleDeclaration) => {
+      const filter = style.backdropFilter || (style as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter
+      return Boolean(filter) && filter !== 'none'
+    }
+    const visible = (top: number, bottom: number, width: number) =>
+      Math.max(0, Math.min(bottom, innerHeight) - Math.max(top, 0)) * Math.min(width, innerWidth)
+    let area = 0
+    for (const el of Array.from(document.querySelectorAll('*'))) {
+      const box = el.getBoundingClientRect()
+      if (blurred(getComputedStyle(el))) area += visible(box.top, box.bottom, box.width)
+      // 画在 ::before 上的玻璃层（吸顶页头）：按伪元素自己的位置与高度算
+      const before = getComputedStyle(el, '::before')
+      if (blurred(before) && before.opacity !== '0') {
+        const top = box.top + (Number.parseFloat(before.top) || 0)
+        const height = Number.parseFloat(before.height) || box.height
+        area += visible(top, top + height, Number.parseFloat(before.width) || box.width)
+      }
+    }
+    return area / (innerWidth * innerHeight)
+  })
+  if (!allowNone) expect(share, '模糊面积占视口').toBeGreaterThan(0)
+  expect(share, '模糊面积占视口').toBeLessThanOrEqual(0.4)
+}
+
 /** 强制颜色模式的冒烟检查（只在 Chromium）：按钮有实线边框、导航当前项有描边、就医提示 3 像素边框。 */
 export async function expectForcedColorsSmoke(page: Page): Promise<void> {
   if (page.context().browser()?.browserType().name() !== 'chromium') return

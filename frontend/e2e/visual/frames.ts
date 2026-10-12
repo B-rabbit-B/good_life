@@ -1,8 +1,13 @@
 import type { APIRequestContext, Page } from '@playwright/test'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { components } from '../../src/api/schema'
 import {
-  createUser, e2eInfo, seedActiveItem, seedModelService, seedProposal, seedReviewDueItem, sendMessage, TOKEN_KEY,
+  addPendingDish, confirmRecognition, createUser, e2eInfo, logMeal, recognizePhoto, seedActiveItem, seedModelService,
+  seedProposal, seedReviewDueItem, sendMessage, TOKEN_KEY,
 } from '../support/api'
+
+const FIXTURES = join(fileURLToPath(new URL('.', import.meta.url)), '..', '.fixtures')
 
 export interface FrameSpec {
   /** 设计稿里的画面编号（例如 03a），状态面板用 st1 至 st12 */
@@ -175,6 +180,43 @@ export const FRAMES: FrameSpec[] = [
       '谢谢你这么细心地帮我安排', '明白了，晚上我会少放点盐', '晚饭想吃卤猪肝配白粥，可以吗？',
     ], due: true, declined: true }), '/chat'),
   after: bubblesUnderGlass },
+  // 04 拍照识别：04a 识别请求挂起，停在“识别中”；04b 模拟看图的结果，再加一道营养库里只有相近名称的菜（待确认）；
+  // 04c 白图（没有认出食物）
+  { id: '04a', widths: [360, 390], prepare: async ({ request, page }) => signedIn(page, await chatUser(request), '/photos/new'),
+    after: async (page) => {
+      // 让识别的响应迟迟不到：用 Chromium 的网络模拟加 30 秒延迟（page.route 拦下的请求不会触发上传进度，
+      // 而这一帧要的是“上传完成、正在认菜”）
+      const cdp = await page.context().newCDPSession(page)
+      await cdp.send('Network.enable')
+      await cdp.send('Network.emulateNetworkConditions', {
+        offline: false, latency: 30_000, downloadThroughput: -1, uploadThroughput: -1,
+      })
+      await page.locator('input[type="file"]:not([capture])').setInputFiles(join(FIXTURES, 'meal.jpg'))
+      await page.getByText('正在认菜和份量').waitFor()
+      await page.getByText('上传完成').waitFor()
+      await page.waitForTimeout(300)
+    } },
+  { id: '04b', widths: [360, 390], prepare: async ({ request, page }) => {
+    const token = await chatUser(request)
+    const record = await recognizePhoto(request, token, join(FIXTURES, 'meal.jpg'))
+    await addPendingDish(request, token, record, { name: '卤猪肝', portion_text: '一小碟' })
+    return signedIn(page, token, `/photos/${record.id}`)
+  } },
+  { id: '04c', widths: [360, 390], prepare: async ({ request, page }) => signedIn(page, await chatUser(request), '/photos/new'),
+    after: async (page) => {
+      await page.locator('input[type="file"]:not([capture])').setInputFiles(join(FIXTURES, 'white.jpg'))
+      await page.getByRole('heading', { name: '没有认出食物' }).waitFor({ timeout: 30_000 })
+    } },
+  // 05 饮食记录：先确认一次识别（午餐），再手动记两项早餐
+  { id: '05', widths: [360, 390], prepare: async ({ request, page }) => {
+    const token = await chatUser(request)
+    const record = await recognizePhoto(request, token, join(FIXTURES, 'meal.jpg'))
+    await confirmRecognition(request, token, record.id, 'lunch')
+    await logMeal(request, token, { meal_type: 'breakfast', food_id: 'cfcd:111101x', grams: 50 })
+    await logMeal(request, token, { meal_type: 'breakfast', food_id: 'cfcd:101101x', grams: 250 })
+    return signedIn(page, token, '/records')
+  },
+  after: (page) => page.waitForTimeout(700) }, // 刻度长出与计数结束
   // 设计系统一节对样张页
   { id: 'ds', widths: [360, 390], prepare: galleryBlock('ds') },
   // 状态面板 st1 至 st12 对样张页的对应区块；st10 是“一键遮盖”，打开时就遮盖

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -40,6 +40,35 @@ describe('Sheet', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     // React Aria 在下一帧把焦点还给触发处
     await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('stays solid while taller than forty percent of the viewport', async () => {
+    // jsdom 不排版：假的 ResizeObserver 一观察就回调，面板高度由测试给
+    let height = 500
+    const observers: (() => void)[] = []
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(private readonly callback: () => void) {}
+      observe() {
+        observers.push(this.callback)
+        this.callback()
+      }
+      disconnect() {}
+      unobserve() {}
+    })
+    const offset = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height)
+    try {
+      renderHarness()
+      await userEvent.click(screen.getByRole('button', { name: '打开面板' }))
+      const dialog = await screen.findByRole('dialog')
+      // 视口 768 高（jsdom 默认）：500 超过 40%，一直是实色
+      expect(dialog).toHaveAttribute('data-solid', '')
+      height = 300
+      act(() => observers.forEach((callback) => callback()))
+      expect(dialog).not.toHaveAttribute('data-solid')
+    } finally {
+      offset.mockRestore()
+      vi.unstubAllGlobals()
+    }
   })
 
   it('closes on escape', async () => {

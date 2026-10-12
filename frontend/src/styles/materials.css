@@ -21,6 +21,8 @@
   :root[data-glass="on"] .sheet{background-color:var(--sheet-tint);-webkit-backdrop-filter:blur(var(--blur-sheet)) saturate(1.2);backdrop-filter:blur(var(--blur-sheet)) saturate(1.2)}
   /* 面板滑入时是实色，停稳后才打开模糊（模糊半径从不做动画，只过渡底色） */
   :root[data-glass="on"] .sheet[data-entering]{background-color:var(--sheet-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  /* 高于视口 40% 的面板（模糊总面积的上限，DESIGN.md 第十二节）一直用实色 */
+  :root[data-glass="on"] .sheet[data-solid]{background-color:var(--sheet-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
   /* 面板打开时，遮罩下面的外壳关掉模糊：遮罩已经把它们压暗，同屏只让面板这一层模糊 */
   :root[data-glass="on"][data-sheet-open] .chrome,:root[data-glass="on"][data-sheet-open] .top::before{background-color:var(--chrome-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
 }
