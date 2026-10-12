@@ -1,8 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import type { ProfileOut } from '../../api/types'
-import { completeProfile } from '../../test/fixtures/core'
+import { completeProfile, disclaimerStatus } from '../../test/fixtures/core'
 import { emptyProfile } from '../../test/fixtures/profile'
 import { profileStore } from '../../test/msw/handlers/auth'
 import { server } from '../../test/msw/server'
@@ -112,5 +113,48 @@ describe('onboarding', () => {
     expect(weight).toHaveAttribute('aria-valuemin', '20')
     expect(weight).toHaveAttribute('aria-valuemax', '300')
     expect(weight).toHaveAccessibleDescription('左右拖动刻度，或点数字直接输入。')
+  })
+
+  it('moves focus to the step title after next', async () => {
+    const user = userEvent.setup()
+    const { router } = open('/onboarding/2', basicsDone())
+    const first = await screen.findByRole('heading', { level: 1, name: '活动与目标' })
+    expect(first).not.toHaveFocus()
+    await user.click(screen.getByRole('radio', { name: /^轻度/ }))
+    await user.click(screen.getByRole('radio', { name: '维持' }))
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+
+    await landsOn(router, '/onboarding/3')
+    const title = await screen.findByRole('heading', { level: 1, name: '饮食偏好与忌口' })
+    await waitFor(() => expect(title).toHaveFocus())
+    expect(title).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('goes to the disclaimer when a save gets disclaimer_not_accepted', async () => {
+    const user = userEvent.setup()
+    const { router } = open('/onboarding/2', basicsDone({ activity_level: 'light', goal: 'maintain' }))
+    // 免责声明在编辑期间换了版本：保存答 403，之后的免责状态是“未确认”
+    let changed = false
+    let checksAfterChange = 0
+    server.use(
+      http.patch('/api/profile', () => {
+        changed = true
+        return HttpResponse.json(
+          { error: { code: 'disclaimer_not_accepted', message: '请先阅读并确认免责声明' } }, { status: 403 },
+        )
+      }),
+      http.get('/api/disclaimer/status', () => {
+        if (changed) checksAfterChange += 1
+        return HttpResponse.json(disclaimerStatus(!changed))
+      }),
+    )
+    expect(await screen.findByRole('heading', { level: 1, name: '活动与目标' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+
+    await landsOn(router, '/disclaimer')
+    expect(router.state.location.state).toEqual({ from: '/onboarding/2' })
+    expect(await screen.findByRole('heading', { level: 1, name: '免责声明' })).toBeInTheDocument()
+    // 缓存里的“已确认”作废了，重新问过后端
+    await waitFor(() => expect(checksAfterChange).toBeGreaterThan(0))
   })
 })

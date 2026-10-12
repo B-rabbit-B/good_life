@@ -69,7 +69,10 @@ export default function DisclaimerPage() {
         <div className="disc-chk">
           <Checkbox isSelected={read} onChange={setRead}>我已阅读并理解以上内容</Checkbox>
         </div>
-        <Button variant="primary" block isDisabled={!read} isPending={accept.isPending} onPress={confirm}>确认并继续</Button>
+        {/* 重新读取正文期间不能确认：否则会再次提交旧版本 */}
+        <Button variant="primary" block isDisabled={!read || disclaimer.isFetching} isPending={accept.isPending} onPress={confirm}>
+          确认并继续
+        </Button>
         <span className="t-cap disc-note">之后可以在“我的”里随时查看</span>
       </Dock>
     </>

@@ -16,6 +16,8 @@
 .step.done::before,.step[aria-current]::before{background:linear-gradient(90deg,var(--accent),var(--accent-hi))}
 .step[aria-current]{color:var(--ink);font-weight:600}
 .onb-h{margin:20px 0 4px}
+/* 换步时焦点由脚本移到页题上：页题不可操作，不画焦点环 */
+.onb-h h1:focus{outline:none}
 .onb-intro{margin:0 0 4px}
 .onb-basics{padding-bottom:14px}
 .onb-rulers{padding-bottom:10px}

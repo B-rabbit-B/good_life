@@ -27,7 +27,8 @@ export interface LoginState {
 const DISCLAIMER_NOT_ACCEPTED = 'disclaimer_not_accepted'
 
 const sessionEnded = (error: unknown) => error instanceof ApiError && error.status === 401 && isSessionEnded(error.code)
-const disclaimerOutdated = (error: unknown) =>
+/** 免责声明换了版本（或还没确认）：后端对业务接口答 403 disclaimer_not_accepted。守卫与外壳（变更出错时）共用 */
+export const disclaimerOutdated = (error: unknown) =>
   error instanceof ApiError && error.status === 403 && error.code === DISCLAIMER_NOT_ACCEPTED
 
 const asApiError = (error: unknown) =>

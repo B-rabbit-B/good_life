@@ -92,4 +92,38 @@ describe('disclaimer page', () => {
     await screen.findByRole('list')
     expect(screen.queryByRole('button', { name: '返回' })).not.toBeInTheDocument()
   })
+
+  it('keeps confirm disabled while the new text loads', async () => {
+    const user = userEvent.setup()
+    renderRoute('/disclaimer', { accepted: false })
+    let release: () => void = () => {}
+    let outdated = false
+    const accepts: unknown[] = []
+    server.use(
+      http.get('/api/disclaimer', async () => {
+        if (outdated) await new Promise<void>((resolve) => { release = resolve })
+        return HttpResponse.json(disclaimerText({ version: outdated ? '2026-12-01' : DISCLAIMER_VERSION }))
+      }),
+      http.post('/api/disclaimer/accept', async ({ request }) => {
+        accepts.push(await request.json())
+        outdated = true
+        return HttpResponse.json(
+          { error: { code: 'disclaimer_outdated', message: '免责声明已更新，请重新阅读最新版本后确认' } }, { status: 409 },
+        )
+      }),
+    )
+    await screen.findByRole('list')
+    const checkbox = () => screen.getByRole('checkbox', { name: '我已阅读并理解以上内容' })
+    await user.click(checkbox())
+    await user.click(confirmButton())
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    // 新正文还没到：重新勾选也不能确认（否则会再交一次旧版本）
+    await user.click(checkbox())
+    expect(confirmButton()).toBeDisabled()
+    release()
+    expect(await screen.findByText('版本 2026-12-01')).toBeInTheDocument()
+    await waitFor(() => expect(confirmButton()).toBeEnabled())
+    expect(accepts).toEqual([{ version: DISCLAIMER_VERSION }])
+  })
 })

@@ -11,6 +11,7 @@ import { Title } from '../../components/Title'
 import { GENDER_LABELS, type Gender } from '../../lib/labels'
 import { errorsOf, otherErrors, PROFILE_FIELD_LABELS } from './fieldErrors'
 import { FormError } from './FormError'
+import { STEP_TITLE_ID } from './stepTitle'
 
 const YEARS = 100
 const DEFAULT_HEIGHT = 165
@@ -46,7 +47,7 @@ export function StepBasics({ profile, onSaved }: { profile: ProfileOut; onSaved:
   return (
     <>
       <div className="pad">
-        <div className="onb-h"><Title k="onbBasics" level="display" as="h1" /></div>
+        <div className="onb-h"><Title k="onbBasics" level="display" as="h1" id={STEP_TITLE_ID} tabIndex={-1} /></div>
         <p className="t-small ink2 onb-intro">用来估算每天需要多少能量与营养。之后可以在“我的”里修改。</p>
       </div>
       <div className="plate onb-basics">

@@ -1,7 +1,8 @@
+import { onlineManager } from '@tanstack/react-query'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { sensitiveAreaMismatch } from '../../app/sensitiveAreas'
 import { completeProfile } from '../../test/fixtures/core'
 import { profileStore } from '../../test/msw/handlers/auth'
@@ -21,7 +22,7 @@ describe('profile edit page', () => {
     expect(weight).toHaveValue('54')
     expect(screen.getByLabelText('身高')).toHaveValue('162')
     expect(screen.getByText('出生年份 1996，性别 女；上次更新 2026-10-02')).toBeInTheDocument()
-    expect(sensitiveAreaMismatch(document, ['profile'])).toEqual({ page: 'profileEdit', missing: [], unexpected: [] })
+    expect(sensitiveAreaMismatch(document)).toEqual({ page: 'profileEdit', missing: [], unexpected: [] })
 
     await user.clear(weight)
     await user.type(weight, '55.5')
@@ -43,8 +44,8 @@ describe('profile edit page', () => {
         code: 'validation_error',
         message: '请求参数不合法',
         details: [
-          { field: 'height_cm', message: 'Input should be less than or equal to 250' },
-          { field: 'food_avoidances.0', message: 'String should have at most 32 characters' },
+          { field: 'height_cm', message: '不能大于 250', type: 'less_than_equal' },
+          { field: 'food_avoidances.0', message: '最多 32 个字符，请删减', type: 'string_too_long' },
         ],
       },
     }, { status: 422 })))
@@ -53,11 +54,51 @@ describe('profile edit page', () => {
     await user.type(height, '300')
     await user.click(screen.getByRole('button', { name: '保存' }))
 
-    await waitFor(() => expect(screen.getByLabelText('身高')).toHaveAccessibleDescription(/Input should be less than or equal to 250/))
+    // 后端的中文说明原样写在字段下面，焦点移到第一个出错的字段
+    await waitFor(() => expect(screen.getByLabelText('身高')).toHaveAccessibleDescription('不能大于 250'))
     expect(screen.getByLabelText('身高')).toHaveAttribute('aria-invalid', 'true')
+    await waitFor(() => expect(screen.getByLabelText('身高')).toHaveFocus())
     const avoid = fieldOf('忌口')
-    expect(within(avoid).getByText('String should have at most 32 characters')).toBeInTheDocument()
+    expect(within(avoid).getByText('最多 32 个字符，请删减')).toBeInTheDocument()
+    // 还没有标签时 React Aria 把列表画成 group，有标签时是 grid；两种都带上出错标记
+    const list = within(avoid).getByRole('group', { name: '忌口' })
+    expect(list).toHaveAttribute('aria-invalid', 'true')
+    expect(list).toHaveAccessibleDescription('最多 32 个字符，请删减')
     expect(router.state.location.pathname).toBe('/me/profile')
+  })
+
+  it('sends an emptied height as text so the backend rejects it', async () => {
+    const user = userEvent.setup()
+    const { router } = renderRoute('/me/profile')
+    const sent: unknown[] = []
+    server.use(http.patch('/api/profile', async ({ request }) => {
+      sent.push(await request.json())
+      return HttpResponse.json({
+        error: { code: 'validation_error', message: '请求参数不合法', details: [{ field: 'height_cm', message: '请填写数字' }] },
+      }, { status: 422 })
+    }))
+    const height = await screen.findByLabelText('身高')
+    await user.clear(height)
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(screen.getByLabelText('身高')).toHaveAccessibleDescription('请填写数字'))
+    expect(sent).toEqual([{ height_cm: '' }])
+    expect(router.state.location.pathname).toBe('/me/profile')
+  })
+
+  it('shows the network error while the browser is offline', async () => {
+    const user = userEvent.setup()
+    onlineManager.setOnline(false)
+    onTestFinished(() => onlineManager.setOnline(true))
+    renderRoute('/me/profile')
+    server.use(http.patch('/api/profile', () => HttpResponse.error()))
+    const weight = await screen.findByLabelText('体重')
+    await user.clear(weight)
+    await user.type(weight, '55')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('网络连接失败，请检查网络后重试')
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled()
   })
 
   it('has a cover button in the header', async () => {

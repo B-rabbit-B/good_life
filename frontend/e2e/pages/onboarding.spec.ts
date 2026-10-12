@@ -133,7 +133,7 @@ test('the profile edit page meets the layout rules, covers and saves', async ({ 
   await expectPageRules(page)
   expect(await heights(page, '.fld-i'), '输入框 52').toEqual([52, 52])
   expect(await heights(page, '.opt'), '目标分段每段 44').toEqual([44, 44, 44, 44])
-  await expectSensitiveAreas(page, ['profile'])
+  await expectSensitiveAreas(page)
   await expectCoverWorks(page)
 
   await page.getByLabel('体重').fill('55.5')

@@ -10,6 +10,7 @@ import { Title } from '../../components/Title'
 import { ACTIVITY_HINTS, ACTIVITY_LABELS, GOAL_LABELS, type ActivityLevel, type Goal } from '../../lib/labels'
 import { errorsOf, otherErrors, PROFILE_FIELD_LABELS } from './fieldErrors'
 import { FormError } from './FormError'
+import { STEP_TITLE_ID } from './stepTitle'
 
 const LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
 const GOALS = (Object.keys(GOAL_LABELS) as Goal[]).map((value) => ({ value, label: GOAL_LABELS[value] }))
@@ -31,7 +32,7 @@ export function StepActivity({ profile, onSaved }: { profile: ProfileOut; onSave
   return (
     <>
       <div className="pad">
-        <div className="onb-h"><Title k="onbActivity" level="display" as="h1" /></div>
+        <div className="onb-h"><Title k="onbActivity" level="display" as="h1" id={STEP_TITLE_ID} tabIndex={-1} /></div>
       </div>
       <div className="plate">
         <RadioGroup className="acts" value={activity} onChange={setActivity}>

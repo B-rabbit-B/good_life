@@ -3,15 +3,16 @@
 // 操作坞 112 或 172、都没有 28），保证最后一行能滚出来。
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Outlet, useMatches, useNavigate } from 'react-router'
+import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
 import { onUnauthorized } from '../api/client'
+import { qk } from '../api/keys'
 import { useCapabilities } from '../api/hooks/profile'
 import { BottomNav } from '../components/BottomNav'
 import { Field } from '../components/Field'
 import { ShellPortal } from '../components/ShellPortal'
 import '../styles/components/app-shell.css'
 import { useRemoveBootShell } from './BootSplash'
-import type { LoginState } from './guards'
+import { disclaimerOutdated, type LoginState } from './guards'
 import { navItems } from './nav'
 import { PATHS } from './paths'
 import type { RouteHandle } from './routes'
@@ -63,6 +64,20 @@ export function AppShell() {
       await navigate(PATHS.login, { replace: true, state: { expired: true } satisfies LoginState })
       queryClient.clear()
     })()
+  }), [queryClient, navigate])
+
+  // 免责声明换了版本：任何变更（建档、开关、保存）收到 403 disclaimer_not_accepted 时，
+  // 与守卫一样作废免责状态并去免责页（确认后回到原来的页面）
+  const location = useLocation()
+  const path = `${location.pathname}${location.search}`
+  const here = useRef(path)
+  useEffect(() => {
+    here.current = path
+  }, [path])
+  useEffect(() => queryClient.getMutationCache().subscribe((event) => {
+    if (event.type !== 'updated' || event.action.type !== 'error' || !disclaimerOutdated(event.action.error)) return
+    void queryClient.invalidateQueries({ queryKey: qk.disclaimerStatus })
+    void navigate(PATHS.disclaimer, { replace: true, state: { from: here.current } })
   }), [queryClient, navigate])
 
   const setDock = useCallback((size: DockSize | null) => setDockState(size), [])

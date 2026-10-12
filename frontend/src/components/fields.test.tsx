@@ -132,4 +132,34 @@ describe('form fields', () => {
     await userEvent.click(screen.getByText('男'))
     expect(onChange).toHaveBeenCalledWith('male')
   })
+
+  it('puts a unit inside the box after the number', () => {
+    render(<TextField label="身高" value="165" onChange={() => {}} inputMode="decimal" suffix="厘米" />)
+    const input = screen.getByRole('textbox', { name: '身高' })
+    expect(input).toHaveAttribute('inputmode', 'decimal')
+    expect(input).toHaveClass('n')
+    const unit = screen.getByText('厘米')
+    expect(unit).toHaveClass('fld-suf')
+    expect(input.closest('.fld-i')).toContainElement(unit)
+  })
+
+  it('reads the segment hint as its description', () => {
+    render(<RadioSegment label="性别" value="" onChange={() => {}} hint="用于估算能量需要。"
+      options={[{ value: 'female', label: '女' }, { value: 'male', label: '男' }]} />)
+    expect(screen.getByRole('radiogroup', { name: '性别' })).toHaveAccessibleDescription('用于估算能量需要。')
+    expect(screen.getByText('用于估算能量需要。')).toHaveClass('fld-h')
+  })
+
+  it('links a tag error to the tag list', () => {
+    const view = render(<TagField label="忌口" tags={['酒精']} onChange={() => {}} />)
+    const list = screen.getByRole('grid', { name: '忌口' })
+    expect(list).not.toHaveAttribute('aria-invalid')
+    expect(list).not.toHaveAttribute('aria-describedby')
+    view.rerender(<TagField label="忌口" tags={['酒精']} onChange={() => {}} error="最多 32 个字符，请删减" />)
+    expect(list).toHaveAttribute('aria-invalid', 'true')
+    expect(list).toHaveAccessibleDescription('最多 32 个字符，请删减')
+    view.rerender(<TagField label="忌口" tags={['酒精']} onChange={() => {}} />)
+    expect(list).not.toHaveAttribute('aria-invalid')
+    expect(list).not.toHaveAttribute('aria-describedby')
+  })
 })

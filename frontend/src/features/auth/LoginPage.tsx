@@ -1,6 +1,6 @@
 // 登录与注册（设计稿 01）：分段切换登录与注册；注册成功立即登录，然后去免责页。
 // 两句提示只是界面说明，是否合格以后端为准：后端的字段说明原样写在对应字段下面，用户名或密码错误写在表单上。
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useLogin, useRegister } from '../../api/hooks/auth'
 import type { LoginState } from '../../app/guards'
@@ -12,7 +12,7 @@ import { AuthNeededState } from '../../components/states/AuthNeededState'
 import { TextField } from '../../components/TextField'
 import { Title } from '../../components/Title'
 import '../../styles/components/login.css'
-import { errorsOf, otherErrors } from '../onboarding/fieldErrors'
+import { errorsOf, otherErrors, useFocusFirstInvalid } from '../onboarding/fieldErrors'
 import { FormError } from '../onboarding/FormError'
 
 type Mode = 'login' | 'register'
@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
   const registering = mode === 'register'
 
   const submit = async (event: FormEvent) => {
@@ -39,15 +40,27 @@ export default function LoginPage() {
     setErrors({})
     setPending(true)
     const body = { username, password }
+    let registered = false
     try {
-      if (registering) await register.mutateAsync(body)
+      if (registering) {
+        await register.mutateAsync(body)
+        registered = true
+      }
       await login.mutateAsync(body)
       await navigate(registering ? PATHS.disclaimer : (state?.from ?? PATHS.root), { replace: true })
     } catch (error) {
+      // 注册成功、随后的登录失败：切到登录分段并保留输入，重试时只登录，不会撞上自己刚注册的用户名
+      if (registered) setMode('login')
       setErrors(errorsOf(error))
       setPending(false)
+    } finally {
+      // 请求体里有密码：每次提交后都让变更离开缓存
+      register.reset()
+      login.reset()
     }
   }
+
+  useFocusFirstInvalid(errors, formRef)
 
   const switchMode = (next: string) => {
     setMode(next === 'register' ? 'register' : 'login')
@@ -56,15 +69,15 @@ export default function LoginPage() {
 
   return (
     <div className="login">
-      {state?.expired && (
-        <div className="plate login-expired">
-          <AuthNeededState titleKey="sessionExpired" body="请重新登录，记录不会丢失。" />
-        </div>
-      )}
       <div className="wm"><b>good-life</b><span>个人档案驱动的健康生活助手</span></div>
       <div className="login-h"><Title k={mode} level="display" as="h1" /></div>
       <p className="login-p">之后的饮食、训练与医嘱记录，都只保存在你的账号下。</p>
-      <form className="plate login-plate" noValidate onSubmit={(event) => void submit(event)}>
+      {state?.expired && (
+        <div className="plate login-expired" role="status">
+          <AuthNeededState titleKey="sessionExpired" body="请重新登录，记录不会丢失。" />
+        </div>
+      )}
+      <form ref={formRef} className="plate login-plate" noValidate onSubmit={(event) => void submit(event)}>
         <SegmentedTabs items={MODES} selectedKey={mode} onSelectionChange={switchMode} ariaLabel="登录或注册" />
         {/* 按模式重新挂载：React Aria 只在挂载与出错状态变化时登记说明文字，注册模式才有的提示要随之读出 */}
         <TextField

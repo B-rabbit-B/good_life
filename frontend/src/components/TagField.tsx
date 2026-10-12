@@ -1,5 +1,5 @@
-import { useId, useState } from 'react'
-import { Button as AriaButton, Label, Tag, TagGroup, TagList, Text } from 'react-aria-components'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { Button as AriaButton, Label, Tag, TagGroup, TagList } from 'react-aria-components'
 import '../styles/components/field-input.css'
 import { Icon } from './Icon'
 
@@ -18,7 +18,8 @@ function RemoveButton({ tag }: { tag: string }) {
   )
 }
 
-/** 可移除标签（饮食偏好、忌口）：胶囊，删除键 44；“添加”展开一个胶囊输入框，回车加入（React Aria TagGroup）。error 是后端的说明原文。 */
+/** 可移除标签（饮食偏好、忌口）：胶囊，删除键 44；“添加”展开一个胶囊输入框，回车加入（React Aria TagGroup）。error 是后端的说明原文，
+ * 写在列表下方并用 aria-describedby 与 aria-invalid 关联到标签列表。 */
 export function TagField({ label, tags, onChange, addLabel = '添加', error }: {
   label: string
   tags: string[]
@@ -28,6 +29,21 @@ export function TagField({ label, tags, onChange, addLabel = '添加', error }: 
 }) {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
+  const errorId = useId()
+  const listRef = useRef<HTMLDivElement>(null)
+  // 出错时标在标签列表（grid）上：React Aria 的标签列表挂载后不再更新 aria-describedby，也不转发 aria-invalid，
+  // 所以直接写在元素上（这个组件不给标签组说明文字，React Aria 自己不会写 aria-describedby）
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    if (error) {
+      list.setAttribute('aria-invalid', 'true')
+      list.setAttribute('aria-describedby', errorId)
+    } else {
+      list.removeAttribute('aria-invalid')
+      list.removeAttribute('aria-describedby')
+    }
+  }, [error, errorId])
   const finish = (keep: boolean) => {
     const text = draft.trim()
     if (keep && text && !tags.includes(text)) onChange([...tags, text])
@@ -38,7 +54,7 @@ export function TagField({ label, tags, onChange, addLabel = '添加', error }: 
     <TagGroup className="fld" onRemove={(keys) => onChange(tags.filter((tag) => !keys.has(tag)))}>
       <Label className="fld-l">{label}</Label>
       <div className="tags">
-        <TagList className="tags">
+        <TagList ref={listRef} className="tags">
           {tags.map((tag) => (
             <Tag key={tag} id={tag} textValue={tag} className="tag">
               {tag}
@@ -65,10 +81,10 @@ export function TagField({ label, tags, onChange, addLabel = '添加', error }: 
         )}
       </div>
       {error && (
-        <Text slot="errorMessage" className="err">
+        <div id={errorId} className="err">
           <Icon name="alert" size={18} />
           <span>{error}</span>
-        </Text>
+        </div>
       )}
     </TagGroup>
   )

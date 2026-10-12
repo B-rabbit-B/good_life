@@ -81,7 +81,7 @@ describe('app shell', () => {
   it('records which sensitive areas a page registered', async () => {
     const handle: RouteHandle = { nav: 'none', sensitive: true }
     function ProfilePage({ extra }: { extra: boolean }) {
-      useSensitivePage('profileEdit')
+      useSensitivePage('me')
       return (
         <>
           <Sensitive area="profile"><p>身高 162 厘米</p></Sensitive>
@@ -100,8 +100,8 @@ describe('app shell', () => {
     }], { initialEntries: ['/ok'] })
     renderRouter(router)
     expect(await screen.findByText('身高 162 厘米')).toBeInTheDocument()
-    expect(scroller()).toHaveAttribute('data-sensitive-page', 'profileEdit')
-    expect(sensitiveAreaMismatch(document)).toEqual({ page: 'profileEdit', missing: [], unexpected: [] })
+    expect(scroller()).toHaveAttribute('data-sensitive-page', 'me')
+    expect(sensitiveAreaMismatch(document)).toEqual({ page: 'me', missing: [], unexpected: [] })
 
     await router.navigate('/extra')
     expect(await screen.findByText('没有登记的敏感区')).toBeInTheDocument()

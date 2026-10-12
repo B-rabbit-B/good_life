@@ -1,7 +1,8 @@
+import { onlineManager } from '@tanstack/react-query'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { api } from '../../api/client'
 import { getToken } from '../../api/token'
 import { TEST_TOKEN } from '../../test/fixtures/core'
@@ -88,9 +89,12 @@ describe('login page', () => {
       await api('/api/auth/me').catch(() => undefined)
     })
     await landsOn(router, '/login')
-    expect(await screen.findByRole('heading', { name: '登录已过期' })).toBeInTheDocument()
+    const notice = await screen.findByRole('heading', { name: '登录已过期' })
     expect(screen.getByText('请重新登录，记录不会丢失。')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: '登录' })).toBeInTheDocument()
+    expect(notice.closest('[role="status"]')).not.toBeNull()
+    // 页题在前，过期说明在后
+    const title = screen.getByRole('heading', { level: 1, name: '登录' })
+    expect(title.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('maps validation details to fields', async () => {
@@ -101,17 +105,72 @@ describe('login page', () => {
         code: 'validation_error',
         message: '请求参数不合法',
         details: [
-          { field: 'username', message: "String should match pattern '^[A-Za-z0-9_]+$'" },
-          { field: 'password', message: 'String should have at least 8 characters' },
+          { field: 'username', message: '格式不符合要求，请按提示修改', type: 'string_pattern_mismatch' },
+          { field: 'password', message: '至少 8 个字符，请补全', type: 'string_too_short' },
         ],
       },
     }, { status: 422 })))
     await user.click(await screen.findByRole('tab', { name: '注册' }))
     await fillAndSubmit(user, '注册并继续', 'zhou-ning')
 
-    await waitFor(() => expect(screen.getByLabelText('用户名'))
-      .toHaveAccessibleDescription(/String should match pattern '\^\[A-Za-z0-9_\]\+\$'/))
-    expect(screen.getByLabelText('密码')).toHaveAccessibleDescription(/String should have at least 8 characters/)
+    await waitFor(() => expect(screen.getByLabelText('用户名')).toHaveAccessibleDescription(/格式不符合要求，请按提示修改/))
+    expect(screen.getByLabelText('密码')).toHaveAccessibleDescription(/至少 8 个字符，请补全/)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    // 焦点移到第一个出错的字段
+    await waitFor(() => expect(screen.getByLabelText('用户名')).toHaveFocus())
+  })
+
+  it('switches to login and keeps the fields when login fails after registering', async () => {
+    const user = userEvent.setup()
+    const { router } = renderRoute('/login', { token: null })
+    let registers = 0
+    server.use(
+      http.post('/api/auth/register', () => {
+        registers += 1
+        return HttpResponse.json({ id: '1', username: 'zhou_ning', created_at: '2026-10-12T08:00:00Z' }, { status: 201 })
+      }),
+      http.post('/api/auth/login', () => HttpResponse.json(
+        { error: { code: 'internal_error', message: '服务器内部错误' } }, { status: 500 },
+      )),
+    )
+    await user.click(await screen.findByRole('tab', { name: '注册' }))
+    await fillAndSubmit(user, '注册并继续')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('服务器内部错误')
+    expect(screen.getByRole('tab', { name: '登录' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('用户名')).toHaveValue('zhou_ning')
+    expect(screen.getByLabelText('密码')).toHaveValue(TEST_PASSWORD)
+    // 重试只登录，不再注册
+    server.use(http.post('/api/auth/login', () => HttpResponse.json({ access_token: TEST_TOKEN, token_type: 'bearer' })))
+    await user.click(screen.getByRole('button', { name: '登录' }))
+    await landsOn(router, '/chat')
+    expect(registers).toBe(1)
+  })
+
+  it('shows the network error while the browser is offline', async () => {
+    const user = userEvent.setup()
+    onlineManager.setOnline(false)
+    onTestFinished(() => onlineManager.setOnline(true))
+    renderRoute('/login', { token: null })
+    server.use(http.post('/api/auth/login', () => HttpResponse.error()))
+    expect(await screen.findByRole('heading', { level: 1, name: '登录' })).toBeInTheDocument()
+    await fillAndSubmit(user, '登录')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('网络连接失败，请检查网络后重试')
+    expect(screen.getByRole('button', { name: '登录' })).toBeEnabled()
+  })
+
+  it('keeps no password in the mutation cache after an error', async () => {
+    const user = userEvent.setup()
+    const { queryClient } = renderRoute('/login', { token: null })
+    server.use(http.post('/api/auth/login', () => HttpResponse.json(
+      { error: { code: 'invalid_credentials', message: '用户名或密码错误' } }, { status: 401 },
+    )))
+    expect(await screen.findByRole('heading', { level: 1, name: '登录' })).toBeInTheDocument()
+    await fillAndSubmit(user, '登录')
+    expect(await screen.findByRole('alert')).toHaveTextContent('用户名或密码错误')
+
+    const cached = () => JSON.stringify(queryClient.getMutationCache().getAll().map((mutation) => mutation.state))
+    await waitFor(() => expect(cached()).not.toContain(TEST_PASSWORD))
   })
 })

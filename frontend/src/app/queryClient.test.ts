@@ -18,4 +18,10 @@ describe('query client', () => {
     expect(queries?.refetchOnWindowFocus).toBe(false)
     expect(queries?.retry).toBe(shouldRetry)
   })
+
+  it('sends requests even when the browser reports offline', () => {
+    const defaults = createQueryClient().getDefaultOptions()
+    expect(defaults.queries?.networkMode).toBe('always')
+    expect(defaults.mutations?.networkMode).toBe('always')
+  })
 })

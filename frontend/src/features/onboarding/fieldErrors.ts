@@ -1,6 +1,7 @@
 // 把后端的错误归到表单字段上（不是业务判断：说明原文照搬，只决定显示在哪个字段下面）。
 // validation_error 的 details 按字段名归位，字段名取 field 的最后一段（列表下标跳过：food_avoidances.2 归到 food_avoidances）；
 // username_taken 归到用户名；其余错误（包括 invalid_credentials）归到整个表单。
+import { useEffect, type RefObject } from 'react'
 import { ApiError } from '../../api/errors'
 
 /** 不属于某个字段、显示在表单上的错误放在这个键下 */
@@ -56,4 +57,15 @@ export function otherErrors(
   return Object.entries(errors)
     .filter(([key]) => !shown.includes(key))
     .map(([key, message]) => (labels[key] ? `${labels[key]}：${message}` : message))
+}
+
+/**
+ * 提交失败后把焦点移到 root 里第一个出错的字段（aria-invalid="true"），读屏随之读出它的说明；
+ * 没有字段出错时焦点留在原处，表单级错误由 FormError 的 role="alert" 播报。
+ */
+export function useFocusFirstInvalid(errors: Record<string, string>, root: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    if (Object.keys(errors).length === 0) return
+    root.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  }, [errors, root])
 }

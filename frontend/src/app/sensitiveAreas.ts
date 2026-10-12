@@ -20,8 +20,8 @@ export const SENSITIVE_AREAS = {
   cycle: ['content'],
   /** 我的：全部档案内容与两个开关 */
   me: ['profile', 'switches'],
-  /** 修改档案：全部档案内容与两个开关 */
-  profileEdit: ['profile', 'switches'],
+  /** 修改档案：全部档案内容（设计稿 13b 没有开关，两个开关只在“我的”） */
+  profileEdit: ['profile'],
   /** 记一次训练：顶部的运动限制 */
   workoutNew: ['constraints'],
 } as const

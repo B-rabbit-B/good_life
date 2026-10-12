@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, onTestFinished } from 'vitest'
@@ -114,5 +114,22 @@ describe('me page', () => {
     // 页面卸载后才清缓存：还挂着的“我的”页不会不带令牌重新请求
     await waitFor(() => expect(queryClient.getQueryCache().getAll()).toHaveLength(0))
     expect(withoutToken).toBe(0)
+  })
+
+  it('clears the cache when the user leaves before logout finishes', async () => {
+    const user = userEvent.setup()
+    const { router, queryClient } = renderRoute('/me')
+    server.use(http.post('/api/auth/logout', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      return new HttpResponse(null, { status: 204 })
+    }))
+    await user.click(await screen.findByRole('button', { name: '退出登录' }))
+    // 退出请求还没回来，用户已经去了别的页（“我的”先卸载）
+    await act(async () => {
+      await router.navigate('/records')
+    })
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'), { timeout: 3000 })
+    expect(getToken()).toBeNull()
+    await waitFor(() => expect(queryClient.getQueryCache().getAll()).toHaveLength(0))
   })
 })
