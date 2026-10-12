@@ -5,7 +5,7 @@
 /* 瓷胎：密集数据一律放在不透明面板上；一屏只有少数几块，组内用细线分行 */
 .plate{background:var(--plate-face);box-shadow:var(--plate-edge)}
 .plate{margin:12px var(--plate-x) 0;padding:4px var(--plate-pad);border-radius:var(--r-4);position:relative}
-.plate>:last-child{border-bottom:0}
+.plate>:last-child,.plate>.sens>:last-child{border-bottom:0}
 
 /* 静玻璃：开场卡、系统附注。在滚动列表里，不用 backdrop-filter */
 .still{background:var(--still-tint);box-shadow:var(--still-edge)}

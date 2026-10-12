@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Button } from './Button'
 import { Sheet } from './Sheet'
 import { ToastProvider, useToast } from './Toast'
@@ -66,6 +66,42 @@ describe('Sheet', () => {
     expect(dialog).toHaveAttribute('data-entering')
     fireEvent.transitionEnd(dialog)
     expect(dialog).not.toHaveAttribute('data-entering')
+  })
+
+  it('keeps the root marked until the exit animation ends', async () => {
+    // jsdom 没有 Web Animations：给退出中的遮罩层（data-exiting）造一个进行中的动画，由测试决定何时结束
+    let finish: () => void = () => {}
+    const finished = new Promise<void>((resolve) => { finish = resolve })
+    const exiting = { playState: 'running', finished }
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'getAnimations')
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+      configurable: true,
+      value(this: HTMLElement) {
+        return this.hasAttribute('data-exiting') ? [exiting] : []
+      },
+    })
+    vi.stubGlobal('CSSTransition', class {})
+    try {
+      renderHarness()
+      await userEvent.click(screen.getByRole('button', { name: '打开面板' }))
+      await screen.findByRole('dialog')
+      expect(document.documentElement).toHaveAttribute('data-sheet-open')
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(document.querySelector('.sheet-layer')).toHaveAttribute('data-exiting'))
+      // 退出动画进行中：面板还在，外壳仍不模糊，轻提示也不显示
+      expect(screen.getByRole('dialog', { hidden: true })).toBeInTheDocument()
+      expect(document.documentElement).toHaveAttribute('data-sheet-open')
+      await userEvent.click(screen.getByRole('button', { name: '提示', hidden: true }))
+      expect(screen.queryByText('已保存')).not.toBeInTheDocument()
+      finish()
+      await waitFor(() => expect(screen.queryByRole('dialog', { hidden: true })).not.toBeInTheDocument())
+      expect(document.documentElement).not.toHaveAttribute('data-sheet-open')
+      expect(screen.getByText('已保存')).toBeInTheDocument()
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'getAnimations', original)
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).getAnimations
+      vi.unstubAllGlobals()
+    }
   })
 
   it('hides toasts while open', async () => {

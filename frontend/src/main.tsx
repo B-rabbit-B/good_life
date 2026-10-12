@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import { CoverProvider } from './components/cover'
+import { Field } from './components/Field'
 import { GlassModeProvider } from './components/glass/GlassModeProvider'
 import { ToastProvider } from './components/Toast'
 import './styles/fonts.css'
@@ -36,6 +37,7 @@ if (galleryEnabled && window.location.pathname === '/dev/gallery') {
 } else {
   root.render(
     <StrictMode>
+      <Field />
       <main>good-life</main>
     </StrictMode>,
   )

@@ -15,6 +15,9 @@ function SheetBody({ titleKey, children, footer }: { titleKey: TitleKey; childre
   const titleId = useId()
   const dialogRef = useRef<HTMLElement>(null)
   const [phase, setPhase] = useState<Phase>('pre')
+  // 挂在面板内容上而不是 isOpen 上：React Aria 等遮罩层的退出动画结束才卸载内容，
+  // 所以关闭的 200 毫秒里外壳仍不模糊，轻提示也不出现（同屏模糊层不超预算）
+  useSheetGlass(true)
 
   // 第一帧画在起点（实色、在屏幕下面、遮罩透明），下一帧去掉起点让过渡开始；滑入结束后去掉 data-entering，磨砂淡入
   useLayoutEffect(() => {
@@ -65,7 +68,7 @@ function SheetBody({ titleKey, children, footer }: { titleKey: TitleKey; childre
 /**
  * 底部面板：React Aria ModalOverlay、Modal、Dialog（焦点锁定、背景滚动锁定、Esc 关闭）。
  * 遮罩 --scrim 只压暗不模糊；没有拖动把手，只能用 Esc 或按钮关闭。滑入时是实色（data-entering），
- * 停稳后磨砂只过渡底色淡入；打开期间根节点带 data-sheet-open，遮罩下的外壳关模糊、轻提示隐藏。
+ * 停稳后磨砂只过渡底色淡入；从打开到退出动画结束，根节点带 data-sheet-open，遮罩下的外壳关模糊、轻提示隐藏。
  */
 export function Sheet({ isOpen, onClose, titleKey, children, footer }: {
   isOpen: boolean
@@ -74,7 +77,6 @@ export function Sheet({ isOpen, onClose, titleKey, children, footer }: {
   children: ReactNode
   footer?: ReactNode
 }) {
-  useSheetGlass(isOpen)
   return (
     <ModalOverlay
       isOpen={isOpen}

@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/errors'
 import { ConfirmSheet } from './ConfirmSheet'
@@ -68,8 +69,41 @@ describe('ConfirmSheet', () => {
 
   it('shows the backend message and code on failure', () => {
     renderSheet({ error: new ApiError(409, 'item_state_conflict', '这条医嘱已经不是生效中，请刷新后再试。') })
-    expect(screen.getByText('这条医嘱已经不是生效中，请刷新后再试。')).toBeInTheDocument()
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('这条医嘱已经不是生效中，请刷新后再试。')
+    expect(alert).toHaveTextContent('错误码 item_state_conflict')
     expect(screen.getByText('错误码 item_state_conflict')).toBeInTheDocument()
+  })
+
+  it('swallows a rejected confirm, shows the error and enables the button again', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      function Harness() {
+        const [error, setError] = useState<ApiError | null>(null)
+        // 像页面传 mutation.mutateAsync 一样：失败时记下错误再抛出
+        const onConfirm = () => {
+          const failure = new ApiError(409, 'item_state_conflict', '这条医嘱已经不是生效中，请刷新后再试。')
+          setError(failure)
+          return Promise.reject(failure)
+        }
+        return (
+          <ConfirmSheet isOpen onClose={() => {}} titleKey="confirmSheet" confirmLabel="确认生效"
+            onConfirm={onConfirm} error={error} />
+        )
+      }
+      render(<Harness />)
+      const confirm = screen.getByRole('button', { name: '确认生效' })
+      await userEvent.click(confirm)
+      expect(await screen.findByRole('alert')).toHaveTextContent('错误码 item_state_conflict')
+      await vi.waitFor(() => expect(confirm).not.toHaveAttribute('aria-disabled'))
+      expect(confirm).toBeEnabled()
+      // 给 Node 一轮机会报告未处理的拒绝
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
   })
 
   it('runs the secondary action', async () => {

@@ -26,7 +26,8 @@
 /* 减弱动效：只淡入，不位移 */
 @media (prefers-reduced-motion: reduce){
   .sheet[data-pre]{transform:none;opacity:0}
-  .sheet-layer[data-exiting] .sheet{animation:none}
+  /* 不做退出动画：React Aria 立即卸载，data-sheet-open 也随之立即去掉 */
+  .sheet-layer[data-exiting],.sheet-layer[data-exiting] .sheet{animation:none}
 }
 
 @media (forced-colors:active){

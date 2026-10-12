@@ -1,7 +1,8 @@
 /* 重置与基础排版：对照设计稿 .app 的产品界面规则（第 98 至 104、175 至 191 行），去掉展示页外框 */
 *,*::before,*::after{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;text-size-adjust:100%;background:#ECF2FB}
-body{margin:0;min-height:100vh;background:#F7FAFE;color:var(--ink);font-family:var(--font-sans);font-size:var(--fs-16);line-height:1.7;line-break:strict;text-spacing-trim:trim-start;hanging-punctuation:allow-end;-webkit-tap-highlight-color:transparent}
+/* 底色放在 html 上（画在画布上）、body 透明：否则 body 自己的底色会盖住 z-index:-1 的背景场 */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;background:#F7FAFE}
+body{margin:0;min-height:100vh;background:transparent;color:var(--ink);font-family:var(--font-sans);font-size:var(--fs-16);line-height:1.7;line-break:strict;text-spacing-trim:trim-start;hanging-punctuation:allow-end;-webkit-tap-highlight-color:transparent}
 p,li{text-wrap:pretty}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer}
 input,textarea,select{font:inherit;color:inherit}

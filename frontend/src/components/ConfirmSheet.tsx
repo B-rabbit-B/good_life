@@ -35,7 +35,8 @@ function ConfirmBody({ quote, will, confirmLabel, confirmVariant, ack, secondary
   const confirm = () => {
     if (pending) return
     setPending(true)
-    void onConfirm().finally(() => setPending(false))
+    // 失败由调用方通过 error 显示；这里吞掉拒绝，免得成为未处理的 Promise 拒绝（例如传入 mutation.mutateAsync）
+    void onConfirm().catch(() => {}).finally(() => setPending(false))
   }
   return (
     <>
@@ -48,7 +49,7 @@ function ConfirmBody({ quote, will, confirmLabel, confirmVariant, ack, secondary
       )}
       {ack && <Checkbox isSelected={acked} onChange={setAcked}>{ack}</Checkbox>}
       {error && (
-        <div className="err">
+        <div className="err" role="alert">
           <Icon name="alert" size={18} />
           <span>{error.message}<small>错误码 {error.code}</small></span>
         </div>

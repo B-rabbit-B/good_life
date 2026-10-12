@@ -11,7 +11,10 @@ const HIT44_EXTEND = 4
 const COVER_NAME = '遮盖敏感内容'
 const UNCOVER_NAME = '已遮盖，点按恢复显示'
 
-/** 可见的可交互元素宽高都不小于 44；带 data-hit44 的允许视觉高 36，但 ::before 要上下各外扩至少 4 像素。 */
+/**
+ * 可见的可交互元素宽高都不小于 44；带 data-hit44 的允许视觉高 36，但 ::before 要上下各外扩至少 4 像素。
+ * 只给读屏用的隐藏原生控件（React Aria 的单选、勾选、开关）改量包着它的 label，标签同样不小于 44。
+ */
 export async function expectTouchTargets(page: Page): Promise<void> {
   const problems = await page.evaluate(
     ({ selector, min, hitVisualMin, extend }) => {
@@ -29,13 +32,29 @@ export async function expectTouchTargets(page: Page): Promise<void> {
         return false
       }
       const out: string[] = []
+      const measuredLabels = new Set<Element>()
       for (const el of Array.from(document.querySelectorAll(selector))) {
         if (el instanceof HTMLInputElement && el.type === 'hidden') continue
         const style = getComputedStyle(el)
         const rect = el.getBoundingClientRect()
-        // 1 像素以内的是只给读屏用的隐藏控件（例如 React Aria 的原生单选框），不算触控目标
-        if (style.display === 'none' || style.visibility === 'hidden' || rect.width <= 1 || rect.height <= 1) continue
-        if (insideVisuallyHidden(el)) continue
+        if (style.display === 'none' || style.visibility === 'hidden') continue
+        // 只给读屏用的隐藏控件（1 像素以内，或在 1 × 1 的隐藏外层里）本身不算触控目标：
+        // 手指点的是包着它的可见标签（.opt、.chk、.tg-row），所以改为量这个标签
+        if (rect.width <= 1 || rect.height <= 1 || insideVisuallyHidden(el)) {
+          const label = el.closest('label')
+          if (!label) {
+            out.push(`${describe(el)}：隐藏的控件没有可点的可见标签`)
+            continue
+          }
+          if (measuredLabels.has(label)) continue
+          measuredLabels.add(label)
+          const box = label.getBoundingClientRect()
+          if (box.width < min || box.height < min) {
+            out.push(`${describe(el)} 的标签 <label${label.className ? `.${label.className.split(' ').join('.')}` : ''}>：`
+              + `${box.width.toFixed(1)}×${box.height.toFixed(1)}`)
+          }
+          continue
+        }
         if (!el.hasAttribute('data-hit44')) {
           if (rect.width < min || rect.height < min) {
             out.push(`${describe(el)}：${rect.width.toFixed(1)}×${rect.height.toFixed(1)}`)

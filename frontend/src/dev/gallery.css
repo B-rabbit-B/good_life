@@ -49,6 +49,7 @@
 .gal-ledger-big{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}
 .gal-ledger-big .ns{font-size:var(--fs-44);line-height:1;letter-spacing:-.015em}
 .gal-ledger-big>span:not(.ns){font-size:var(--fs-14);color:var(--ink-3);white-space:nowrap}
+.gal-ledger-big>span .ns{font-size:1.0625rem;color:var(--ink-2);letter-spacing:0}
 .gal-ledger-rem{text-align:right;font-size:.8125rem;color:var(--ink-3);line-height:1.4;white-space:nowrap}
 .gal-ledger-rem .ns{display:block;font-size:var(--fs-22);color:var(--accent)}
 
@@ -98,7 +99,6 @@
 
 /* 医嘱条目（遮盖面板用的示例内容） */
 .gmo{padding:16px 0 14px;border-bottom:1px solid var(--line)}
-.gmo:last-child{border-bottom:0}
 .gmo-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
 .gmo-cat{font-size:var(--fs-12);color:var(--ink-3);letter-spacing:.04em}
 .gmo-st{font-size:var(--fs-12);font-weight:600;color:var(--ink-2);white-space:nowrap}
