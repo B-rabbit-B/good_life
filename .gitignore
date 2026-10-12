@@ -8,3 +8,11 @@ __pycache__/
 docs/superpowers/design/step11/shots/
 docs/superpowers/design/step11/review-shots/
 docs/superpowers/design/step11/review-shots-glass/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-e2e/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/.font-cache/
+frontend/e2e/.fixtures/

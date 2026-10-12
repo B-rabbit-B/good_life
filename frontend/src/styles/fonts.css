@@ -1,0 +1,35 @@
+/* 由 pnpm fonts（scripts/subset-fonts.mjs）生成，不要手改 */
+@font-face {
+  font-family: 'GL Serif';
+  src: url('/fonts/gl-serif-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'GL Num';
+  src: url('/fonts/gl-num-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 字体到达前的回退：系统黑体按网页字体的度量对齐，换字体时不跳动 */
+@font-face {
+  font-family: 'GL Serif Fallback';
+  src: local("PingFang SC"), local("Microsoft YaHei"), local("Noto Sans CJK SC");
+  font-weight: 700;
+  ascent-override: 115.10%;
+  descent-override: 28.60%;
+  size-adjust: 100.00%;
+}
+
+@font-face {
+  font-family: 'GL Num Fallback';
+  src: local("PingFang SC"), local("Microsoft YaHei"), local("Noto Sans CJK SC");
+  font-weight: 500;
+  ascent-override: 114.85%;
+  descent-override: 37.14%;
+  size-adjust: 90.21%;
+}

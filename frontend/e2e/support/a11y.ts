@@ -1,0 +1,188 @@
+// 自写的版式与无障碍断言（不用 axe-core：它是 MPL-2.0）。
+import { expect, type Page } from '@playwright/test'
+
+const INTERACTIVE = [
+  'a', 'button', 'input', 'select', 'textarea',
+  ...['button', 'tab', 'radio', 'checkbox', 'switch', 'slider', 'link'].map((role) => `[role="${role}"]`),
+].join(', ')
+const MIN_TARGET = 44
+const HIT44_VISUAL_MIN = 36
+const HIT44_EXTEND = 4
+const COVER_NAME = '遮盖敏感内容'
+const UNCOVER_NAME = '已遮盖，点按恢复显示'
+
+/** 可见的可交互元素宽高都不小于 44；带 data-hit44 的允许视觉高 36，但 ::before 要上下各外扩至少 4 像素。 */
+export async function expectTouchTargets(page: Page): Promise<void> {
+  const problems = await page.evaluate(
+    ({ selector, min, hitVisualMin, extend }) => {
+      const px = (value: string) => (value.endsWith('px') ? Number.parseFloat(value) : Number.NaN)
+      const describe = (el: Element) => {
+        const label = el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 20) ?? ''
+        return `<${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}> ${label}`
+      }
+      const out: string[] = []
+      for (const el of Array.from(document.querySelectorAll(selector))) {
+        if (el instanceof HTMLInputElement && el.type === 'hidden') continue
+        const style = getComputedStyle(el)
+        const rect = el.getBoundingClientRect()
+        // 1 像素以内的是只给读屏用的隐藏控件（例如 React Aria 的原生单选框），不算触控目标
+        if (style.display === 'none' || style.visibility === 'hidden' || rect.width <= 1 || rect.height <= 1) continue
+        if (!el.hasAttribute('data-hit44')) {
+          if (rect.width < min || rect.height < min) {
+            out.push(`${describe(el)}：${rect.width.toFixed(1)}×${rect.height.toFixed(1)}`)
+          }
+          continue
+        }
+        const before = getComputedStyle(el, '::before')
+        const top = px(before.top)
+        const bottom = px(before.bottom)
+        const left = Number.isNaN(px(before.left)) ? 0 : Math.min(0, px(before.left))
+        const right = Number.isNaN(px(before.right)) ? 0 : Math.min(0, px(before.right))
+        const width = rect.width - left - right
+        const ok = before.content !== 'none' && rect.height >= hitVisualMin && top <= -extend && bottom <= -extend
+          && width >= min
+        if (!ok) {
+          out.push(`${describe(el)}（data-hit44）：视觉 ${rect.width.toFixed(1)}×${rect.height.toFixed(1)}，`
+            + `::before top ${before.top} bottom ${before.bottom} content ${before.content}`)
+        }
+      }
+      return out
+    },
+    { selector: INTERACTIVE, min: MIN_TARGET, hitVisualMin: HIT44_VISUAL_MIN, extend: HIT44_EXTEND },
+  )
+  expect(problems, '触控目标小于 44').toEqual([])
+}
+
+/** 全部可见文字节点的计算字号不小于 min 像素。 */
+export async function expectMinFontSize(page: Page, min: number): Promise<void> {
+  const problems = await page.evaluate((minSize) => {
+    const out: string[] = []
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent?.trim() ?? ''
+      const parent = node.parentElement
+      if (!text || !parent) continue
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      const visible = Array.from(range.getClientRects()).some((r) => r.width > 0 && r.height > 0)
+      const style = getComputedStyle(parent)
+      if (!visible || style.visibility === 'hidden') continue
+      const size = Number.parseFloat(style.fontSize)
+      if (size < minSize) out.push(`${size}px：${text.slice(0, 20)}`)
+    }
+    return out
+  }, min)
+  expect(problems, `字号小于 ${min} 像素`).toEqual([])
+}
+
+/** 页面没有横向滚动。 */
+export async function expectNoHorizontalScroll(page: Page): Promise<void> {
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }))
+  expect(scrollWidth, '页面出现横向滚动').toBeLessThanOrEqual(clientWidth)
+}
+
+async function sensitiveState(page: Page) {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('[data-sensitive]')).map((el) => {
+      const after = getComputedStyle(el, '::after')
+      return {
+        ariaHidden: el.getAttribute('aria-hidden'),
+        inert: el.hasAttribute('inert'),
+        content: after.content,
+        backgroundColor: after.backgroundColor,
+        backgroundImage: after.backgroundImage,
+        filter: after.filter,
+        backdropFilter: after.backdropFilter || 'none',
+        webkitBackdropFilter: (after as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter
+          || 'none',
+      }
+    }),
+  )
+}
+
+const opaque = (color: string) => {
+  const match = color.match(/rgba?\(([^)]+)\)/)
+  if (!match?.[1]) return false
+  const parts = match[1].split(/[\s,/]+/).filter(Boolean)
+  return parts.length < 4 || Number.parseFloat(parts[3] ?? '1') === 1
+}
+
+/**
+ * 点遮盖后每个 [data-sensitive] 都有 aria-hidden="true" 与 inert，::after 是不透明斜纹且没有任何滤镜；
+ * 连按 Tab 焦点不会进入敏感区；再点恢复。
+ */
+export async function expectCoverWorks(page: Page): Promise<void> {
+  expect(await page.locator('[data-sensitive]').count(), '页面上没有敏感区').toBeGreaterThan(0)
+  await page.getByRole('button', { name: COVER_NAME, exact: true }).first().click()
+  await expect.poll(async () => (await sensitiveState(page)).every((s) => s.ariaHidden === 'true' && s.inert)).toBe(true)
+
+  for (const state of await sensitiveState(page)) {
+    expect(state.content, '遮盖层 ::after 没有内容').not.toBe('none')
+    expect(opaque(state.backgroundColor), `遮盖层底色不是不透明的：${state.backgroundColor}`).toBe(true)
+    expect(state.backgroundImage, '遮盖层不是斜纹').toContain('linear-gradient')
+    expect([state.filter, state.backdropFilter, state.webkitBackdropFilter]).toEqual(['none', 'none', 'none'])
+  }
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  for (let i = 0; i < 40; i += 1) {
+    await page.keyboard.press('Tab')
+    const inside = await page.evaluate(() => document.activeElement?.closest('[data-sensitive]') != null)
+    expect(inside, '焦点进入了被遮盖的敏感区').toBe(false)
+  }
+
+  await page.getByRole('button', { name: UNCOVER_NAME, exact: true }).first().click()
+  await expect.poll(async () => (await sensitiveState(page)).every((s) => s.ariaHidden !== 'true' && !s.inert))
+    .toBe(true)
+}
+
+/** 外壳（[data-tier="chrome"]）的模糊：on 时含 blur(16px)，off 时为 none。 */
+export async function expectGlass(page: Page, on: boolean): Promise<void> {
+  const filters = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('[data-tier="chrome"]')).map((el) => {
+      const style = getComputedStyle(el) as CSSStyleDeclaration & { webkitBackdropFilter?: string }
+      return style.backdropFilter || style.webkitBackdropFilter || 'none'
+    }),
+  )
+  expect(filters.length, '页面上没有外壳层').toBeGreaterThan(0)
+  for (const filter of filters) {
+    if (on) expect(filter).toContain('blur(16px)')
+    else expect(filter).toBe('none')
+  }
+}
+
+/** 强制颜色模式的冒烟检查（只在 Chromium）：按钮有实线边框、导航当前项有描边、就医提示 3 像素边框。 */
+export async function expectForcedColorsSmoke(page: Page): Promise<void> {
+  if (page.context().browser()?.browserType().name() !== 'chromium') return
+  await page.emulateMedia({ forcedColors: 'active' })
+  try {
+    const found = await page.evaluate(() => {
+      const visible = (el: Element) => el.getBoundingClientRect().width > 0
+      const buttons = Array.from(document.querySelectorAll('.btn')).filter(visible).map((el) => {
+        const style = getComputedStyle(el)
+        return { style: style.borderTopStyle, width: Number.parseFloat(style.borderTopWidth) }
+      })
+      const current = Array.from(document.querySelectorAll('.rnav a[aria-current="page"]')).filter(visible).map((el) => {
+        const style = getComputedStyle(el, '::before')
+        return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth) }
+      })
+      const care = Array.from(document.querySelectorAll('.care')).filter(visible)
+        .map((el) => Number.parseFloat(getComputedStyle(el).borderTopWidth))
+      return { buttons, current, care }
+    })
+    expect(found.buttons.length + found.current.length + found.care.length, '页面上没有可检查的元素').toBeGreaterThan(0)
+    for (const button of found.buttons) {
+      expect(button.style, '.btn 在强制颜色下没有实线边框').toBe('solid')
+      expect(button.width).toBeGreaterThan(0)
+    }
+    for (const item of found.current) {
+      expect(item.style, '导航当前项在强制颜色下没有描边').not.toBe('none')
+      expect(item.width).toBeGreaterThan(0)
+    }
+    for (const width of found.care) expect(width, '就医提示在强制颜色下不是 3 像素边框').toBe(3)
+  } finally {
+    await page.emulateMedia({ forcedColors: 'none' })
+  }
+}
