@@ -80,7 +80,8 @@ const deviceMemory = () => (navigator as Navigator & { deviceMemory?: number }).
 
 /**
  * 在根节点设 data-glass="on|off"。off 的来源：系统 prefers-reduced-transparency、“减少透明”设置、低端机判定；
- * 设置永远优先。系统跟随时才做低端探测（getScroller 默认监听整个文档的滚动）。
+ * 设置永远优先。系统跟随时才做低端探测（getScroller 默认监听整个文档的滚动，捕获阶段也收得到外壳滚动容器的滚动）；
+ * 浏览器自动化下不探测。
  */
 export function GlassModeProvider({ children, getScroller = () => document }: {
   children: ReactNode
@@ -97,7 +98,9 @@ export function GlassModeProvider({ children, getScroller = () => document }: {
   }, [glass])
   useLayoutEffect(() => () => document.documentElement.removeAttribute('data-glass'), [])
 
-  const probing = pref === 'system' && !systemReduce
+  // 浏览器自动化（Playwright 等，navigator.webdriver 为真）下不探测：测试机的帧时间不代表真实设备，
+  // 探测结果还会让同一套测试时而有玻璃、时而没有。真实用户的浏览器里 webdriver 为假，照常探测。
+  const probing = pref === 'system' && !systemReduce && !navigator.webdriver
   useEffect(() => {
     if (!probing || !needsProbe(readStoredVerdict(), key, Date.now())) return undefined
     return startLowEndProbe({ getScroller, key, onVerdict: setLowEnd })

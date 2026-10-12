@@ -54,14 +54,21 @@ describe('form fields', () => {
     }
     render(<Tags />)
     expect(screen.getByRole('grid', { name: '饮食偏好' })).toBeInTheDocument()
-    // React Aria 把删除键与整行一起命名（“移除清淡 清淡”）
-    await userEvent.click(screen.getByRole('button', { name: /^移除清淡/ }))
+    await userEvent.click(screen.getByRole('button', { name: '移除清淡' }))
     expect(screen.queryByText('清淡')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '添加' }))
     const input = screen.getByRole('textbox', { name: '添加饮食偏好' })
     await userEvent.type(input, '高蛋白{Enter}')
     expect(screen.getByText('高蛋白')).toBeInTheDocument()
     expect(screen.getByText('少油')).toBeInTheDocument()
+  })
+
+  it('names each remove button by its tag alone', () => {
+    render(<TagField label="饮食偏好" tags={['清淡', '少油']} onChange={() => {}} />)
+    // getByRole 的 name 是整串精确匹配：React Aria 默认把删除键与整行一起命名成“移除清淡 清淡”
+    expect(screen.getByRole('button', { name: '移除清淡' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '移除少油' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /清淡 清淡/ })).not.toBeInTheDocument()
   })
 
   it('uses native select and date inputs', () => {

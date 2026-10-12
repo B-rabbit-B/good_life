@@ -1,0 +1,136 @@
+import { http, HttpResponse } from 'msw'
+import { describe, expect, it, vi } from 'vitest'
+import { server } from '../test/msw/server'
+import { api, ApiError, onUnauthorized } from './client'
+import { getToken, setToken, TOKEN_KEY } from './token'
+
+async function caught(promise: Promise<unknown>): Promise<ApiError> {
+  try {
+    await promise
+  } catch (error) {
+    if (error instanceof ApiError) return error
+    throw error
+  }
+  throw new Error('expected the request to fail')
+}
+
+describe('api client', () => {
+  it('sends the bearer token', async () => {
+    setToken('tok-1')
+    let seen: string | null = null
+    server.use(http.get('/api/auth/me', ({ request }) => {
+      seen = request.headers.get('Authorization')
+      return HttpResponse.json({ id: 'u1' })
+    }))
+    await expect(api('/api/auth/me')).resolves.toEqual({ id: 'u1' })
+    expect(seen).toBe('Bearer tok-1')
+  })
+
+  it('sends json bodies with the json content type', async () => {
+    let seen: { type: string | null; body: unknown } | null = null
+    server.use(http.post('/api/disclaimer/accept', async ({ request }) => {
+      seen = { type: request.headers.get('Content-Type'), body: await request.json() }
+      return HttpResponse.json({ accepted: true })
+    }))
+    await api('/api/disclaimer/accept', { method: 'POST', json: { version: 'v1' } })
+    expect(seen).toEqual({ type: 'application/json', body: { version: 'v1' } })
+  })
+
+  it('parses the unified error body with details', async () => {
+    server.use(http.patch('/api/profile', () => HttpResponse.json({
+      error: { code: 'validation_error', message: '请求参数不合法', details: [{ field: 'height_cm', message: '太高了' }] },
+    }, { status: 422 })))
+    const error = await caught(api('/api/profile', { method: 'PATCH', json: { height_cm: 400 } }))
+    expect(error.status).toBe(422)
+    expect(error.code).toBe('validation_error')
+    expect(error.message).toBe('请求参数不合法')
+    expect(error.details).toEqual([{ field: 'height_cm', message: '太高了' }])
+  })
+
+  it('maps a non json error to http_error', async () => {
+    server.use(http.get('/api/auth/me', () => new HttpResponse('<html>bad gateway</html>', {
+      status: 502, headers: { 'Content-Type': 'text/html' },
+    })))
+    const error = await caught(api('/api/auth/me'))
+    expect(error.status).toBe(502)
+    expect(error.code).toBe('http_error')
+    expect(error.message).toBe('服务暂时不可用，请稍后再试（HTTP 502）')
+  })
+
+  it('maps a network failure to network_error', async () => {
+    server.use(http.get('/api/auth/me', () => HttpResponse.error()))
+    const error = await caught(api('/api/auth/me'))
+    expect(error.status).toBe(0)
+    expect(error.code).toBe('network_error')
+    expect(error.message).toBe('网络连接失败，请检查网络后重试')
+  })
+
+  it('clears the token and notifies on invalid_token', async () => {
+    setToken('stale')
+    const listener = vi.fn()
+    const stop = onUnauthorized(listener)
+    server.use(http.get('/api/profile', () => HttpResponse.json(
+      { error: { code: 'invalid_token', message: '登录已失效，请重新登录' } }, { status: 401 },
+    )))
+    const error = await caught(api('/api/profile'))
+    stop()
+    expect(error.code).toBe('invalid_token')
+    expect(getToken()).toBeNull()
+    expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull()
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not clear the token on invalid_credentials', async () => {
+    setToken('keep-me')
+    const listener = vi.fn()
+    const stop = onUnauthorized(listener)
+    server.use(http.post('/api/auth/login', () => HttpResponse.json(
+      { error: { code: 'invalid_credentials', message: '用户名或密码错误' } }, { status: 401 },
+    )))
+    const error = await caught(api('/api/auth/login', { method: 'POST', json: { username: 'a', password: 'b' } }))
+    stop()
+    expect(error.code).toBe('invalid_credentials')
+    expect(getToken()).toBe('keep-me')
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('returns undefined for 204', async () => {
+    server.use(http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })))
+    await expect(api('/api/auth/logout', { method: 'POST' })).resolves.toBeUndefined()
+  })
+
+  it('serialises query parameters and skips undefined', async () => {
+    let query = ''
+    server.use(http.get('/api/medical/events', ({ request }) => {
+      query = new URL(request.url).search
+      return HttpResponse.json([])
+    }))
+    await api('/api/medical/events', { query: { limit: 50, client_name: undefined, all: true, q: '低盐 饮食' } })
+    const params = new URLSearchParams(query)
+    expect([...params.keys()]).toEqual(['limit', 'all', 'q'])
+    expect(params.get('limit')).toBe('50')
+    expect(params.get('all')).toBe('true')
+    expect(params.get('q')).toBe('低盐 饮食')
+  })
+
+  it('keeps an aborted request as an abort', async () => {
+    server.use(http.get('/api/auth/me', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      return HttpResponse.json({})
+    }))
+    const controller = new AbortController()
+    const request = api('/api/auth/me', { signal: controller.signal })
+    controller.abort()
+    await expect(request).rejects.not.toBeInstanceOf(ApiError)
+  })
+})
+
+describe('token storage', () => {
+  it('survives a storage that throws', () => {
+    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    expect(getToken()).toBeNull()
+    spy.mockRestore()
+  })
+})

@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { LOW_CONFIDENCE } from '../lib/contract'
+import { CONCLUSION_LABELS } from '../lib/labels'
 import { ConfidenceCells } from './ConfidenceCells'
 import { RefTag } from './RefTag'
 import { VerdictMark } from './VerdictMark'
@@ -44,5 +46,15 @@ describe('marks', () => {
       expect(img).toHaveTextContent(word)
       unmount()
     }
+  })
+
+  it('takes the low threshold and the verdict words from the contract and labels', () => {
+    const { unmount } = render(<ConfidenceCells value={LOW_CONFIDENCE} />)
+    expect(screen.getByRole('img', { name: `把握程度 ${LOW_CONFIDENCE.toFixed(2)}，中` })).toBeInTheDocument()
+    unmount()
+    render(<ConfidenceCells value={LOW_CONFIDENCE - 0.01} />)
+    expect(screen.getByRole('img', { name: /，低$/ })).toBeInTheDocument()
+    render(<VerdictMark conclusion="unchecked" />)
+    expect(screen.getByText(CONCLUSION_LABELS.unchecked)).toHaveClass('vd-un')
   })
 })

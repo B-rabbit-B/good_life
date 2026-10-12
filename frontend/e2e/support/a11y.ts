@@ -1,5 +1,8 @@
 // 自写的版式与无障碍断言（不用 axe-core：它是 MPL-2.0）。
 import { expect, type Page } from '@playwright/test'
+import {
+  compareSensitiveAreas, SENSITIVE_AREA_ATTR, SENSITIVE_PAGE_ATTR, UNNAMED_AREA, type SensitiveArea,
+} from '../../src/app/sensitiveAreas'
 
 const INTERACTIVE = [
   'a', 'button', 'input', 'select', 'textarea',
@@ -217,4 +220,19 @@ export async function expectForcedColorsSmoke(page: Page): Promise<void> {
   } finally {
     await page.emulateMedia({ forcedColors: 'none' })
   }
+}
+
+/**
+ * “本页有敏感区”：页面登记了自己（useSensitivePage），页面上的 Sensitive 正好是登记表（src/app/sensitiveAreas.ts）
+ * 里这一页的区域。expected 是按数据才出现的区域的子集（默认全部）。
+ */
+export async function expectSensitiveAreas(page: Page, expected?: readonly SensitiveArea[]): Promise<void> {
+  const { marker, present } = await page.evaluate(({ pageAttr, areaAttr, unnamed }) => ({
+    marker: document.querySelector(`[${pageAttr}]`)?.getAttribute(pageAttr) ?? null,
+    present: Array.from(document.querySelectorAll('[data-sensitive]')).map((el) => el.getAttribute(areaAttr) ?? unnamed),
+  }), { pageAttr: SENSITIVE_PAGE_ATTR, areaAttr: SENSITIVE_AREA_ATTR, unnamed: UNNAMED_AREA })
+  const result = compareSensitiveAreas(marker, present, expected)
+  expect(result.page, '页面没有登记敏感区').not.toBeNull()
+  expect({ missing: result.missing, unexpected: result.unexpected }, '敏感区与登记表不一致')
+    .toEqual({ missing: [], unexpected: [] })
 }

@@ -1,0 +1,98 @@
+// 接口客户端：每个请求带令牌；统一把后端的 {"error": {"code", "message", "details"}} 解析成 ApiError；
+// 401 且错误码是 not_authenticated 或 invalid_token 时清令牌并通知监听者（外壳据此清缓存、回登录页）。
+// 登录接口的 401 invalid_credentials 不在此列，只由表单提示。
+import { ApiError } from './errors'
+import { clearToken, getToken } from './token'
+
+export { ApiError }
+
+export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+export type ApiQuery = Record<string, string | number | boolean | undefined>
+
+export interface ApiInit {
+  method?: ApiMethod
+  /** 以 JSON 发送（设 Content-Type: application/json） */
+  json?: unknown
+  /** 原样发送（例如 FormData） */
+  body?: BodyInit
+  /** 查询参数；值为 undefined 的项不发送 */
+  query?: ApiQuery
+  signal?: AbortSignal
+}
+
+const SESSION_ENDED = new Set(['not_authenticated', 'invalid_token'])
+const NETWORK_MESSAGE = '网络连接失败，请检查网络后重试'
+const httpMessage = (status: number) => `服务暂时不可用，请稍后再试（HTTP ${status}）`
+
+const unauthorizedListeners = new Set<() => void>()
+
+/** 登录失效（401 not_authenticated 或 invalid_token）时调用 listener；返回取消函数。 */
+export function onUnauthorized(listener: () => void): () => void {
+  unauthorizedListeners.add(listener)
+  return () => {
+    unauthorizedListeners.delete(listener)
+  }
+}
+
+function buildUrl(path: string, query?: ApiQuery): string {
+  const url = new URL(path, window.location.href)
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined) url.searchParams.append(key, String(value))
+  }
+  return url.toString()
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  try {
+    return (await response.json()) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+function toApiError(status: number, body: unknown): ApiError {
+  const error = (body as { error?: unknown } | undefined)?.error as
+    | { code?: unknown; message?: unknown; details?: unknown }
+    | undefined
+  if (error && typeof error.code === 'string' && typeof error.message === 'string') {
+    const details = Array.isArray(error.details) ? (error.details as { field: string; message: string }[]) : undefined
+    return new ApiError(status, error.code, error.message, details)
+  }
+  return new ApiError(status, 'http_error', httpMessage(status))
+}
+
+export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  let body = init.body
+  if (init.json !== undefined) {
+    headers.set('Content-Type', 'application/json')
+    body = JSON.stringify(init.json)
+  }
+
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path, init.query), {
+      method: init.method ?? 'GET', headers, body, signal: init.signal,
+    })
+  } catch (error) {
+    // 主动取消（换页、查询被取消）原样抛出，交给调用方忽略
+    if (init.signal?.aborted) throw error
+    throw new ApiError(0, 'network_error', NETWORK_MESSAGE)
+  }
+
+  if (response.status === 204) return undefined as T
+  const data = await readJson(response)
+  if (response.ok) {
+    if (data === undefined) throw new ApiError(response.status, 'http_error', httpMessage(response.status))
+    return data as T
+  }
+
+  const error = toApiError(response.status, data)
+  if (response.status === 401 && SESSION_ENDED.has(error.code)) {
+    clearToken()
+    for (const listener of [...unauthorizedListeners]) listener()
+  }
+  throw error
+}

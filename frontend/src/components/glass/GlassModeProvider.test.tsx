@@ -1,8 +1,10 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { stubAnimationFrames } from '../../test/frames'
 import { setMediaMatches } from '../../test/setup'
 import { computeGlass, GlassModeProvider, useGlassPreference, useSheetGlass } from './GlassModeProvider'
+import { LOW_END_STORAGE_KEY } from './lowEnd'
 
 const REDUCE = '(prefers-reduced-transparency: reduce)'
 const PREF_KEY = 'goodlife.reduceTransparency'
@@ -28,8 +30,34 @@ function SheetFlag({ open }: { open: boolean }) {
   return null
 }
 
+function setWebdriver(value: boolean) {
+  Object.defineProperty(navigator, 'webdriver', { value, configurable: true })
+}
+
+/** 渲染外壳、走完“load 之后空闲 1.5 秒”，再在滚动容器上连续滚动 70 帧、每帧 30 毫秒（低端机的帧间隔） */
+function scrollSlowly() {
+  vi.useFakeTimers()
+  const frames = stubAnimationFrames()
+  const scroller = document.createElement('div')
+  document.body.appendChild(scroller)
+  render(<GlassModeProvider><p>内容</p></GlassModeProvider>)
+  act(() => {
+    vi.advanceTimersByTime(1500)
+  })
+  act(() => {
+    for (let i = 0; i < 70; i += 1) {
+      scroller.dispatchEvent(new Event('scroll'))
+      frames.frame(30)
+    }
+  })
+  scroller.remove()
+}
+
 afterEach(() => {
   setDeviceMemory(undefined)
+  setWebdriver(false)
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 describe('glass mode', () => {
@@ -79,6 +107,19 @@ describe('glass mode', () => {
     expect(root).toHaveAttribute('data-glass', 'off')
     act(() => setMediaMatches(() => false))
     expect(root).toHaveAttribute('data-glass', 'on')
+  })
+
+  it('turns glass off when real scrolling is slow', () => {
+    scrollSlowly()
+    expect(root).toHaveAttribute('data-glass', 'off')
+    expect(window.localStorage.getItem(LOW_END_STORAGE_KEY)).toContain('"lowEnd":true')
+  })
+
+  it('skips the low-end probe under browser automation', () => {
+    setWebdriver(true)
+    scrollSlowly()
+    expect(root).toHaveAttribute('data-glass', 'on')
+    expect(window.localStorage.getItem(LOW_END_STORAGE_KEY)).toBeNull()
   })
 
   it('marks the root while a sheet is open', () => {
