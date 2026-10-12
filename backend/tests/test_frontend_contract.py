@@ -12,13 +12,16 @@ from types import SimpleNamespace
 from app.agent.assembly import CLIENT_NAME
 from app.agent.guard import NOTICE_HEADER
 from app.agent.loop import FLAG_CLUE, FLAG_FALLBACK, RISK_FLAG_PREFIX
+from app.agent.openings import OPENING_KINDS
 from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES
 from app.agent.schemas import MAX_MESSAGE_CHARS
-from app.medical.items import _due_reason
+from app.errors import AppError
+from app.medical.items import _due_reason, validate_item_dates
 from app.nutrition.engine import PENDING_REVIEW_NOTE, SOURCE_NAMES
 from app.photos.matching import REVIEW_CONFIDENCE, REVIEW_REASONS
 from app.photos.service import MEAL_NOTE
 from app.restaurants.needs import MAX_NEEDS
+from app.sdk.tooling import agent_registry, tool_name
 
 CONTRACT = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "contract.ts"
 HINT = "frontend/src/lib/contract.ts 与后端不一致：按后端的原文更新它"
@@ -39,6 +42,25 @@ def _due_reasons() -> dict[str, str]:
         assert reason is not None, name
         reasons[reason] = "review" if name == "review" else "end"
     assert len(reasons) == 4
+    return reasons
+
+
+def _invalid_date_reasons() -> dict[str, str]:
+    """invalid_item_dates 的两句原文，以及前端把它写在哪个字段下（复查日期 review、预计结束 end）。"""
+    start = date(2026, 10, 12)
+    cases = {
+        "end": (start - timedelta(days=1), None),
+        "review": (None, start - timedelta(days=1)),
+    }
+    reasons = {}
+    for field, (end, review) in cases.items():
+        try:
+            validate_item_dates(start, end, review)
+        except AppError as err:
+            assert err.code == "invalid_item_dates", err.code
+            reasons[err.message] = field
+        else:
+            raise AssertionError(f"{field} 早于生效日期却没有报错")
     return reasons
 
 
@@ -98,3 +120,11 @@ def test_contract_copies_match_the_backend():
     assert _object(text, "SOURCE_NAMES", "[^']+") == SOURCE_NAMES, HINT
     assert _string_list(text, "REVIEW_REASON_CODES") == list(REVIEW_REASONS), HINT
     assert _string_list(text, "RISK_CATEGORIES") == list(RISK_CATEGORIES), HINT
+    assert _string_list(text, "OPENING_KINDS") == list(OPENING_KINDS), HINT
+    assert _object(text, "INVALID_DATE_REASONS", "review|end") == _invalid_date_reasons(), HINT
+
+    # 跳转卡片认的工具名：每个都是站内智能体真有的工具，不重复
+    jump_tools = _string_list(text, "JUMP_TOOLS")
+    assert len(jump_tools) == len(set(jump_tools)), HINT
+    agent_tools = {tool_name(name) for name in agent_registry()}
+    assert set(jump_tools) <= agent_tools, f"{HINT}：{sorted(set(jump_tools) - agent_tools)} 不是智能体的工具"

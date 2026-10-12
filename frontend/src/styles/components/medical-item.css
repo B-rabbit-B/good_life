@@ -1,0 +1,35 @@
+/* 医嘱条目的几行（设计稿第 602 至 619 行）：类别、状态、内容（黑体 500，左侧 2 像素圆头竖线）、右对齐的动作。
+   含数值的文字永不截断：内容只换行。 */
+.mo-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.mo-cat{font-size:var(--fs-12);color:var(--ink-3);letter-spacing:.04em}
+.mo-st{font-size:var(--fs-12);font-weight:600;text-align:right}
+.mo-st.due{color:var(--warn)}
+.mo-st.pend{color:var(--accent)}
+.mo-c{position:relative;font-size:1.0625rem;font-weight:500;line-height:1.55;margin:6px 0 8px;padding-left:12px;overflow-wrap:anywhere}
+.mo-c::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:2px;border-radius:var(--r-pill);background:#6B7A93}
+.acts-r{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;padding:10px 0 6px}
+
+/* 待处理条：页头玻璃里的一条白瓷条；展开的列表是接在它下面的一块不透明白瓷（设计稿第 405 至 417 行） */
+.rv1-wrap{margin:2px var(--plate-x) 6px;border-radius:var(--r-3)}
+.rv1{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 8px 0 12px;border-radius:var(--r-3);background:#fff;box-shadow:0 0 0 1px rgba(14,27,51,.08),0 1px 2px rgba(14,27,51,.06);font-size:var(--fs-14);text-align:left}
+.rv1::before{content:"";width:3px;height:18px;background:var(--warn-line);border-radius:var(--r-pill);flex:none}
+.rv1 .cat{color:var(--ink);font-weight:600;white-space:nowrap}
+.rv1 .st{color:var(--warn);font-weight:600;white-space:nowrap}
+.rv1.is-prop::before{background:var(--accent)}
+.rv1.is-prop .st{color:var(--accent)}
+.rv1 .sp{flex:1}
+.rv1 .ic{color:var(--ink-3);transition:transform var(--d-2) var(--ease-std)}
+.rv1[aria-expanded="true"]{border-radius:var(--r-3) var(--r-3) 0 0;box-shadow:0 0 0 1px rgba(14,27,51,.08)}
+.rv1[aria-expanded="true"] .ic{transform:rotate(180deg)}
+.rvx{padding:0 14px 4px;background:#fff;border-radius:0 0 var(--r-3) var(--r-3);box-shadow:0 0 0 1px rgba(14,27,51,.08),0 10px 24px -16px rgba(14,27,51,.4);border-top:1px solid var(--line)}
+.rvx-i{padding:10px 0 6px;border-bottom:1px solid var(--line)}
+.rvx-i:last-child{border-bottom:0}
+.rvx .mo-c{font-size:var(--fs-16);margin:4px 0}
+.rvx .acts-r{padding-top:6px}
+.prop-by{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0}
+.prop-by .ref{vertical-align:0}
+
+@media (forced-colors:active){
+  .rv1,.rvx{background:Canvas;border:1px solid CanvasText;box-shadow:none}
+  .rv1::before,.mo-c::before{forced-color-adjust:none;background:CanvasText}
+}

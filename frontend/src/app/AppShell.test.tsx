@@ -42,7 +42,11 @@ describe('app shell', () => {
   it('leaves the chat nav to the chat page and pads for its dock', async () => {
     renderRoute('/chat')
     expect(await screen.findByRole('heading', { name: '对话' })).toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: '主导航' })).not.toBeInTheDocument()
+    // 唯一的导航是对话页自己嵌在底座里的那一个，外壳没有再画一个
+    const navs = await screen.findAllByRole('navigation', { name: '主导航' })
+    expect(navs).toHaveLength(1)
+    expect(navs[0]).toHaveClass('embedded')
+    expect(navs[0]?.closest('.slab')).not.toBeNull()
     expect(scroller().style.paddingBottom).toBe('196px')
   })
 

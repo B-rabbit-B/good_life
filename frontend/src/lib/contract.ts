@@ -60,3 +60,20 @@ export const FLAG_CLUE = 'resolution_clue'
 
 /** app.agent.loop.FLAG_FALLBACK：输出检查替换成了固定回复 */
 export const FLAG_FALLBACK = 'guard_fallback'
+
+/** app.agent.openings.OPENING_KINDS：主动开场的类别（按优先级） */
+export const OPENING_KINDS = ['review_due', 'period_soon', 'trained_no_meal_yesterday', 'no_meal_today', 'profile_stale'] as const
+export type OpeningKind = (typeof OPENING_KINDS)[number]
+
+/** 回答下面给“去看看”跳转卡片的智能体工具名（app.sdk.tooling.tool_name，都在 agent_registry 里） */
+export const JUMP_TOOLS = ['nutrition_log_meal', 'fitness_log_workout', 'medical_submit_order', 'cycle_record_period', 'nutrition_nearby_restaurants'] as const
+export type JumpTool = (typeof JUMP_TOOLS)[number]
+
+/**
+ * app.medical.items.validate_item_dates 的两句 invalid_item_dates 原文，映射到出错的字段（复查日期 review、预计结束 end）；
+ * 继续遵守面板据此把说明写在对应字段下面，界面上原样显示原文。
+ */
+export const INVALID_DATE_REASONS: Record<string, 'review' | 'end'> = {
+  '预计结束日期不能早于生效日期': 'end',
+  '复查日期不能早于生效日期': 'review',
+}

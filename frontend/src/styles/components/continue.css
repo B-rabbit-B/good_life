@@ -1,0 +1,22 @@
+/* 继续遵守面板（设计稿 03d，第 343 至 362 行）：两个日期都显示、预填并一起提交；触发复核的一项赭色圆头竖线标出 */
+.cs-quote .mo-c{margin:4px 0 2px}
+.cs-note{margin:12px 0 0}
+.dt-row{padding:10px 0 8px;border-bottom:1px solid rgba(14,27,51,.08)}
+.dt-row.due{position:relative;padding-left:14px}
+.dt-row.due::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--warn-line);border-radius:var(--r-pill)}
+.dt-l{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.dt-l label{font-size:.9375rem;font-weight:700}
+.dt-why{font-size:var(--fs-12);color:var(--ink-3);text-align:right}
+.due .dt-why{color:var(--warn);font-weight:600}
+.dt-v{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+.dt-old{font-size:var(--fs-12);color:var(--ink-3);white-space:nowrap}
+.dt-sel{flex:1;max-width:190px;background:#fff}
+.dt-quick{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 0 -6px}
+.dt-quick .btn-txt[aria-pressed="true"]{font-weight:700;background:var(--accent-wash)}
+.dt-row .err{margin-top:6px}
+.cs-will{margin-top:8px}
+
+@media (forced-colors:active){
+  .dt-row.due::before{forced-color-adjust:none;background:CanvasText}
+  .dt-quick .btn-txt[aria-pressed="true"]{outline:2px solid Highlight}
+}

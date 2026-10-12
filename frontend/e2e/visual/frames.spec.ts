@@ -13,6 +13,10 @@ for (const frame of FRAMES) {
       // 页面按需加载、数据随后才到：等网络静下来、字体到齐再截
       await page.waitForLoadState('networkidle')
       await page.evaluate(() => document.fonts.ready)
+      if (frame.after) {
+        await frame.after(page)
+        await page.evaluate(() => document.fonts.ready)
+      }
       await captureApp(page, frame.id, width)
       await captureDeckFrame(page, frame.id, width)
     })

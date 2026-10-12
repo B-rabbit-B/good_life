@@ -138,19 +138,20 @@ export function seedProposal(
   })
 }
 
-/** 新建一个对话并发一句话（非流式），返回这一轮的回答。 */
+/** 发一句话（非流式），返回这一轮的回答；不给 conversationId 时新建一个对话。 */
 export async function sendMessage(
   request: APIRequestContext,
   token: string,
   text: string,
+  conversationId?: string,
 ): Promise<Schemas['TurnOut'] & { conversation_id: string }> {
-  const conversation = await call<Schemas['ConversationOut']>(request, 'POST', '/api/agent/conversations', {
+  const id = conversationId ?? (await call<Schemas['ConversationOut']>(request, 'POST', '/api/agent/conversations', {
     token, data: {},
-  })
-  const turn = await call<Schemas['TurnOut']>(request, 'POST', `/api/agent/conversations/${conversation.id}/messages`, {
+  })).id
+  const turn = await call<Schemas['TurnOut']>(request, 'POST', `/api/agent/conversations/${id}/messages`, {
     token, data: { text, stream: false },
   })
-  return { ...turn, conversation_id: conversation.id }
+  return { ...turn, conversation_id: id }
 }
 
 /** 以这个令牌登录的身份打开页面：先打开 / 写入令牌，再跳到目标路径。 */

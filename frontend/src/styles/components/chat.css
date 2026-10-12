@@ -1,0 +1,71 @@
+/* 对话：消息流、气泡、附注、开场卡片（设计稿第 404 至 470 行）。
+   用户气泡钴蓝、起点一角 8 在右下；助手气泡白瓷、起点一角 8 在左上；就医提示左右出血到屏幕边，所以消息流本身没有左右内边距。 */
+.msgs{padding-bottom:8px}
+.day{display:table;margin:18px auto 8px;padding:2px 12px;border-radius:var(--r-pill);background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7);font-size:var(--fs-12);line-height:1.6;color:var(--ink-2)}
+.msg-u{margin:20px var(--plate-x) 0 60px;text-align:right;line-height:1.65}
+.msg-u>span{display:inline-block;text-align:left;padding:10px 14px;color:#fff;background:linear-gradient(180deg,var(--accent-hi),#1D54A0);border-radius:var(--r-4) var(--r-4) 8px var(--r-4);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 6px 14px -10px rgba(31,88,168,.8);white-space:pre-wrap;overflow-wrap:anywhere}
+.msg-a{margin:12px var(--plate-x) 0;padding:12px 16px 4px;border-radius:8px var(--r-4) var(--r-4) var(--r-4);background:var(--plate-face);box-shadow:var(--plate-edge)}
+.who{font-size:var(--fs-12);color:var(--ink-3);margin-bottom:4px}
+.ans{margin:0 0 10px;font-size:var(--fs-16);line-height:1.8;white-space:pre-line;overflow-wrap:anywhere}
+.msg-a .thought{margin:0 0 10px}
+.msg-sys{margin:14px 0 0}
+.msg-sys>.who{margin:0 var(--gutter) 6px;color:var(--ink-2)}
+/* “仅供参考”与免责句：在气泡底部 */
+.tip{display:flex;gap:8px;align-items:flex-start;margin-top:4px;padding:8px 0 10px;font-size:.8125rem;color:var(--ink-3);line-height:1.6}
+.tip .ref{flex:none;vertical-align:0}
+/* 依据、附注与“仅供参考”在流完后才淡入并上移 4 像素（减弱动效时由全局规则压到 1 毫秒） */
+.fresh{animation:after-in var(--d-3) var(--ease-out) both}
+@keyframes after-in{from{opacity:0;transform:translateY(4px)}}
+/* 输出检查换成固定回答时：气泡下面一行说明（写在背景场上，用 --ink-2） */
+.fixed-note{margin:6px var(--plate-x) 0 calc(var(--plate-x) + 16px);font-size:var(--fs-12);line-height:1.5;color:var(--ink-2)}
+/* 系统附注的敏感区：圆角跟随便笺，遮盖时斜纹贴合 */
+.note-wrap{margin:10px var(--plate-x) 0 28px;border-radius:var(--r-4)}
+.note-wrap>.slip{margin:0}
+.msgs .plate.jump{margin-top:10px}
+/* 发送失败：说明原文、错误码与重试 */
+.chat-err{display:flex;align-items:flex-start;gap:8px;margin:12px var(--plate-x) 0;padding:12px 14px;border-radius:var(--r-4);background:var(--plate-face);box-shadow:var(--plate-edge);font-size:var(--fs-14);line-height:1.6;color:var(--danger)}
+.chat-err>.ic{margin-top:1px}
+.chat-err>div{flex:1;min-width:0}
+.chat-err p{margin:0;color:var(--ink)}
+.chat-err small{display:block;font-size:var(--fs-12);color:var(--ink-3)}
+/* 没有对话模型 */
+.plate.nomodel{margin-top:16px}
+.nomodel .state{padding:12px 0 16px}
+
+/* 开场卡片：静玻璃，左侧钴蓝圆头竖线；问句是后端原文，黑体 500 */
+.open-wrap{margin:12px var(--plate-x) 0;border-radius:var(--r-4)}
+.open{position:relative;padding:14px 16px 12px 22px;border-radius:var(--r-4)}
+.open::before{content:"";position:absolute;left:10px;top:16px;bottom:16px;width:3px;border-radius:var(--r-pill);background:linear-gradient(180deg,var(--accent-hi),var(--accent))}
+.open .t-cap{display:block;margin-bottom:4px;color:var(--ink-2)}
+.open p{margin:0;font-size:var(--fs-18);font-weight:500;line-height:1.55}
+.open .acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+/* 开场还没取回时预留的位置（取回后由卡片占住，不推动下面的内容） */
+.open-slot{min-height:9.5rem}
+
+/* 对话底座：快捷操作、输入行与导航共用一块活玻璃，左右各 8、下沿 18；高 158（8 + 42 + 50 + 58），与启动外壳一致 */
+.slab{position:fixed;left:8px;right:8px;bottom:var(--float-bottom);z-index:8;border-radius:var(--r-5);padding:8px 6px 0}
+.qa{display:flex;align-items:center;gap:6px;padding:0 4px 6px;font-size:var(--fs-14)}
+.qa a{position:relative;display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:var(--r-pill);color:var(--ink-2);white-space:nowrap;background:rgba(255,255,255,.45);box-shadow:inset 0 0 0 1px rgba(255,255,255,.6),inset 0 0 0 1px rgba(14,27,51,.06)}
+.qa a::before{content:"";position:absolute;top:-4px;bottom:-4px;left:0;right:0}
+.cmp{display:flex;align-items:flex-end;gap:2px;padding:0 0 6px}
+.slab>.cmp:first-child{padding-top:2px}
+.cmp-in{display:block;flex:1;min-width:0;height:44px;max-height:7.75rem;margin:0 4px;padding:10px 16px;border:0;border-radius:var(--r-4);background:rgba(255,255,255,.8);box-shadow:inset 0 0 0 1px var(--line-2),inset 0 1px 2px rgba(14,27,51,.05);font-size:.9375rem;line-height:1.6;color:var(--ink);resize:none;outline:none;overflow-y:auto;scrollbar-width:none}
+.cmp-in::placeholder{color:var(--ink-3);opacity:1}
+.cmp-in:placeholder-shown{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.cmp-in:focus{box-shadow:inset 0 0 0 2px var(--accent);background:#fff}
+.send{flex:none;width:44px;height:44px;border-radius:50%;color:#fff;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(180deg,var(--accent-hi),#1D54A0);box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 4px 10px -6px rgba(31,88,168,.9)}
+.send:disabled{background:rgba(14,27,51,.08);color:var(--ink-2);box-shadow:none;cursor:not-allowed}
+.cmp input[type="file"]{display:none}
+/* iOS 软键盘弹起时（useVisualViewportInset 设 --kb）：底座贴在键盘上沿，导航那一行隐藏 */
+:root[data-kb] .slab{bottom:calc(var(--kb) + 8px)}
+:root[data-kb] .slab .rnav{display:none}
+/* 轻提示让开对话底座 */
+body:has(.slab) .toast-region{bottom:calc(var(--float-bottom) + 170px)}
+
+@media (forced-colors:active){
+  .msg-a,.chat-err{background:Canvas;border:1px solid CanvasText;box-shadow:none}
+  .msg-u>span{border:1px solid CanvasText}
+  .open::before{forced-color-adjust:none;background:CanvasText}
+  .qa a,.send{border:1px solid ButtonText}
+  .cmp-in{border:1px solid CanvasText}
+}
