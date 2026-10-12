@@ -9,6 +9,7 @@ from app.cycle.router import router as cycle_router
 from app.disclaimer.router import router as disclaimer_router
 from app.errors import register_error_handlers
 from app.fitness.router import router as fitness_router
+from app.frontend_static import DEFAULT_DIST, mount_frontend
 from app.llm.router import router as llm_router
 from app.medical.router import router as medical_router
 from app.nutrition.router import router as nutrition_router
@@ -17,8 +18,8 @@ from app.profile.router import router as profile_router
 from app.restaurants.router import router as restaurants_router
 
 
-def create_app() -> FastAPI:
-    get_settings()  # 配置或密钥不合法时启动即失败
+def create_app(*, serve_frontend: bool = True) -> FastAPI:
+    settings = get_settings()  # 配置或密钥不合法时启动即失败
     app = FastAPI(title="good-life API", version="0.1.0")
     register_error_handlers(app)
     app.add_middleware(UploadBodyLimitMiddleware)
@@ -39,6 +40,8 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    if serve_frontend:
+        mount_frontend(app, settings.frontend_dist_dir or DEFAULT_DIST)
     return app
 
 

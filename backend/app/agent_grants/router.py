@@ -53,9 +53,12 @@ def list_grants(user: GrantUser, db: DbSession) -> list[GrantOut]:
 
 @router.get("/audit", response_model=list[AuditOut])
 def list_audits(
-    user: GrantUser, db: DbSession, limit: Annotated[int, Query(ge=1, le=200)] = 50
+    user: GrantUser,
+    db: DbSession,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    client_name: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
 ) -> list[AuditOut]:
-    return [AuditOut.model_validate(a) for a in service.list_audits(db, user.id, limit)]
+    return [AuditOut.model_validate(a) for a in service.list_audits(db, user.id, limit, client_name)]
 
 
 @router.delete("/{grant_id}", status_code=204)

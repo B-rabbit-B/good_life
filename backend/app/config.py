@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     amap_key: str | None = None  # 高德 Web 服务密钥；留空则附近餐厅功能关闭
     amap_base_url: str = "https://restapi.amap.com"
     amap_timeout_seconds: float = 8.0
+    frontend_dist_dir: Path | None = None  # 前端构建目录；留空用仓库里的 frontend/dist，没有构建产物时不提供前端
+
+    @field_validator("frontend_dist_dir", mode="before")
+    @classmethod
+    def _blank_dist_dir_is_none(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("amap_key", mode="before")
     @classmethod
