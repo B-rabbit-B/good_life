@@ -4,3 +4,7 @@ __pycache__/
 .pytest_cache/
 .env
 .superpowers/
+.playwright-mcp/
+docs/superpowers/design/step11/shots/
+docs/superpowers/design/step11/review-shots/
+docs/superpowers/design/step11/review-shots-glass/
