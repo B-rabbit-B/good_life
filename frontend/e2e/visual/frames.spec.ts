@@ -10,6 +10,9 @@ for (const frame of FRAMES) {
       await page.setViewportSize({ width, height: 844 })
       const path = await frame.prepare({ request, page })
       await page.goto(path)
+      // 页面按需加载、数据随后才到：等网络静下来、字体到齐再截
+      await page.waitForLoadState('networkidle')
+      await page.evaluate(() => document.fonts.ready)
       await captureApp(page, frame.id, width)
       await captureDeckFrame(page, frame.id, width)
     })

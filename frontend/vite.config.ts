@@ -20,6 +20,9 @@ export default defineConfig(({ mode }) => {
     build: {
       target: ['safari16', 'chrome107'],
       manifest: true,
+      // 入口静态引入的模块全部留在入口块里。不这样设时，按需加载的页面一用到 React Aria 的输入框、数字框或分段，
+      // Rolldown 就把它们与入口共用的模块拆成几个公共块，入口要多请求几个文件、分开压缩，首屏脚本多出约 3 KB
+      rolldownOptions: { output: { codeSplitting: { groups: [{ name: 'initial', tags: ['$initial'] }] } } },
     },
     test: {
       environment: 'jsdom',

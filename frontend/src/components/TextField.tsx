@@ -17,10 +17,12 @@ export interface TextFieldProps {
   multiline?: boolean
   rows?: number
   isInvalid?: boolean
+  /** 写在框内右侧的单位（例如“厘米”）；数字输入用表格数字 */
+  suffix?: string
 }
 
 /** 填充式圆角输入框（52 高），聚焦 2 像素钴蓝内描边；多行时是 .area。说明在下，错误用朱色写在框下（React Aria TextField）。 */
-export function TextField({ label, value, onChange, hint, error, type = 'text', inputMode, autoComplete, maxLength, multiline = false, rows, isInvalid = false }: TextFieldProps) {
+export function TextField({ label, value, onChange, hint, error, type = 'text', inputMode, autoComplete, maxLength, multiline = false, rows, isInvalid = false, suffix }: TextFieldProps) {
   const invalid = isInvalid || Boolean(error)
   return (
     <AriaTextField
@@ -30,7 +32,12 @@ export function TextField({ label, value, onChange, hint, error, type = 'text', 
       <Label className="fld-l">{label}</Label>
       {multiline
         ? <TextArea className={invalid ? 'area bad' : 'area'} rows={rows} />
-        : <span className={invalid ? 'fld-i bad' : 'fld-i'}><Input /></span>}
+        : (
+          <span className={invalid ? 'fld-i bad' : 'fld-i'}>
+            <Input className={suffix ? 'n' : undefined} />
+            {suffix && <span className="t-cap fld-suf">{suffix}</span>}
+          </span>
+        )}
       {hint && <Text slot="description" className="fld-h">{hint}</Text>}
       {error && (
         <Text slot="errorMessage" className="err">

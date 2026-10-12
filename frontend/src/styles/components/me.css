@@ -1,0 +1,28 @@
+/* 我的（设计稿 13a，第 708 至 721 行）与修改档案（13b）：档案摘要是三列事实格，两个开关整行 56 高，设置是链接行 */
+.me-id{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:2px var(--gutter)}
+.me-id b{font-size:var(--fs-18);font-weight:600;overflow-wrap:anywhere}
+.me-id .t-cap{flex:none;color:var(--ink-2)}
+.me-profile{padding-top:2px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr)}
+.facts>div{padding:10px 0;border-bottom:1px solid var(--line);font-size:var(--fs-12);color:var(--ink-3);line-height:1.4}
+.facts>div:nth-last-child(-n+3){border-bottom:0}
+.facts b{display:block;font-size:var(--fs-16);color:var(--ink);font-weight:500}
+.facts .ns{font-size:1.375rem;line-height:1.25}
+.me-more{padding:10px 0 12px;border-top:1px solid var(--line)}
+.me-more p{margin:0}
+.me-more p+p{margin-top:2px}
+.me-edit{margin-top:12px}
+.me-switches{margin-top:14px;padding-top:0;padding-bottom:0}
+.me-switches .tg-row+.tg-row{border-top:1px solid var(--line)}
+.me-links{padding-top:0;padding-bottom:0}
+.lnk{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:52px;border-bottom:1px solid var(--line);font-size:.9375rem}
+.lnk:last-child{border-bottom:0}
+.lnk .ic{width:18px;height:18px;color:var(--ink-3)}
+.lnk .v{margin-left:auto;font-size:.8125rem;color:var(--ink-3);text-align:right}
+.me-out{display:flex;justify-content:center;margin-top:12px}
+
+/* 修改档案：身高与体重并排，健康状况两行高 */
+.pe{padding-bottom:16px}
+.pe-pair{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.pe .area{min-height:72px}
+.pe-foot{margin:12px 0 0;color:var(--ink-2)}

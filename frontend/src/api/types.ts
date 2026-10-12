@@ -18,6 +18,8 @@ export type MessageOut = S['MessageOut']
 export type TurnOut = S['TurnOut']
 export type OpeningOut = S['OpeningOut']
 export type OpeningResponse = S['OpeningResponse']
+export type AgentSettingsOut = S['app__agent__schemas__SettingsOut']
+export type AgentSettingsUpdate = S['SettingsUpdate']
 
 export type MedicalItemOut = S['app__medical__schemas__ItemOut']
 export type MedicalEventOut = S['MedicalEventOut']

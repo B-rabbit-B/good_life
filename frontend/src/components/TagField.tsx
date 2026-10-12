@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Button as AriaButton, Label, Tag, TagGroup, TagList } from 'react-aria-components'
+import { Button as AriaButton, Label, Tag, TagGroup, TagList, Text } from 'react-aria-components'
 import '../styles/components/field-input.css'
 import { Icon } from './Icon'
 
@@ -18,12 +18,13 @@ function RemoveButton({ tag }: { tag: string }) {
   )
 }
 
-/** 可移除标签（饮食偏好、忌口）：胶囊，删除键 44；“添加”展开一个胶囊输入框，回车加入（React Aria TagGroup）。 */
-export function TagField({ label, tags, onChange, addLabel = '添加' }: {
+/** 可移除标签（饮食偏好、忌口）：胶囊，删除键 44；“添加”展开一个胶囊输入框，回车加入（React Aria TagGroup）。error 是后端的说明原文。 */
+export function TagField({ label, tags, onChange, addLabel = '添加', error }: {
   label: string
   tags: string[]
   onChange: (tags: string[]) => void
   addLabel?: string
+  error?: string
 }) {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
@@ -63,6 +64,12 @@ export function TagField({ label, tags, onChange, addLabel = '添加' }: {
           <AriaButton className="tag add" onPress={() => setAdding(true)}>{addLabel}</AriaButton>
         )}
       </div>
+      {error && (
+        <Text slot="errorMessage" className="err">
+          <Icon name="alert" size={18} />
+          <span>{error}</span>
+        </Text>
+      )}
     </TagGroup>
   )
 }

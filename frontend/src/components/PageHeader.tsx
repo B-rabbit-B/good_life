@@ -58,9 +58,10 @@ function useStuck(sentinel: RefObject<HTMLDivElement | null>): boolean {
  * 只用透明度淡入。big 是一级页大标题，sub 是带返回键的二级页，chat 是对话页。
  * onRefresh 时右侧放刷新按钮（代替下拉刷新）；cover 时右上角放遮盖按钮（没有底部导航的二级页）。
  * 不传 cover 时由外壳决定：敏感区登记表里的页面且没有底部导航时放。
+ * 不传 titleKey 时页头一行只有返回键（建档：大标题写在进度条下面的正文里）。
  */
 export function PageHeader({ titleKey, variant, back, caption, cover: coverProp, onRefresh, children }: {
-  titleKey: TitleKey
+  titleKey?: TitleKey
   variant: 'big' | 'sub' | 'chat'
   back?: true | string
   caption?: string
@@ -85,7 +86,7 @@ export function PageHeader({ titleKey, variant, back, caption, cover: coverProp,
         <div className={VARIANT_CLASS[variant]}>
           <div className="hdr-l">
             {back && <IconButton icon="back" label="返回" back onPress={goBack} />}
-            <Title k={titleKey} level={variant === 'big' ? 'display' : 'title'} as="h1" />
+            {titleKey && <Title k={titleKey} level={variant === 'big' ? 'display' : 'title'} as="h1" />}
           </div>
           {(caption || onRefresh || cover) && (
             <div className="hdr-r">

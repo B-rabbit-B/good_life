@@ -32,8 +32,9 @@ describe('app shell', () => {
   })
 
   it('renders no nav on pages without tabs', async () => {
-    renderRoute('/me/profile')
-    expect(await screen.findByRole('heading', { name: '个人档案' })).toBeInTheDocument()
+    // 只读的免责声明页：没有导航也没有操作坞（修改档案页现在有操作坞，留白是 112）
+    renderRoute('/settings/disclaimer')
+    expect(await screen.findByRole('heading', { name: '免责声明' })).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '主导航' })).not.toBeInTheDocument()
     expect(scroller().style.paddingBottom).toBe('28px')
   })

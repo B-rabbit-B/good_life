@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { PATHS } from '../../app/paths'
 import { api } from '../client'
@@ -30,19 +31,25 @@ export function useRegister() {
 
 /**
  * 退出：先取消进行中的查询，再请求后端作废令牌（令牌早已失效、断网也照样往下走，且不触发“登录已过期”），
- * 清掉本地令牌，回到登录页之后才清缓存——还挂着的页面先卸载，不会拿着空缓存、没有令牌去重新请求。
- * 只能在路由里使用。
+ * 清掉本地令牌，回到登录页；调用它的页面卸载时才清缓存——还挂着的页面先卸载，不会拿着空缓存、没有令牌去重新请求。
+ * （navigate 返回时 React 可能还没提交新页面：登录页是按需加载的，状态更新又在过渡里；这时清缓存，
+ * 仍挂着的页面因变更结束而重绘，会不带令牌重新请求，401 又触发“登录已过期”。）
+ * 只能在登录后才有的页面里使用（回到登录页时它一定卸载）。
  */
 export function useLogout() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const loggedOut = useRef(false)
+  useEffect(() => () => {
+    if (loggedOut.current) queryClient.clear()
+  }, [queryClient])
   return useMutation({
     mutationFn: async () => {
       await queryClient.cancelQueries()
       await api<undefined>('/api/auth/logout', { method: 'POST', notifyUnauthorized: false }).catch(() => undefined)
       clearToken()
+      loggedOut.current = true
       await navigate(PATHS.login, { replace: true })
-      queryClient.clear()
     },
   })
 }
