@@ -33,7 +33,7 @@ export default tseslint.config(
   },
   {
     // 端到端测试的 test 必须来自 e2e/support/test（带自动的外网拦截）
-    files: ['e2e/**/*.ts'],
+    files: ['e2e/**/*.{ts,tsx,js,mjs}'],
     ignores: ['e2e/support/test.ts'],
     rules: {
       'no-restricted-imports': restrictedImports([{

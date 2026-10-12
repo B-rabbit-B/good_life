@@ -40,5 +40,10 @@ describe('lint bans', () => {
       .not.toContain('no-restricted-imports')
     expect(await rulesFired("import { test } from '../support/test'\ntest('x', () => {})\n", spec))
       .not.toContain('no-restricted-imports')
+    // 同一条规则也管 e2e 里的 js 与 mjs 文件（路径不必真实存在：这些文件不需要类型信息）
+    for (const other of ['e2e/pages/lint-case.js', 'e2e/support/lint-case.mjs']) {
+      expect(await rulesFired("import { test } from '@playwright/test'\ntest('x', () => {})\n", other), other)
+        .toContain('no-restricted-imports')
+    }
   }, 60_000)
 })

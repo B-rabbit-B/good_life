@@ -11,11 +11,14 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+import uvicorn
 from fastapi.testclient import TestClient
 from PIL import Image, ImageStat
 
-from app.config import Settings
-from app.e2e_server import BAD_KEY, E2EModel, build_app, main, write_fixtures
+from app import e2e_server
+from app.config import Settings, get_settings
+from app.e2e_server import (BAD_KEY, DEFAULT_DATABASE_URL, E2EModel, build_app, e2e_database_url, main,
+                            write_fixtures)
 from app.phase2_acceptance import MEAL_COLOUR, VISION_MODEL_ID
 from app.phase2_demo import DEMO_MODEL_ID, DEMO_MODEL_KEY
 
@@ -80,18 +83,42 @@ def test_fixtures_have_the_expected_colours(scratch):
     assert min(_mean(scratch / "fixtures" / "white.jpg")) > 250
 
 
-@pytest.mark.parametrize("url", [
-    "postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433/goodlife",
-    "postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433/goodlife_test_copy",
-    "postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433",
-])
+# 都连不上（端口 1）：万一检查失效，也碰不到任何真实的数据库
+UNREACHABLE = "postgresql+psycopg://x:x@127.0.0.1:1"
+SET_BY_MAIN = ("DATABASE_URL", "JWT_SECRET", "FIELD_ENCRYPTION_KEY", "LLM_ALLOW_PRIVATE_HOSTS", "FRONTEND_DIST_DIR",
+               "AMAP_KEY", "AMAP_BASE_URL")
+
+
+def _guard_did_not_stop(*args, **kwargs):
+    raise AssertionError("guard did not stop before side effects")
+
+
+@pytest.mark.parametrize("url", [f"{UNREACHABLE}/goodlife", f"{UNREACHABLE}/goodlife_test_copy", UNREACHABLE])
 def test_e2e_server_refuses_a_database_not_named_test(scratch, monkeypatch, url):
     monkeypatch.setenv("TEST_DATABASE_URL", url)
+    # 检查万一失效：迁移清表、启动模拟服务与 uvicorn 都直接让测试失败；main 改过的环境变量与配置在测试后恢复
+    monkeypatch.setattr(e2e_server, "_migrate_and_clear", _guard_did_not_stop)
+    monkeypatch.setattr(E2EModel, "start", _guard_did_not_stop)
+    monkeypatch.setattr(uvicorn, "run", _guard_did_not_stop)
+    for name in SET_BY_MAIN:
+        monkeypatch.setenv(name, os.environ.get(name, ""))
+    monkeypatch.setitem(Settings.model_config, "env_file", Settings.model_config.get("env_file"))
     before = (os.environ["DATABASE_URL"], Settings.model_config.get("env_file"))
     fixtures = scratch / "fixtures"
-    with pytest.raises(SystemExit) as refused:
-        main(["--port", "0", "--fixtures", str(fixtures)])
+    try:
+        with pytest.raises(SystemExit) as refused:
+            main(["--port", "0", "--fixtures", str(fixtures)])
+    finally:
+        get_settings.cache_clear()
     assert "_test" in str(refused.value.code)
-    # 在检查之前什么都没动：环境变量、配置与测试图片目录都还是原样，也没有启动模拟服务或连库
+    # 在检查之前什么都没动：环境变量、配置与测试图片目录都还是原样
     assert (os.environ["DATABASE_URL"], Settings.model_config.get("env_file")) == before
     assert not fixtures.exists()
+
+
+def test_e2e_database_url_accepts_a_test_database(monkeypatch):
+    # 只调用纯检查函数，不调用 main：这个地址能通过检查
+    monkeypatch.setenv("TEST_DATABASE_URL", f"{UNREACHABLE}/goodlife_test")
+    assert e2e_database_url() == f"{UNREACHABLE}/goodlife_test"
+    monkeypatch.delenv("TEST_DATABASE_URL")
+    assert e2e_database_url() == DEFAULT_DATABASE_URL
