@@ -109,4 +109,23 @@ describe('app shell', () => {
     await router.navigate('/plain')
     await waitFor(() => expect(scroller()).not.toHaveAttribute('data-sensitive-page'))
   })
+
+  it('puts the cover button in the header of registered pages without a nav', async () => {
+    const first = renderRoute('/me/profile')
+    expect(await screen.findByRole('heading', { name: '个人档案' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '遮盖敏感内容' })).toBeInTheDocument()
+    first.unmount()
+
+    // 不在登记表里的二级页没有遮盖按钮
+    const second = renderRoute('/settings/models')
+    expect(await screen.findByRole('heading', { name: '模型服务' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '遮盖敏感内容' })).not.toBeInTheDocument()
+    second.unmount()
+
+    // 有底部导航的页面：遮盖在导航里，页头不再放
+    renderRoute('/me')
+    const nav = await screen.findByRole('navigation', { name: '主导航' })
+    expect(screen.getAllByRole('button', { name: '遮盖敏感内容' })).toEqual([within(nav).getByRole('button', { name: '遮盖敏感内容' })])
+  })
 })
+

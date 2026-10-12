@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
+import { useHeaderCover } from '../app/shellContext'
 import type { TitleKey } from '../lib/titles'
 import '../styles/components/header.css'
 import { CoverButton } from './CoverButton'
@@ -56,8 +57,9 @@ function useStuck(sentinel: RefObject<HTMLDivElement | null>): boolean {
  * 页头：滚动容器顶部的 position: sticky 页头（上沿加安全区）。静止时透明；列表一滚动，玻璃层（画在 ::before 上）
  * 只用透明度淡入。big 是一级页大标题，sub 是带返回键的二级页，chat 是对话页。
  * onRefresh 时右侧放刷新按钮（代替下拉刷新）；cover 时右上角放遮盖按钮（没有底部导航的二级页）。
+ * 不传 cover 时由外壳决定：敏感区登记表里的页面且没有底部导航时放。
  */
-export function PageHeader({ titleKey, variant, back, caption, cover = false, onRefresh, children }: {
+export function PageHeader({ titleKey, variant, back, caption, cover: coverProp, onRefresh, children }: {
   titleKey: TitleKey
   variant: 'big' | 'sub' | 'chat'
   back?: true | string
@@ -70,6 +72,8 @@ export function PageHeader({ titleKey, variant, back, caption, cover = false, on
   const sentinel = useRef<HTMLDivElement>(null)
   const stuck = useStuck(sentinel)
   const { covered } = useCover()
+  const shellCover = useHeaderCover()
+  const cover = coverProp ?? shellCover
   const goBack = () => {
     if (back === true) void navigate(-1)
     else if (back) void navigate(back)

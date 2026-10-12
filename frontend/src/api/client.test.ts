@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../test/msw/server'
-import { api, ApiError, onUnauthorized } from './client'
+import { api, ApiError, handleErrorResponse, isSessionEnded, networkError, onUnauthorized } from './client'
 import { getToken, setToken, TOKEN_KEY } from './token'
 
 async function caught(promise: Promise<unknown>): Promise<ApiError> {
@@ -78,6 +78,55 @@ describe('api client', () => {
     expect(getToken()).toBeNull()
     expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull()
     expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the token and notifies on not_authenticated', async () => {
+    setToken('stale')
+    const listener = vi.fn()
+    const stop = onUnauthorized(listener)
+    server.use(http.get('/api/auth/me', () => HttpResponse.json(
+      { error: { code: 'not_authenticated', message: '请先登录' } }, { status: 401 },
+    )))
+    const error = await caught(api('/api/auth/me'))
+    stop()
+    expect(error.code).toBe('not_authenticated')
+    expect(getToken()).toBeNull()
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('can clear the token without notifying', async () => {
+    setToken('revoked')
+    const listener = vi.fn()
+    const stop = onUnauthorized(listener)
+    server.use(http.post('/api/auth/logout', () => HttpResponse.json(
+      { error: { code: 'invalid_token', message: '登录已失效，请重新登录' } }, { status: 401 },
+    )))
+    const error = await caught(api('/api/auth/logout', { method: 'POST', notifyUnauthorized: false }))
+    stop()
+    expect(error.code).toBe('invalid_token')
+    expect(getToken()).toBeNull()
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('shares the error rules with modules that fetch by themselves', async () => {
+    expect(isSessionEnded('invalid_token')).toBe(true)
+    expect(isSessionEnded('not_authenticated')).toBe(true)
+    expect(isSessionEnded('invalid_credentials')).toBe(false)
+    expect(networkError()).toMatchObject({ status: 0, code: 'network_error', message: '网络连接失败，请检查网络后重试' })
+
+    setToken('stale')
+    const listener = vi.fn()
+    const stop = onUnauthorized(listener)
+    const expired = new Response(JSON.stringify({ error: { code: 'invalid_token', message: '登录已失效，请重新登录' } }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } })
+    const error = await caught(handleErrorResponse(expired))
+    expect(error.code).toBe('invalid_token')
+    expect(getToken()).toBeNull()
+    expect(listener).toHaveBeenCalledTimes(1)
+    stop()
+
+    const html = await caught(handleErrorResponse(new Response('<html></html>', { status: 503 })))
+    expect([html.status, html.code, html.message]).toEqual([503, 'http_error', '服务暂时不可用，请稍后再试（HTTP 503）'])
   })
 
   it('does not clear the token on invalid_credentials', async () => {

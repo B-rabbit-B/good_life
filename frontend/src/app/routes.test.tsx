@@ -1,10 +1,10 @@
-import { matchRoutes, type RouteObject } from 'react-router'
+import { screen, waitFor } from '@testing-library/react'
+import { createMemoryRouter, matchRoutes, type RouteObject } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import { renderRoute } from '../test/render'
-import { PATHS } from './paths'
-import { routes, type RouteHandle } from './routes'
-
-type PathKey = keyof typeof PATHS
+import { renderRoute, renderRouter } from '../test/render'
+import { PATHS, type PathKey } from './paths'
+import { RouteError, routes, type RouteHandle } from './routes'
+import { isSensitivePage, SENSITIVE_AREAS } from './sensitiveAreas'
 
 const SAMPLE_PARAMS: Record<string, string> = { step: '1', recId: 'rec-1' }
 const sample = (pattern: string) => pattern.replace(/:(\w+)/g, (_, name: string) => SAMPLE_PARAMS[name] ?? 'x')
@@ -37,14 +37,31 @@ describe('route table', () => {
     }
   })
 
-  it('marks the sensitive pages from the design', () => {
-    const sensitive = (Object.keys(PATHS) as PathKey[]).filter((key) => {
-      const [route] = byPath(PATHS[key])
-      return (route?.handle as RouteHandle | undefined)?.sensitive === true
-    })
-    expect(sensitive.sort()).toEqual([
-      'chat', 'cycle', 'health', 'me', 'medical', 'medicalNew', 'photoResult', 'profileEdit', 'records', 'restaurants',
-    ])
+  it('derives the sensitive flag from the sensitive area registry', () => {
+    // 每个登记了敏感区的页面都有路由；每个带 handle 的路由的 sensitive 恰好等于它在不在登记表里
+    for (const key of Object.keys(SENSITIVE_AREAS)) {
+      expect(byPath(PATHS[key as PathKey]), key).toHaveLength(1)
+    }
+    for (const key of Object.keys(PATHS) as PathKey[]) {
+      const handle = byPath(PATHS[key])[0]?.handle as RouteHandle | undefined
+      if (handle) expect(handle.sensitive, key).toBe(isSensitivePage(key))
+    }
+    const sensitive = (Object.keys(PATHS) as PathKey[])
+      .filter((key) => (byPath(PATHS[key])[0]?.handle as RouteHandle | undefined)?.sensitive === true)
+    expect(sensitive.sort()).toEqual(Object.keys(SENSITIVE_AREAS).sort())
+  })
+
+  it('removes the boot shell under a route error', async () => {
+    const boot = document.createElement('div')
+    boot.id = 'boot-shell'
+    document.body.prepend(boot)
+    const router = createMemoryRouter([{
+      ErrorBoundary: RouteError,
+      children: [{ path: '/broken', lazy: () => Promise.reject(new Error('分包没能加载')) }],
+    }], { initialEntries: ['/broken'] })
+    renderRouter(router)
+    expect(await screen.findByRole('alert')).toHaveTextContent('页面没能加载，请检查网络后重试')
+    await waitFor(() => expect(document.getElementById('boot-shell')).toBeNull())
   })
 
   it('gives every app page a nav handle', () => {

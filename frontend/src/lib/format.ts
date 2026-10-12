@@ -17,6 +17,14 @@ export function fmtNum(n: number, digits: number): string {
   return `${sign}${group(whole)}${trimmed ? `.${trimmed}` : ''}`
 }
 
+/** 固定保留 digits 位小数（不去掉末尾的 0），整数部分加千分位：营养表的 128.0 克、52.4 克 */
+export function fmtFixed(n: number, digits: number): string {
+  const fixed = Math.abs(n).toFixed(digits)
+  const [whole = '0', fraction] = fixed.split('.')
+  const sign = n < 0 && Number(fixed) !== 0 ? '-' : ''
+  return `${sign}${group(whole)}${fraction === undefined ? '' : `.${fraction}`}`
+}
+
 /** 不足 1000 米写“320 米”，否则“1.2 公里” */
 export function fmtDistance(meters: number): string {
   const rounded = Math.round(meters)

@@ -1,11 +1,15 @@
 // 路由守卫：未登录 → 登录页；未确认免责 → 免责页；档案未填完 → 建档页；模块未开放 → 对话页。
-// 判断全部来自后端（免责状态、档案、能力清单）；请求中显示 BootSplash，失败显示后端的说明并可重试，
-// 登录失效（401）时回登录页并带上“登录已过期”。
-import type { ReactNode } from 'react'
+// 判断全部来自后端（免责状态、档案、能力清单）。只要缓存里有数据就按它放行（后台刷新失败不打断页面）；
+// 还没有数据时：请求中显示 BootSplash，失败显示后端的说明并可重试；登录失效（401）回登录页并带上“登录已过期”；
+// 免责声明换了版本（档案或能力清单返回 403 disclaimer_not_accepted）时作废免责状态并去免责页。
+import { useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import { useEffect, type ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
+import { isSessionEnded } from '../api/client'
 import { ApiError } from '../api/errors'
 import { useDisclaimerStatus } from '../api/hooks/disclaimer'
 import { useCapabilities, useProfile } from '../api/hooks/profile'
+import { qk } from '../api/keys'
 import { getToken } from '../api/token'
 import type { CapabilityKey } from '../api/types'
 import { Field } from '../components/Field'
@@ -20,19 +24,28 @@ export interface LoginState {
   expired?: boolean
 }
 
-const SESSION_ENDED = new Set(['not_authenticated', 'invalid_token'])
+const DISCLAIMER_NOT_ACCEPTED = 'disclaimer_not_accepted'
 
-const isSessionEnded = (error: unknown) =>
-  error instanceof ApiError && error.status === 401 && SESSION_ENDED.has(error.code)
+const sessionEnded = (error: unknown) => error instanceof ApiError && error.status === 401 && isSessionEnded(error.code)
+const disclaimerOutdated = (error: unknown) =>
+  error instanceof ApiError && error.status === 403 && error.code === DISCLAIMER_NOT_ACCEPTED
 
 const asApiError = (error: unknown) =>
   error instanceof ApiError ? error : new ApiError(0, 'unknown_error', '出了点问题，请稍后再试')
 
 function GuardError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   useRemoveBootShell()
-  if (isSessionEnded(error)) {
+  const queryClient = useQueryClient()
+  const from = useFrom()
+  const outdated = disclaimerOutdated(error)
+  useEffect(() => {
+    // 缓存里的“已确认”已经过时：作废它，免责页之后的守卫会重新取
+    if (outdated) void queryClient.invalidateQueries({ queryKey: qk.disclaimerStatus })
+  }, [outdated, queryClient])
+  if (sessionEnded(error)) {
     return <Navigate to={PATHS.login} replace state={{ expired: true } satisfies LoginState} />
   }
+  if (outdated) return <Navigate to={PATHS.disclaimer} replace state={{ from }} />
   return (
     <>
       <Field />
@@ -61,11 +74,25 @@ export function GuestOnly({ children }: { children?: ReactNode }) {
   return children ?? <Outlet />
 }
 
+/**
+ * 还没有数据的查询怎么显示：有一个失败且不在重新请求就显示它的错误（重试会重新请求全部失败的），否则显示 BootSplash。
+ * 返回 null 表示数据都到了。
+ */
+function pending(queries: UseQueryResult<unknown>[]): ReactNode {
+  const missing = queries.filter((query) => query.data === undefined)
+  if (missing.length === 0) return null
+  const failed = missing.find((query) => query.isError && !query.isFetching)
+  if (!failed) return <BootSplash />
+  const retry = () => {
+    for (const query of missing) if (query.isError) void query.refetch()
+  }
+  return <GuardError error={failed.error} onRetry={retry} />
+}
+
 export function RequireDisclaimer({ children }: { children?: ReactNode }) {
   const status = useDisclaimerStatus()
   const from = useFrom()
-  if (status.isPending) return <BootSplash />
-  if (status.isError) return <GuardError error={status.error} onRetry={() => void status.refetch()} />
+  if (status.data === undefined) return pending([status])
   if (!status.data.accepted) return <Navigate to={PATHS.disclaimer} replace state={{ from }} />
   return children ?? <Outlet />
 }
@@ -74,15 +101,7 @@ export function RequireDisclaimer({ children }: { children?: ReactNode }) {
 export function RequireProfile({ children }: { children?: ReactNode }) {
   const profile = useProfile()
   const caps = useCapabilities()
-  const failed = profile.isError ? profile : caps.isError ? caps : null
-  if (failed) {
-    const retry = () => {
-      if (profile.isError) void profile.refetch()
-      if (caps.isError) void caps.refetch()
-    }
-    return <GuardError error={failed.error} onRetry={retry} />
-  }
-  if (!profile.data || !caps.data) return <BootSplash />
+  if (profile.data === undefined || caps.data === undefined) return pending([profile, caps])
   if (!isProfileComplete(profile.data)) {
     return <Navigate to={onboardingPath(firstIncompleteStep(profile.data))} replace />
   }
@@ -92,8 +111,7 @@ export function RequireProfile({ children }: { children?: ReactNode }) {
 /** 列出的模块全都没开放时回对话页（经期入口只对开放经期模块的用户显示）。 */
 export function RequireCapability({ anyOf, children }: { anyOf: CapabilityKey[]; children?: ReactNode }) {
   const caps = useCapabilities()
-  if (caps.isPending) return <BootSplash />
-  if (caps.isError) return <GuardError error={caps.error} onRetry={() => void caps.refetch()} />
+  if (caps.data === undefined) return pending([caps])
   if (!anyOf.some((key) => caps.data[key])) return <Navigate to={PATHS.chat} replace />
   return children ?? <Outlet />
 }

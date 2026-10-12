@@ -18,7 +18,7 @@ import type { RouteHandle } from './routes'
 import type { SensitivePage } from './sensitiveAreas'
 import { ShellContext, type DockSize, type ShellContextValue } from './shellContext'
 
-export { useDockPadding, useScroller, useSensitivePage } from './shellContext'
+export { useDockPadding, useHeaderCover, useScroller, useSensitivePage } from './shellContext'
 
 const PADDING = { tabs: 104, chat: 196, none: 28 } as const
 const DOCK_PADDING: Record<DockSize, number> = { short: 112, tall: 172 }
@@ -55,17 +55,22 @@ export function AppShell() {
 
   useRemoveBootShell()
 
-  // 登录失效：清掉缓存，回登录页并显示“登录已过期”
+  // 登录失效：取消进行中的查询，回登录页并显示“登录已过期”，页面卸载之后再清缓存
+  // （先清缓存的话，还挂着的查询会不带令牌重新请求，又触发一次 401）
   useEffect(() => onUnauthorized(() => {
-    queryClient.clear()
-    void navigate(PATHS.login, { replace: true, state: { expired: true } satisfies LoginState })
+    void (async () => {
+      await queryClient.cancelQueries()
+      await navigate(PATHS.login, { replace: true, state: { expired: true } satisfies LoginState })
+      queryClient.clear()
+    })()
   }), [queryClient, navigate])
 
   const setDock = useCallback((size: DockSize | null) => setDockState(size), [])
   const setSensitivePage = useCallback((page: SensitivePage | null) => setSensitivePageState(page), [])
+  const headerCover = handle.sensitive && handle.nav === 'none'
   const context = useMemo<ShellContextValue>(
-    () => ({ scroller, setDock, setSensitivePage }),
-    [setDock, setSensitivePage],
+    () => ({ scroller, setDock, setSensitivePage, headerCover }),
+    [setDock, setSensitivePage, headerCover],
   )
 
   const paddingBottom = dock ? DOCK_PADDING[dock] : PADDING[handle.nav]

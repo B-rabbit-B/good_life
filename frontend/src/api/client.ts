@@ -1,6 +1,7 @@
 // 接口客户端：每个请求带令牌；统一把后端的 {"error": {"code", "message", "details"}} 解析成 ApiError；
-// 401 且错误码是 not_authenticated 或 invalid_token 时清令牌并通知监听者（外壳据此清缓存、回登录页）。
+// 401 且错误码是 not_authenticated 或 invalid_token 时清令牌并通知监听者（外壳据此回登录页并清缓存）。
 // 登录接口的 401 invalid_credentials 不在此列，只由表单提示。
+// 自己发 fetch 的模块（流式对话 sse.ts、上传 upload.ts）用 handleErrorResponse 与 networkError 套用同样的规则。
 import { ApiError } from './errors'
 import { clearToken, getToken } from './token'
 
@@ -18,6 +19,8 @@ export interface ApiInit {
   /** 查询参数；值为 undefined 的项不发送 */
   query?: ApiQuery
   signal?: AbortSignal
+  /** 默认 true；false 时 401 仍清令牌，但不通知监听者（退出登录用：令牌早已失效也不该显示“登录已过期”） */
+  notifyUnauthorized?: boolean
 }
 
 const SESSION_ENDED = new Set(['not_authenticated', 'invalid_token'])
@@ -25,6 +28,16 @@ const NETWORK_MESSAGE = '网络连接失败，请检查网络后重试'
 const httpMessage = (status: number) => `服务暂时不可用，请稍后再试（HTTP ${status}）`
 
 const unauthorizedListeners = new Set<() => void>()
+
+/** 这个错误码表示登录已失效（not_authenticated 或 invalid_token），应回登录页 */
+export function isSessionEnded(code: string): boolean {
+  return SESSION_ENDED.has(code)
+}
+
+/** 网络失败（fetch 本身被拒绝、且不是主动取消）时的统一错误 */
+export function networkError(): ApiError {
+  return new ApiError(0, 'network_error', NETWORK_MESSAGE)
+}
 
 /** 登录失效（401 not_authenticated 或 invalid_token）时调用 listener；返回取消函数。 */
 export function onUnauthorized(listener: () => void): () => void {
@@ -79,20 +92,28 @@ export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
   } catch (error) {
     // 主动取消（换页、查询被取消）原样抛出，交给调用方忽略
     if (init.signal?.aborted) throw error
-    throw new ApiError(0, 'network_error', NETWORK_MESSAGE)
+    throw networkError()
   }
 
   if (response.status === 204) return undefined as T
+  if (!response.ok) return handleErrorResponse(response, { notifyUnauthorized: init.notifyUnauthorized })
   const data = await readJson(response)
-  if (response.ok) {
-    if (data === undefined) throw new ApiError(response.status, 'http_error', httpMessage(response.status))
-    return data as T
-  }
+  if (data === undefined) throw new ApiError(response.status, 'http_error', httpMessage(response.status))
+  return data as T
+}
 
-  const error = toApiError(response.status, data)
-  if (response.status === 401 && SESSION_ENDED.has(error.code)) {
+/**
+ * 处理一个非 2xx 的响应：读出后端的统一错误体（读不出时是 http_error），401 登录失效时清令牌并通知监听者，
+ * 然后抛出 ApiError。只读一次响应体。
+ */
+export async function handleErrorResponse(
+  response: Response,
+  { notifyUnauthorized = true }: { notifyUnauthorized?: boolean } = {},
+): Promise<never> {
+  const error = toApiError(response.status, await readJson(response))
+  if (response.status === 401 && isSessionEnded(error.code)) {
     clearToken()
-    for (const listener of [...unauthorizedListeners]) listener()
+    if (notifyUnauthorized) for (const listener of [...unauthorizedListeners]) listener()
   }
   throw error
 }

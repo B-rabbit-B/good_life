@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router'
+import { PATHS } from '../../app/paths'
 import { api } from '../client'
 import { qk } from '../keys'
 import { clearToken, setToken } from '../token'
@@ -26,13 +28,20 @@ export function useRegister() {
   })
 }
 
-/** 退出：先请求后端作废令牌；接口失败（例如令牌已失效、断网）也照样清掉本地令牌与缓存。 */
+/**
+ * 退出：先取消进行中的查询，再请求后端作废令牌（令牌早已失效、断网也照样往下走，且不触发“登录已过期”），
+ * 清掉本地令牌，回到登录页之后才清缓存——还挂着的页面先卸载，不会拿着空缓存、没有令牌去重新请求。
+ * 只能在路由里使用。
+ */
 export function useLogout() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   return useMutation({
     mutationFn: async () => {
-      await api<undefined>('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
+      await queryClient.cancelQueries()
+      await api<undefined>('/api/auth/logout', { method: 'POST', notifyUnauthorized: false }).catch(() => undefined)
       clearToken()
+      await navigate(PATHS.login, { replace: true })
       queryClient.clear()
     },
   })

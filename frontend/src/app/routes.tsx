@@ -1,5 +1,6 @@
 // 路由表：页面全部按路由拆包（React Router 的 lazy）；守卫嵌套顺序 RequireAuth → RequireDisclaimer → RequireProfile → AppShell。
-// 每个页面的 handle 写明底部怎么画（tabs 底部导航、chat 对话底座、none 都没有）与是否有敏感内容（DESIGN.md 第四节的表）。
+// 每个页面的 handle 写明底部怎么画（tabs 底部导航、chat 对话底座、none 都没有）；是否有敏感内容不在这里写，
+// 由“本页有敏感区”登记表（sensitiveAreas.ts）推出，两处不会不一致。
 import type { ComponentType } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
 import { ApiError } from '../api/errors'
@@ -8,22 +9,26 @@ import type { NavItem } from '../components/BottomNav'
 import { Field } from '../components/Field'
 import { ErrorState } from '../components/states/ErrorState'
 import { AppShell } from './AppShell'
-import { BootSplash } from './BootSplash'
+import { BootSplash, useRemoveBootShell } from './BootSplash'
 import { GuestOnly, RequireAuth, RequireCapability, RequireDisclaimer, RequireProfile } from './guards'
 import { healthSegments } from './nav'
-import { PATHS } from './paths'
+import { PATHS, type PathKey } from './paths'
+import { isSensitivePage } from './sensitiveAreas'
 
 export interface RouteHandle {
   nav: 'tabs' | 'chat' | 'none'
   navKey?: NavItem['key']
+  /** 这一页在敏感区登记表里（SENSITIVE_AREAS 有它的键）；没有底部导航的这类页面在页头右上角放遮盖按钮 */
   sensitive: boolean
 }
 
 type PageModule = Promise<{ default: ComponentType }>
 const page = (load: () => PageModule): RouteObject['lazy'] => async () => ({ Component: (await load()).default })
 
-const handle = (nav: RouteHandle['nav'], sensitive: boolean, navKey?: NavItem['key']): RouteHandle =>
-  navKey ? { nav, navKey, sensitive } : { nav, sensitive }
+const handle = (key: PathKey, nav: RouteHandle['nav'], navKey?: NavItem['key']): RouteHandle => {
+  const sensitive = isSensitivePage(key)
+  return navKey ? { nav, navKey, sensitive } : { nav, sensitive }
+}
 
 /** /health 打开第一个开放的分段；经期与医嘱都不开放时回对话页 */
 function HealthRedirect() {
@@ -33,8 +38,9 @@ function HealthRedirect() {
   return <Navigate to={first === 'cycle' ? PATHS.cycle : first === 'medical' ? PATHS.medical : PATHS.chat} replace />
 }
 
-/** 路由出错（例如页面分包没能加载）时的整页说明 */
-function RouteError() {
+/** 路由出错（例如页面分包没能加载）时的整页说明；对话页的启动外壳要一起去掉，不能盖在说明上面 */
+export function RouteError() {
+  useRemoveBootShell()
   return (
     <>
       <Field />
@@ -64,7 +70,7 @@ export const routes: RouteObject[] = [{
       element: <GuestOnly />,
       children: [{
         element: <AppShell />,
-        children: [{ path: PATHS.login, lazy: page(() => import('../features/auth/LoginPage')), handle: handle('none', false) }],
+        children: [{ path: PATHS.login, lazy: page(() => import('../features/auth/LoginPage')), handle: handle('login', 'none') }],
       }],
     },
     {
@@ -76,7 +82,7 @@ export const routes: RouteObject[] = [{
           children: [{
             path: PATHS.disclaimer,
             lazy: page(() => import('../features/onboarding/DisclaimerPage')),
-            handle: handle('none', false),
+            handle: handle('disclaimer', 'none'),
           }],
         },
         {
@@ -87,7 +93,7 @@ export const routes: RouteObject[] = [{
               children: [{
                 path: PATHS.onboarding,
                 lazy: page(() => import('../features/onboarding/OnboardingPage')),
-                handle: handle('none', false),
+                handle: handle('onboarding', 'none'),
               }],
             },
             {
@@ -95,18 +101,18 @@ export const routes: RouteObject[] = [{
               children: [{
                 element: <AppShell />,
                 children: [
-                  { path: PATHS.chat, lazy: page(() => import('../features/chat/ChatPage')), handle: handle('chat', true, 'chat') },
+                  { path: PATHS.chat, lazy: page(() => import('../features/chat/ChatPage')), handle: handle('chat', 'chat', 'chat') },
                   {
                     path: PATHS.health,
                     element: <HealthRedirect />,
-                    handle: handle('tabs', true, 'health'),
+                    handle: handle('health', 'tabs', 'health'),
                   },
                   {
                     element: <RequireCapability anyOf={['cycle']} />,
                     children: [{
                       path: PATHS.cycle,
                       lazy: page(() => import('../features/health/HealthPage')),
-                      handle: handle('tabs', true, 'health'),
+                      handle: handle('cycle', 'tabs', 'health'),
                     }],
                   },
                   {
@@ -115,12 +121,12 @@ export const routes: RouteObject[] = [{
                       {
                         path: PATHS.medical,
                         lazy: page(() => import('../features/health/HealthPage')),
-                        handle: handle('tabs', true, 'health'),
+                        handle: handle('medical', 'tabs', 'health'),
                       },
                       {
                         path: PATHS.medicalNew,
                         lazy: page(() => import('../features/medical/MedicalNewPage')),
-                        handle: handle('none', true),
+                        handle: handle('medicalNew', 'none'),
                       },
                     ],
                   },
@@ -129,7 +135,7 @@ export const routes: RouteObject[] = [{
                     children: [{
                       path: PATHS.records,
                       lazy: page(() => import('../features/meals/RecordsPage')),
-                      handle: handle('tabs', true, 'records'),
+                      handle: handle('records', 'tabs', 'records'),
                     }],
                   },
                   {
@@ -138,22 +144,22 @@ export const routes: RouteObject[] = [{
                       {
                         path: PATHS.restaurants,
                         lazy: page(() => import('../features/restaurants/RestaurantsPage')),
-                        handle: handle('none', true),
+                        handle: handle('restaurants', 'none'),
                       },
                       {
                         path: PATHS.photoNew,
                         lazy: page(() => import('../features/photos/PhotoNewPage')),
-                        handle: handle('none', false),
+                        handle: handle('photoNew', 'none'),
                       },
                       {
                         path: PATHS.photoResult,
                         lazy: page(() => import('../features/photos/PhotoResultPage')),
-                        handle: handle('none', true),
+                        handle: handle('photoResult', 'none'),
                       },
                       {
                         path: PATHS.mealNew,
                         lazy: page(() => import('../features/meals/MealNewPage')),
-                        handle: handle('none', false),
+                        handle: handle('mealNew', 'none'),
                       },
                     ],
                   },
@@ -162,34 +168,34 @@ export const routes: RouteObject[] = [{
                     children: [{
                       path: PATHS.workoutNew,
                       lazy: page(() => import('../features/fitness/WorkoutNewPage')),
-                      handle: handle('none', false),
+                      handle: handle('workoutNew', 'none'),
                     }],
                   },
-                  { path: PATHS.me, lazy: page(() => import('../features/me/MePage')), handle: handle('tabs', true, 'me') },
+                  { path: PATHS.me, lazy: page(() => import('../features/me/MePage')), handle: handle('me', 'tabs', 'me') },
                   {
                     path: PATHS.profileEdit,
                     lazy: page(() => import('../features/me/ProfileEditPage')),
-                    handle: handle('none', true),
+                    handle: handle('profileEdit', 'none'),
                   },
                   {
                     path: PATHS.models,
                     lazy: page(() => import('../features/settings/ModelsPage')),
-                    handle: handle('none', false),
+                    handle: handle('models', 'none'),
                   },
                   {
                     path: PATHS.modelNew,
                     lazy: page(() => import('../features/settings/ModelNewPage')),
-                    handle: handle('none', false),
+                    handle: handle('modelNew', 'none'),
                   },
                   {
                     path: PATHS.privacy,
                     lazy: page(() => import('../features/settings/PrivacyPage')),
-                    handle: handle('none', false),
+                    handle: handle('privacy', 'none'),
                   },
                   {
                     path: PATHS.disclaimerView,
                     lazy: page(() => import('../features/settings/DisclaimerViewPage')),
-                    handle: handle('none', false),
+                    handle: handle('disclaimerView', 'none'),
                   },
                 ],
               }],

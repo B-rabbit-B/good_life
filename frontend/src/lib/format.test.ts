@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fmtBytes, fmtDistance, fmtInt, fmtNum } from './format'
+import { fmtBytes, fmtDistance, fmtFixed, fmtInt, fmtNum } from './format'
 
 describe('number formats', () => {
   it('groups thousands in integers', () => {
@@ -15,6 +15,14 @@ describe('number formats', () => {
     expect(fmtNum(56, 1)).toBe('56')
     expect(fmtNum(0.456, 2)).toBe('0.46')
     expect(fmtNum(1234.5, 1)).toBe('1,234.5')
+  })
+
+  it('keeps a fixed number of decimals', () => {
+    expect(fmtFixed(128, 1)).toBe('128.0')
+    expect(fmtFixed(52.44, 1)).toBe('52.4')
+    expect(fmtFixed(1234.5, 2)).toBe('1,234.50')
+    expect(fmtFixed(7.6, 0)).toBe('8')
+    expect(fmtFixed(-0.04, 1)).toBe('0.0')
   })
 
   it('writes meters below a kilometer and kilometers above', () => {
