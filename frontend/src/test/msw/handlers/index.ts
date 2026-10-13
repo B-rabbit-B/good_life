@@ -8,6 +8,7 @@ import { llmHandlers } from './llm'
 import { medicalHandlers } from './medical'
 import { nutritionHandlers } from './nutrition'
 import { photosHandlers } from './photos'
+import { restaurantHandlers } from './restaurants'
 
 // 各模块的默认处理器放在同目录按模块分的文件里，在这里汇总。
 // 默认的会话仓库（chatHandlers）在全部测试之间共用：会发消息的测试用 test/chat.ts 的 renderChat 装自己的一份。
@@ -15,5 +16,5 @@ import { photosHandlers } from './photos'
 export const handlers: HttpHandler[] = [
   ...coreHandlers(), ...authHandlers(), ...agentHandlers(), ...chatHandlers().handlers, ...llmHandlers(),
   ...medicalHandlers().handlers, ...nutritionHandlers().handlers, ...photosHandlers().handlers,
-  ...cycleHandlers().handlers, ...fitnessHandlers().handlers,
+  ...cycleHandlers().handlers, ...fitnessHandlers().handlers, ...restaurantHandlers().handlers,
 ]

@@ -277,6 +277,17 @@ export async function seedDeckCycle(request: APIRequestContext, token: string): 
   await seedDayLog(request, token, localDate(-3), { mood: 'normal', note: '睡得晚' })
 }
 
+/** 记下附近餐厅的定位选择（允许或不允许）；不允许之后页面不再询问 */
+export function setLocationConsent(
+  request: APIRequestContext, token: string, consent: 'granted' | 'denied',
+): Promise<Schemas['app__restaurants__schemas__SettingsOut']> {
+  return call(request, 'PUT', '/api/restaurants/settings/consent', { token, data: { consent } })
+}
+
+/** 模拟高德认得的地点（app.phase2_acceptance 的 PLACE 与 CITY） */
+export const MOCK_PLACE = '国贸'
+export const MOCK_CITY = '北京'
+
 /** 设计稿 08 的运动限制 */
 export const KNEE_LIMIT = '膝关节术后六周内避免跑跳'
 

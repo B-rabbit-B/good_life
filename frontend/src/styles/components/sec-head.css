@@ -1,0 +1,5 @@
+/* 区块标题行：宋体小标题或黑体小标题在左，说明在右（与医嘱页 medical.css 的 .sec-h 相同；餐厅与设置页用这一份） */
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:24px var(--gutter) 0}
+.sec-h .t-h{font-size:var(--fs-16)}
+.sec-h .t-cap{color:var(--ink-2)}
+.sec-h+.plate{margin-top:8px}

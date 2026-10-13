@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { components } from '../../src/api/schema'
 import {
-  addPendingDish, CEFUROXIME_ORDER, confirmRecognition, createUser, e2eInfo, logMeal, recognizePhoto, resolveItem,
-  seedActiveItem, seedDeckCycle, seedDeckTraining, seedModelService, seedPendingOrder, seedProposal, seedReviewDueItem,
-  seedVoidedItem, sendMessage, TOKEN_KEY, uploadEvidence,
+  addPendingDish, CEFUROXIME_ORDER, confirmRecognition, createUser, e2eInfo, logMeal, MOCK_CITY, MOCK_PLACE, recognizePhoto,
+  resolveItem, seedActiveItem, seedDeckCycle, seedDeckTraining, seedModelService, seedPendingOrder, seedProposal,
+  seedReviewDueItem, seedVoidedItem, sendMessage, setLocationConsent, TOKEN_KEY, uploadEvidence,
 } from '../support/api'
 
 const FIXTURES = join(fileURLToPath(new URL('.', import.meta.url)), '..', '.fixtures')
@@ -289,6 +289,23 @@ export const FRAMES: FrameSpec[] = [
   after: async (page) => {
     await page.locator('.trend circle.last').waitFor()
     await page.waitForTimeout(700) // 数字数完
+  } },
+  // 09 附近餐厅：拒绝定位之后，输入模拟高德认得的地点、选清淡与少油，检索后的样子
+  { id: '09', widths: [360, 390], prepare: async ({ request, page }) => {
+    const { token } = await createUser(request, { profile: 'complete' })
+    await setLocationConsent(request, token, 'denied')
+    return signedIn(page, token, '/restaurants')
+  },
+  after: async (page) => {
+    await page.getByLabel('地名或地标').fill(MOCK_PLACE)
+    await page.getByLabel('城市（可不填）').fill(MOCK_CITY)
+    const needs = page.getByRole('group', { name: '需求' })
+    await needs.getByRole('button', { name: '清淡' }).click()
+    await needs.getByRole('button', { name: '全部 12 项' }).click()
+    await needs.getByRole('button', { name: '少油' }).click()
+    await page.getByRole('button', { name: '查找附近的店' }).click()
+    await page.getByRole('list', { name: '附近的店' }).waitFor()
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   } },
   // 设计系统一节对样张页
   { id: 'ds', widths: [360, 390], prepare: galleryBlock('ds') },

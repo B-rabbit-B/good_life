@@ -1,0 +1,50 @@
+/* 附近餐厅（设计稿 09，第 662 至 685 行）：地点输入、需求胶囊、提示、店铺账目行与 56 的导航瓷扣、已避开的类型 */
+.rs-place{padding:2px var(--plate-pad) 12px}
+.rs-pair .fld{padding-top:8px}
+.rs-pair{display:grid;grid-template-columns:minmax(0,1fr) 7.5rem;gap:0 12px}
+.rs-saved{margin:8px 0 0 -8px}
+.loc-off{margin:6px var(--gutter) 0;font-size:var(--fs-12);color:var(--ink-2);line-height:1.6}
+.rs-gps{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 12px;margin:12px var(--gutter) 0;font-size:var(--fs-14);color:var(--ink-2)}
+.rs-gps .btn-txt{margin-right:-8px}
+
+.need{display:flex;flex-wrap:wrap;gap:8px;margin:12px var(--plate-x) 0}
+.need button{position:relative;min-height:36px;padding:0 14px 0 10px;border:0;border-radius:var(--r-pill);font:inherit;font-size:var(--fs-14);color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.8);box-shadow:inset 0 0 0 1px var(--line-2);cursor:pointer}
+.need button::before{content:"";position:absolute;top:-4px;bottom:-4px;left:0;right:0}
+.need .box{width:18px;height:18px;border-radius:5px;flex:none;display:inline-flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1.5px var(--line-3);color:#fff}
+.need .box .ic{width:14px;height:14px;stroke-width:2.4}
+.need button[aria-pressed="true"]{color:var(--ink);font-weight:600;background:var(--accent-wash);box-shadow:inset 0 0 0 1px rgba(31,88,168,.45)}
+.need button[aria-pressed="true"] .box{background:var(--accent);box-shadow:none}
+.need button:disabled{color:var(--ink-3);cursor:default}
+.need .all{padding:0 14px;color:var(--accent);background:rgba(255,255,255,.72);box-shadow:none}
+.need-max{margin:6px var(--gutter) 0;font-size:var(--fs-12);color:var(--ink-2)}
+.rs-remember{padding-top:2px;padding-bottom:2px}
+.rs-go{margin-top:12px}
+
+.notice{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin:16px var(--gutter) 0;font-size:var(--fs-12);color:var(--ink-2);line-height:1.6}
+.rs-res .sec-h{margin-top:18px}
+.shops{list-style:none}
+.shop{padding:14px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px}
+.shop:last-child{border-bottom:0}
+.shop-n{font-size:1.0625rem;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.shop-m{font-size:.8125rem;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.shop-o{grid-column:1;font-size:.8125rem;color:var(--ink-2);line-height:1.6;margin:4px 0 0}
+.shop-o b{font-weight:500;color:var(--ink-3);margin-right:4px}
+.navb{grid-column:2;grid-row:1/4;align-self:center;width:56px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:var(--fs-12);color:var(--accent);text-decoration:none;border-radius:var(--r-3);background:linear-gradient(180deg,#FFFFFF,#F2F6FC);box-shadow:inset 0 0 0 1px var(--line-2),inset 0 1px 0 #fff,0 1px 2px rgba(14,27,51,.06)}
+.navb .ic{width:20px;height:20px}
+.rs-res section{margin-top:22px}
+.rs-res section .sec-h{margin-top:0}
+.avd{padding:12px 0;border-bottom:1px solid var(--line)}
+.avd:last-child{border-bottom:0}
+.avd-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.avd-h b{font-size:.9375rem;font-weight:600;text-decoration:line-through;text-decoration-color:var(--danger);text-decoration-thickness:1.5px}
+.avd-h .t-cap{text-align:right;overflow-wrap:anywhere}
+.avd p{margin:4px 0 0;font-size:.8125rem;line-height:1.6;color:var(--ink-2)}
+.avd p .src{margin-right:6px}
+.rs-disc{margin:16px var(--gutter) 0;font-size:var(--fs-12);color:var(--ink-2);line-height:1.6}
+
+@media (forced-colors:active){
+  .need button{border:1px solid CanvasText}
+  .need button[aria-pressed="true"]{border-width:2px}
+  .need button[aria-pressed="true"] .box{forced-color-adjust:none;background:Highlight;color:HighlightText}
+  .navb{border:1px solid CanvasText}
+}
