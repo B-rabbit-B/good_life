@@ -1,0 +1,85 @@
+/* 饮食记录：日期条、能量账本（大数、刻度、图例、需求说明）、营养表、三餐与没记的餐、附近吃什么；手动记一餐
+   （设计稿第 514 至 565 行、05）。餐名是动态文字的固定标签，宋体子集里没有“早午晚”，所以用黑体 600。 */
+.datebar{display:flex;align-items:center;justify-content:space-between;padding:0 8px}
+.datebar b{font-size:var(--fs-16);font-weight:600}
+.datebar b small{font-weight:400;color:var(--ink-2);margin-left:8px;font-size:var(--fs-14)}
+.datebar .ibtn[disabled]{opacity:.35;cursor:not-allowed}
+
+.ledger{padding:16px var(--plate-pad) 14px}
+.ledger-figs{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.ledger-big{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px;min-width:0}
+.ledger-big>.ns{font-size:var(--fs-44);line-height:1;letter-spacing:-.015em}
+.ledger-big>span:not(.ns){font-size:var(--fs-14);color:var(--ink-3);white-space:nowrap}
+.ledger-big>span .ns{font-size:1.0625rem;color:var(--ink-2);letter-spacing:0}
+.ledger-rem{text-align:right;font-size:.8125rem;color:var(--ink-3);line-height:1.4;white-space:nowrap}
+.ledger-rem .ns{display:block;font-size:var(--fs-22);color:var(--accent)}
+.legend{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.legend div{font-size:var(--fs-12);color:var(--ink-3);border-top:1px solid var(--line);padding-top:6px;min-width:0}
+.legend .ns{display:block;font-size:1.0625rem;color:var(--ink)}
+.legend .none{display:block;font-size:.9375rem;line-height:1.6;color:var(--ink-3)}
+.legend i{display:inline-block;width:8px;height:8px;margin-right:5px;border-radius:2px;background:#CFDAE8}
+.legend i.t1{background:var(--ink)}
+.legend i.t2{background:var(--accent)}
+.legend i.t3{background:var(--sky)}
+.legend i.t4{background:var(--sky-soft)}
+.ledger-note{margin:10px 0 0;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+
+/* 营养表：4 像素圆头进度条；钠是上限，还差不大于 0 时整行赭色 */
+.mt{width:100%;border-collapse:collapse;font-size:var(--fs-14)}
+.mt th{font-weight:400;font-size:var(--fs-12);color:var(--ink-3);text-align:right;padding:8px 0 6px;border-bottom:1px solid var(--line-2)}
+.mt th:first-child,.mt td:first-child{text-align:left}
+.mt td{padding:10px 0 9px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:var(--fs-16);font-family:var(--font-num);font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1;font-weight:500;white-space:nowrap}
+.mt td:first-child{padding-left:0;font-family:var(--font-sans);font-weight:400;font-size:var(--fs-14);white-space:normal}
+.mt tr:last-child td{border-bottom:0}
+.mt td small{font-family:var(--font-sans);font-weight:400;font-size:var(--fs-12);color:var(--ink-3);margin-left:1px}
+.mt .lim{margin-left:6px}
+.mt tr.warn td{color:var(--warn)}
+.mt tr.warn td:first-child{color:var(--ink)}
+.mt tr.warn .lim{color:var(--warn)}
+.mt .bar{display:block;height:4px;border-radius:var(--r-pill);background:#E4EAF3;margin-top:6px;position:relative;max-width:120px;overflow:hidden}
+.mt .bar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--w);border-radius:var(--r-pill);background:var(--ink-2)}
+.mt tr.warn .bar::after{background:var(--warn-line)}
+.mt-note{margin:4px 0 0}
+.mt-note:last-child{margin-bottom:12px}
+
+/* 三餐 */
+.meals{list-style:none;margin:0;padding:0}
+.meal{padding:14px 0 10px;border-bottom:1px solid var(--line)}
+.meal:last-child{border-bottom:0}
+.meal-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.meal-h b{font-size:1.0625rem;font-weight:600}
+.meal-h b small{font-weight:400;font-size:.8125rem;color:var(--ink-3);margin-left:8px}
+.meal-h .ns{font-size:1.0625rem}
+.meal ul{list-style:none;margin:4px 0 0;padding:0}
+.meal li{display:flex;justify-content:space-between;gap:12px;font-size:var(--fs-14);color:var(--ink-2);line-height:1.9}
+.meal li .n{color:var(--ink-3);white-space:nowrap}
+.meal .from{display:inline-block;margin-top:2px;padding:0 8px;border-radius:var(--r-pill);background:var(--accent-wash);font-size:var(--fs-12);color:var(--accent);line-height:20px}
+.meal.empty{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
+.meal.empty b{font-size:1.0625rem;font-weight:600}
+.meal.empty .acts{display:flex;gap:4px}
+.meal.empty .ibtn{color:var(--accent)}
+.diary-near{display:flex;justify-content:center;margin-top:16px}
+
+/* 手动记一餐 */
+.food-q{padding-bottom:12px}
+.food-msg{margin:8px 0 0;font-size:var(--fs-14);color:var(--ink-2)}
+.foods{list-style:none;margin:8px 0 0;padding:0}
+.food-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;min-height:48px;padding:0 4px;border-top:1px solid var(--line);font-size:.9375rem;text-align:left;color:var(--ink);cursor:pointer}
+.food-row[data-focus-visible]{outline:2px solid var(--accent);outline-offset:-2px;border-radius:var(--r-2)}
+.food-row[aria-pressed="true"]{font-weight:600;background:var(--accent-wash);border-radius:var(--r-2)}
+.food-row .t-cap{white-space:nowrap}
+.food-picked{margin:14px 0 0;font-weight:600}
+.meal-amount,.mn-when{padding-bottom:14px}
+.mn-when .t-h{padding-top:12px}
+.mn-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mn-pair .fld{padding-top:8px}
+
+/* 状态组件放在面板里时，面板已经有内边距 */
+.plate>.state{padding:16px 0 20px}
+
+@media (forced-colors:active){
+  .legend i,.mt .bar,.mt .bar::after{forced-color-adjust:none}
+  .legend i{background:CanvasText}
+  .mt .bar{background:Canvas;outline:1px solid GrayText}
+  .mt .bar::after{background:CanvasText}
+}

@@ -1,0 +1,38 @@
+/* 步骤号圈（.fs-m，28）与进度点（.pm，22）：待做、当前、进行中（转动的钴蓝弧线）、完成（钴蓝圆点加勾）、失败（朱色圈）
+   （设计稿第 476 至 483、690 至 702 行）。.flow 与 .fs 是带步骤号的竖向流程的版式。 */
+.pm{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-2);display:inline-flex;align-items:center;justify-content:center;margin-top:2px;font-size:var(--fs-12);color:var(--ink-3)}
+.pm.ok{background:linear-gradient(180deg,var(--accent-hi),var(--accent));border-color:var(--accent);color:#fff}
+.pm.ok .ic{width:14px;height:14px;stroke-width:2.2}
+.pm.cur{border:2px solid var(--accent)}
+.pm.bad{border:2px solid var(--danger);color:var(--danger)}
+.pm.bad .ic{width:12px;height:12px;stroke-width:2.4}
+.pm.run,.fs-m.run{border:2px solid var(--accent-wash);border-top-color:var(--accent);animation:sm-spin 1s linear infinite}
+@keyframes sm-spin{to{transform:rotate(360deg)}}
+.fs-m{flex:none;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-14);color:var(--ink-3);background:#fff;box-shadow:inset 0 0 0 1px var(--line-2)}
+.fs-m.ok{background:linear-gradient(180deg,var(--accent-hi),var(--accent));color:#fff;box-shadow:none}
+.fs-m.ok .ic{stroke-width:2}
+.fs-m.cur{box-shadow:inset 0 0 0 2px var(--accent);color:var(--accent);font-weight:600}
+.fs-m.bad{box-shadow:inset 0 0 0 2px var(--danger);color:var(--danger)}
+.fs-m.run{background:none;box-shadow:none}
+@media (prefers-reduced-motion: reduce){
+  .pm.run,.fs-m.run{animation:none}
+}
+
+.flow{list-style:none;margin:8px 0 0;padding:0}
+.fs{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:0 12px;padding-bottom:16px}
+.fs::before{content:"";position:absolute;left:13.5px;top:32px;bottom:4px;width:1px;background:var(--line-2)}
+.fs:last-child::before{display:none}
+.fs.off{color:var(--ink-3)}
+.fs-t{font-size:.9375rem;font-weight:600;line-height:28px;display:flex;justify-content:space-between;gap:8px}
+.fs-t small{font-weight:400;font-size:var(--fs-12);color:var(--ok);white-space:nowrap}
+.fs.bad .fs-t small{color:var(--danger)}
+.fs-b{font-size:.8125rem;color:var(--ink-2);line-height:1.6}
+
+@media (forced-colors:active){
+  .pm,.fs-m{forced-color-adjust:none}
+  .pm{border-color:CanvasText;color:CanvasText}
+  .pm.ok,.fs-m.ok{background:Highlight;border-color:Highlight;color:HighlightText}
+  .pm.run,.fs-m.run{border-color:GrayText;border-top-color:Highlight}
+  .fs-m{box-shadow:inset 0 0 0 1px CanvasText;color:CanvasText;background:Canvas}
+  .fs-m.cur,.fs-m.bad,.pm.cur,.pm.bad{box-shadow:inset 0 0 0 2px Highlight;border-color:Highlight}
+}

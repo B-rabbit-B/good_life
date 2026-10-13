@@ -1,0 +1,10 @@
+/* 隐私遮盖：不透明斜纹，绝不用模糊（模糊会漏出轮廓）；斜纹在外壳之下（层级 4，外壳 8）（设计稿第 281 至 289 行） */
+.sens{position:relative}
+.sens::after{content:"";position:absolute;top:0;right:0;bottom:0;left:0;background:#EEF3FA repeating-linear-gradient(135deg,#F2F6FB 0 5px,#C2CFE2 5px 6.5px);opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--d-2) var(--ease-std),visibility 0s linear var(--d-2);z-index:4;border-radius:inherit}
+/* 直接包住整段消息流的敏感区用直角：就医提示是出血到屏幕边的直角块，圆角遮盖会在四角漏出朱色 */
+.sens-sq::after{border-radius:0}
+.sens[data-covered]::after{opacity:1;visibility:visible;pointer-events:auto;transition:opacity var(--d-2) var(--ease-std)}
+
+@media (forced-colors:active){
+  .sens::after{forced-color-adjust:none;background:repeating-linear-gradient(135deg,Canvas 0 5px,CanvasText 5px 6.5px) !important}
+}

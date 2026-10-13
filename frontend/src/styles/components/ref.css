@@ -1,0 +1,2 @@
+/* “仅供参考”：全站同一个样子（设计稿第 263 至 264 行） */
+.ref{display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid var(--line-3);border-radius:var(--r-pill);background:rgba(255,255,255,.7);font-size:var(--fs-12);line-height:1;color:var(--ink-2);white-space:nowrap;vertical-align:2px;font-weight:400;font-family:var(--font-sans);letter-spacing:.04em}

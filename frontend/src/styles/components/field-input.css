@@ -1,0 +1,44 @@
+/* 输入：填充式圆角框（52 高），聚焦 2 像素钴蓝内描边；下拉、多行、可移除标签、日期（设计稿第 291 至 319 行） */
+.fld{display:block;padding-top:14px;min-width:0}
+.fld-l{display:block;font-size:var(--fs-14);color:var(--ink-2);margin-bottom:6px}
+.fld-i{display:flex;align-items:center;gap:8px;min-height:52px;padding:0 6px 0 14px;border-radius:var(--r-3);background:var(--plate-2);box-shadow:inset 0 0 0 1px var(--line-2),inset 0 1px 2px rgba(14,27,51,.04);transition:box-shadow var(--d-1) var(--ease-std)}
+.fld-i input{flex:1;border:0;background:none;outline:none;height:50px;font-size:1.0625rem;min-width:0;width:100%;padding:0}
+.fld-i:focus-within{box-shadow:inset 0 0 0 2px var(--accent);background:#fff}
+.fld-i.bad{box-shadow:inset 0 0 0 2px var(--danger);background:#fff}
+.fld-suf{flex:none;margin-right:8px}
+.fld-h{display:block;margin-top:6px;font-size:var(--fs-12);color:var(--ink-3);line-height:1.5}
+.err{display:flex;gap:6px;align-items:flex-start;margin-top:8px;font-size:.8125rem;line-height:1.6;color:var(--danger)}
+.err .ic{width:18px;height:18px;margin-top:1px}
+.form-err{margin-top:12px}
+.form-err-line{display:block}
+.err small{display:block;color:var(--ink-3);font-size:var(--fs-12)}
+.area{display:block;width:100%;min-height:120px;padding:12px 14px;border:0;border-radius:var(--r-3);background:var(--plate-2);box-shadow:inset 0 0 0 1px var(--line-2);font-size:.9375rem;line-height:1.7;resize:none;outline:none}
+.area:focus{box-shadow:inset 0 0 0 2px var(--accent);background:#fff}
+.area.bad{box-shadow:inset 0 0 0 2px var(--danger);background:#fff}
+
+/* 下拉（原生 select）与日期（原生 input type=date）：同一个 .sel 圆角框，系统选择器由原生控件调起 */
+.sel{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:0 10px 0 14px;border-radius:var(--r-3);background:var(--plate-2);box-shadow:inset 0 0 0 1px var(--line-2);font-size:.9375rem;min-width:0}
+.sel:focus-within{box-shadow:inset 0 0 0 2px var(--accent);background:#fff}
+.sel>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel select{appearance:none;-webkit-appearance:none;flex:1;min-width:0;min-height:44px;margin:0 -10px 0 -14px;padding:0 36px 0 14px;border:0;background:none;outline:none;font-size:.9375rem;color:var(--ink);cursor:pointer}
+.sel>.ic{position:absolute;right:10px;top:50%;margin-top:-9px;pointer-events:none;color:var(--ink-3)}
+.sel input[type="date"]{position:absolute;top:0;left:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer;font-size:1rem}
+/* 出错的日期框：朱色内描边（聚焦时也保持） */
+.sel.bad,.sel.bad:focus-within{box-shadow:inset 0 0 0 2px var(--danger);background:#fff}
+
+/* 可移除标签：胶囊，删除键 44 */
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+/* 还没有标签时，空列表不占位置，“添加”贴着左边（列表仍在读屏树里，标签组的名字落在它上面） */
+.tags>.tags:empty{margin:0 -8px 0 0}
+.tag{display:inline-flex;align-items:center;min-height:44px;padding:0 0 0 16px;border-radius:var(--r-pill);font-size:var(--fs-14);background:var(--plate-2);box-shadow:inset 0 0 0 1px var(--line-2);outline:none}
+.tag[data-focus-visible]{outline:2px solid var(--accent);outline-offset:2px}
+.tag button{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3);border-radius:var(--r-pill)}
+.tag button .ic{width:16px;height:16px}
+.tag.add{color:var(--accent);padding:0 18px;background:none;box-shadow:none;border:1px dashed var(--sky)}
+.tag-in{min-height:44px;width:8em;padding:0 16px;border:0;border-radius:var(--r-pill);background:#fff;box-shadow:inset 0 0 0 2px var(--accent);font-size:var(--fs-14);outline:none}
+
+@media (forced-colors:active){
+  .fld-i,.sel,.area{border:1px solid CanvasText}
+  .fld-i.bad,.area.bad,.sel.bad{border:2px solid CanvasText}
+  .tag{border:1px solid ButtonText}
+}

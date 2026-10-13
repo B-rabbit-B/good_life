@@ -1,0 +1,25 @@
+/* 底部导航：浮起的玻璃条，左右各 8、下沿 18（含安全区）；当前项是一汪下陷的“积釉”；最右 60 宽是拇指区的遮盖按钮
+   （设计稿第 217 至 232 行）。积釉画在一个单独的层上，当前项变化时用 240 毫秒 transform 移过去。 */
+.rnav{position:fixed;left:8px;right:8px;bottom:var(--float-bottom);z-index:8;display:grid;grid-template-columns:repeat(var(--cols,4),1fr) 60px;height:60px;padding:0 2px 0 4px;border-radius:var(--r-5)}
+.rnav a{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;font-size:.9375rem;color:var(--ink-2);min-height:52px;letter-spacing:.06em;align-self:center;border-radius:var(--r-3)}
+.rnav a[aria-current="page"]{color:var(--ink);font-weight:600}
+/* 积釉：影青的釉在凹处积厚泛青；不用抬起的白胶囊 */
+.rnav-glaze{position:absolute;top:4px;left:4px;width:calc((100% - 66px) / var(--cols,4));height:52px;transform:translateX(calc(var(--at,0) * 100%));transition:transform 240ms var(--ease-out);pointer-events:none;z-index:0}
+.rnav-glaze::before{content:"";position:absolute;top:6px;bottom:6px;left:5px;right:5px;border-radius:var(--r-3);background:linear-gradient(180deg,#D9E6F7,#E9F1FB 70%);box-shadow:inset 0 1px 2px rgba(14,27,51,.16),inset 0 -1px 0 rgba(255,255,255,.95),inset 0 0 0 1px rgba(31,88,168,.14)}
+.rnav-glaze::after{content:"";position:absolute;left:50%;bottom:10px;width:14px;height:2px;margin-left:-7px;border-radius:var(--r-pill);background:var(--accent)}
+.rnav .cov{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-height:52px;align-self:center;font-size:var(--fs-12);line-height:1.3;color:var(--ink-2);border-radius:var(--r-3)}
+.rnav .cov::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:1px;background:rgba(14,27,51,.12)}
+.rnav .cov .ic{width:20px;height:20px}
+.rnav .cov[aria-pressed="true"]{color:var(--ink);font-weight:600}
+.rnav .cov[aria-pressed="true"] .ic{color:var(--accent)}
+/* 放在对话底座里：导航不再叠一层玻璃，上方一条细线分隔 */
+.rnav.embedded{position:relative;left:auto;right:auto;bottom:auto;height:58px;margin:0 -6px;border-top:1px solid rgba(14,27,51,.08);border-radius:0 0 var(--r-5) var(--r-5);background:none;box-shadow:none}
+.rnav.embedded .rnav-glaze{top:2.5px}
+
+@media (forced-colors:active){
+  /* 导航当前项：不用 Highlight 填底（Chromium 会在字后垫一块 Canvas，字就看不见了），改成描边加短线，字保持 CanvasText */
+  .rnav-glaze{display:none}
+  .rnav a[aria-current="page"]{color:CanvasText}
+  .rnav a[aria-current="page"]::before{content:"";position:absolute;top:6px;bottom:6px;left:5px;right:5px;z-index:-1;border-radius:var(--r-3);forced-color-adjust:none;background:Canvas;outline:2px solid Highlight;outline-offset:-2px}
+  .rnav a[aria-current="page"]::after{content:"";position:absolute;left:50%;bottom:10px;width:14px;height:2px;margin-left:-7px;border-radius:var(--r-pill);forced-color-adjust:none;background:Highlight}
+}

@@ -29,6 +29,7 @@ class ConversationOut(BaseModel):
 class MessageOut(BaseModel):
     """给前端看的消息：只有用户与助手的可见内容，没有工具调用、工具结果与 provider_state。"""
 
+    id: uuid.UUID
     role: Literal["user", "assistant"]
     text: str
     evidence: str  # 依据段（evidence_section 的结果），没有时为空串

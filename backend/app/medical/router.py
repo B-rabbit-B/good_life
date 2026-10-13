@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, UploadFile
+from fastapi import APIRouter, Depends, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.auth.models import User
@@ -23,6 +23,7 @@ from app.medical.schemas import (
     ItemStatus,
     ItemUpdate,
     ManualItemCreate,
+    MedicalEventOut,
     OrderCreate,
     OrderOut,
     ProposalBody,
@@ -149,6 +150,21 @@ def resolve_item(item_id: uuid.UUID, user: MedicalUser, db: DbSession, body: Rea
 @router.get("/items/{item_id}/events", response_model=list[EventOut])
 def list_events(item_id: uuid.UUID, user: MedicalUser, db: DbSession) -> list[MedicalItemEvent]:
     return items.list_events(db, user.id, item_id)
+
+
+@router.get("/events", response_model=list[MedicalEventOut])
+def list_user_events(
+    user: MedicalUser, db: DbSession, limit: Annotated[int, Query(ge=1, le=200)] = 50
+) -> list[MedicalEventOut]:
+    return [
+        MedicalEventOut(
+            **EventOut.model_validate(event).model_dump(),
+            item_id=item.id,
+            item_category=item.category,
+            item_content=item.content,
+        )
+        for event, item in items.list_user_events(db, user.id, limit)
+    ]
 
 
 @router.get("/constraints", response_model=ConstraintsOut)

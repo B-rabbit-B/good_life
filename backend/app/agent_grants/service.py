@@ -75,6 +75,11 @@ def authenticate_grant(db: Session, token: str, now: datetime) -> AgentGrant | N
     return grant
 
 
-def list_audits(db: Session, user_id: uuid.UUID, limit: int) -> list[SdkCallAudit]:
-    query = owned_by(SdkCallAudit, user_id).order_by(SdkCallAudit.created_at.desc(), SdkCallAudit.id).limit(limit)
+def list_audits(
+    db: Session, user_id: uuid.UUID, limit: int, client_name: str | None = None
+) -> list[SdkCallAudit]:
+    query = owned_by(SdkCallAudit, user_id)
+    if client_name is not None:
+        query = query.where(SdkCallAudit.client_name == client_name)
+    query = query.order_by(SdkCallAudit.created_at.desc(), SdkCallAudit.id).limit(limit)
     return list(db.scalars(query))

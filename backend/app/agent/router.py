@@ -54,6 +54,7 @@ def _visible_messages(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUI
             continue  # 带工具调用的助手消息整条不给前端，即使带了旁白文字；空正文的也不给
         visible.append(
             MessageOut(
+                id=message.id,
                 role=message.role,
                 text=text,
                 evidence=content.get("evidence") or "",

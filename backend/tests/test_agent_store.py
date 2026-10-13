@@ -506,7 +506,7 @@ def test_conversation_api_hides_tool_messages_and_provider_state(client, db):
     assert body["messages"][0]["evidence"] == "" and body["messages"][0]["flags"] == []
     assert body["messages"][1]["evidence"] == "清蒸鱼：适合。"
     assert body["messages"][1]["flags"] == ["guard_rewritten"]
-    assert set(body["messages"][1]) == {"role", "text", "evidence", "flags", "created_at"}
+    assert set(body["messages"][1]) == {"id", "role", "text", "evidence", "flags", "created_at"}
     assert "SECRET" not in response.text and "tool" not in {m["role"] for m in body["messages"]}
 
 

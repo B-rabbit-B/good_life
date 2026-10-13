@@ -172,6 +172,14 @@ class EventOut(BaseModel):
     detail: dict[str, Any] | None
 
 
+class MedicalEventOut(EventOut):
+    """全部条目的事件列表里的一条：带上条目的类别与完整内容，前端不必逐条再查。"""
+
+    item_id: uuid.UUID
+    item_category: Category
+    item_content: str  # 完整内容，不截断：含数值的文字不得用省略号截断
+
+
 class ConstraintOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

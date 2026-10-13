@@ -1,0 +1,82 @@
+/* 训练（设计稿 08，第 637 至 660 行）：顶部的运动限制（赭色浅底圆角，医嘱内容）、本周训练面板（三个数字、七根实心钴蓝柱，
+   顶角 2）、“搜索动作”胶囊、动作趋势（阶梯线加圆点，最近一次实心钴蓝）、训练列表（冲突说明赭色写在行内）；
+   记一次训练（线框）：胶囊搜索框、账目行结果、每个动作一块面板。 */
+/* 记录页页头右上的“记一次训练”：钴蓝加号 */
+.ibtn.acc{color:var(--accent)}
+.lims{margin:4px var(--plate-x) 0;border-radius:var(--r-3);display:grid;gap:8px}
+.lim{display:flex;gap:8px;margin:0;font-size:.8125rem;color:var(--warn-ink);line-height:1.6;padding:10px 14px;border-radius:var(--r-3);background:var(--warn-wash);box-shadow:inset 0 0 0 1px rgba(176,122,30,.25)}
+.lim .ic{flex:none;color:var(--warn);margin-top:2px}
+
+.wk{padding:14px var(--plate-pad) 12px}
+.wk-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.wk-figs{display:grid;grid-template-columns:.8fr 1fr 1.4fr;gap:12px;margin-top:8px}
+.wk-figs>div{font-size:var(--fs-12);color:var(--ink-3);line-height:1.4;min-width:0}
+.wk-figs .ns{display:block;font-size:1.75rem;color:var(--ink);line-height:1.15;white-space:nowrap}
+.wk-figs .ns small{font-family:var(--font-sans);font-weight:400;font-size:.8125rem;color:var(--ink-3);margin-left:2px}
+.wk-figs .ref{margin-left:4px;vertical-align:0}
+/* 能量是一个区间（低–高），比单个数字宽，小一号才放得下 */
+.wk-figs .ns.rng{font-size:1.375rem;line-height:1.47}
+.wk-note{margin:8px 0 0}
+.wk-cols{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:96px;align-items:end;margin-top:16px;border-bottom:1px solid var(--ink-2)}
+.wk-col{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.wk-col .bar{display:block;width:100%;max-width:20px;height:var(--h);border-radius:2px 2px 0 0;background:var(--accent)}
+.wk-col.zero .bar{height:2px;border-radius:0;background:var(--line-2)}
+.wk-col .v{font-size:var(--fs-12);line-height:1.5;color:var(--ink-2);margin-bottom:2px;font-variant-numeric:tabular-nums}
+.wk-lbl{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center;font-size:var(--fs-12);line-height:1.5;color:var(--ink-3);padding-top:4px}
+.wk-lbl .on{color:var(--accent);font-weight:600}
+
+.srch{display:flex;align-items:center;gap:8px;margin:14px var(--plate-x) 0;min-height:44px;padding:0 16px;border-radius:var(--r-pill);background:rgba(255,255,255,.88);box-shadow:inset 0 0 0 1px var(--line-2),0 1px 2px rgba(14,27,51,.05);color:var(--ink-3);font-size:.9375rem;text-decoration:none}
+.srch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.trn{list-style:none;margin:0;padding:0}
+.trend{display:grid;grid-template-columns:1fr 132px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.trend b{display:block;font-size:.9375rem;font-weight:600}
+.trend svg{width:132px;height:44px;overflow:visible}
+.trend path{fill:none;stroke:var(--ink-2);stroke-width:1.5;stroke-linejoin:round}
+.trend circle{fill:#fff;stroke:var(--ink-2);stroke-width:1.5}
+.trend circle.last{fill:var(--accent);stroke:none}
+.trw{padding:12px 0;border-bottom:1px solid var(--line)}
+.trw:last-child{border-bottom:0}
+.trw-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.trw-h b{font-size:var(--fs-16);font-weight:600}
+.trw-h .n{font-size:.9375rem;color:var(--ink-2);white-space:nowrap}
+.trw-d{font-size:.8125rem;line-height:1.6;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:2px 14px}
+.trw-xs{border-radius:var(--r-2)}
+.trw-x{font-size:.8125rem;line-height:1.6;color:var(--warn);margin-top:4px;display:flex;gap:6px}
+.trw-x .ic{flex:none;margin-top:2px}
+.trn-empty{margin:0;padding:14px 0;font-size:var(--fs-14);color:var(--ink-2)}
+
+/* 记一次训练 */
+.wn-q{padding-top:12px;padding-bottom:12px}
+.wn-srch{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:var(--r-pill);background:#fff;box-shadow:inset 0 0 0 1px var(--line-2);color:var(--ink-3)}
+.wn-srch:focus-within{box-shadow:inset 0 0 0 2px var(--accent)}
+.wn-srch input{flex:1;min-width:0;height:44px;border:0;background:transparent;font-size:var(--fs-16);color:var(--ink);outline:none}
+.wn-srch input::placeholder{color:var(--ink-3)}
+.wn-msg{margin:8px 0 0;font-size:.8125rem;line-height:1.6;color:var(--ink-2)}
+.wn-code{display:block;font-size:var(--fs-12);color:var(--ink-3)}
+.wn-res{list-style:none;margin:8px 0 0;padding:0}
+.wn-row{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:48px;padding:6px 0;border-bottom:1px solid var(--line);text-align:left;font-size:var(--fs-16);color:var(--ink);cursor:pointer}
+.wn-res li:last-child .wn-row{border-bottom:0}
+.wn-row .t-cap{text-align:right}
+.wn-row[data-focus-visible]{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--r-2)}
+.wn-ex{padding-top:12px;padding-bottom:12px}
+.wn-ex-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.wn-ex-h h2{margin:0;font-size:var(--fs-16);font-weight:600;line-height:1.4}
+.wn-set{display:grid;grid-template-columns:3em 1fr 1fr 44px;gap:6px;align-items:start;margin-top:8px}
+.wn-set-n{font-size:var(--fs-14);color:var(--ink-2);line-height:44px}
+.wn-num{display:flex;flex-direction:column;min-width:0}
+.wn-num .fld-i{min-height:44px;padding:0 4px 0 10px;gap:4px}
+.wn-num .fld-i input{height:44px;min-width:44px}
+.wn-num .fld-suf{margin-right:4px}
+.wn-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.wn-when{padding-top:12px;padding-bottom:12px}
+
+@media (forced-colors:active){
+  .lim,.srch,.wn-srch{border:1px solid CanvasText}
+  .wk-col .bar,.trend path,.trend circle{forced-color-adjust:none}
+  .wk-col .bar{background:CanvasText}
+  .wk-col.zero .bar{background:GrayText}
+  .trend path{stroke:CanvasText}
+  .trend circle{fill:Canvas;stroke:CanvasText}
+  .trend circle.last{fill:Highlight}
+}

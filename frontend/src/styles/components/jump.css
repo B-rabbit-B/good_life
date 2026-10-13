@@ -1,0 +1,3 @@
+/* 对话里唯一的跳转件：一块白瓷，说明加一个“去某页”的小按钮，只导航 */
+.plate.jump{margin:12px var(--plate-x) 0;padding:12px 14px}
+.jump p{margin:0 0 8px}

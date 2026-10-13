@@ -1,0 +1,7 @@
+/* 应用外壳：唯一的滚动容器铺满视口（用 top、right、bottom、left，不依赖 inset），背景场在它后面；
+   浮起的外壳在 #shell-root 里。底部留白由 AppShell 按路由直接给。 */
+.scroller{position:fixed;top:0;right:0;bottom:0;left:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
+
+/* 守卫加载中与失败：没有外壳时的整页状态 */
+.boot-splash{padding-top:calc(env(safe-area-inset-top) + 12px)}
+.guard-error{padding:calc(env(safe-area-inset-top) + 48px) var(--plate-x) 28px}

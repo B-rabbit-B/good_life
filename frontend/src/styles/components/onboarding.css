@@ -1,0 +1,52 @@
+/* 免责声明确认（设计稿 01b）与建档三步（设计稿 02 与 DESIGN.md 第十三节的线框，第 377 至 393 行） */
+.intro{margin:0;padding:0 var(--gutter);font-size:var(--fs-14);line-height:1.65;color:var(--ink-2)}
+
+/* 免责正文：每条前一枚钴蓝浅底的圆形序号 */
+.disc{list-style:none;margin:0;padding:0;counter-reset:d}
+.disc li{position:relative;padding:14px 0 14px 30px;border-bottom:1px solid var(--line);font-size:.9375rem;line-height:1.75;counter-increment:d}
+.disc li::before{content:counter(d);position:absolute;left:0;top:16px;width:20px;height:20px;border-radius:50%;background:var(--accent-wash);color:var(--accent);font-size:var(--fs-12);font-weight:600;line-height:20px;text-align:center}
+.disc-err{padding:4px 0 8px}
+.stick .disc-chk{padding:0 4px 8px}
+.stick .disc-note{margin:8px 0 0;text-align:center}
+
+/* 建档进度：三段，已走过的段与当前段是钴蓝 */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px var(--gutter) 0}
+.step{position:relative;padding-top:10px;font-size:var(--fs-12);line-height:1.4;color:var(--ink-2)}
+.step::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;border-radius:var(--r-pill);background:rgba(14,27,51,.1)}
+.step.done::before,.step[aria-current]::before{background:linear-gradient(90deg,var(--accent),var(--accent-hi))}
+.step[aria-current]{color:var(--ink);font-weight:600}
+.onb-h{margin:20px 0 4px}
+/* 换步时焦点由脚本移到页题上：页题不可操作，不画焦点环 */
+.onb-h h1:focus{outline:none}
+.onb-intro{margin:0 0 4px}
+.onb-basics{padding-bottom:14px}
+.onb-rulers{padding-bottom:10px}
+
+/* 出生年份：下拉框与输入框同高（52），年份用展示数字 */
+.onb-year .sel{min-height:52px}
+.onb-year .sel select{min-height:52px;font-family:var(--font-num);font-size:1.375rem;font-variant-numeric:tabular-nums lining-nums}
+
+/* 活动水平：五档单选，每档一行（名称加一句说明），选中是钴蓝圆点 */
+.acts{padding:4px 0}
+.acts .fld-l{padding-top:12px}
+.act{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.act:last-child{border-bottom:0}
+.act-dot{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--ink-3);background:#fff;position:relative}
+.act[data-selected] .act-dot{border-color:var(--accent);background:linear-gradient(180deg,var(--accent-hi),var(--accent))}
+.act[data-selected] .act-dot::after{content:"";position:absolute;top:5px;left:5px;width:9px;height:9px;border-radius:50%;background:#fff}
+.act[data-focus-visible] .act-dot{outline:2px solid var(--accent);outline-offset:2px}
+.act-t{display:flex;flex-direction:column;min-width:0;font-size:.9375rem;line-height:1.5}
+.act-t small{font-size:var(--fs-12);color:var(--ink-3)}
+.act[data-selected] .act-t>span{font-weight:600}
+
+/* 第三步：操作坞里“完成”与文字按钮“跳过这一步” */
+.onb-skip{display:flex;justify-content:center;margin-top:4px}
+
+@media (forced-colors:active){
+  .step::before,.act-dot,.act-dot::after{forced-color-adjust:none}
+  .step::before{background:GrayText}
+  .step.done::before,.step[aria-current]::before{background:Highlight}
+  .act-dot{background:Canvas;border-color:CanvasText}
+  .act[data-selected] .act-dot{background:Highlight;border-color:Highlight}
+  .act[data-selected] .act-dot::after{background:HighlightText}
+}

@@ -1,0 +1,12 @@
+/* 系统附注：一张夹在回答旁的静玻璃便笺，打孔上沿；材质与位置都和模型的话分开（设计稿第 448 至 456 行） */
+.slip{position:relative;margin:10px var(--plate-x) 0 28px;padding:14px 16px 12px;border-radius:var(--r-4)}
+.slip::before{content:"";position:absolute;left:18px;right:18px;top:6px;height:2px;background:radial-gradient(circle,rgba(31,88,168,.35) 0 1px,transparent 1.4px) 0 0/6px 2px repeat-x}
+.slip-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+.slip-h b{font-size:var(--fs-14);color:var(--danger);display:flex;align-items:center;gap:6px}
+.slip-h small{font-size:var(--fs-12);color:var(--ink-2);border:1px solid var(--line-3);padding:0 8px;border-radius:var(--r-pill);line-height:20px;white-space:nowrap;background:rgba(255,255,255,.6)}
+.slip p{margin:0;font-size:var(--fs-14);line-height:1.65}
+.slip p+p{margin-top:8px;padding-top:8px;border-top:1px solid rgba(14,27,51,.1)}
+
+@media (forced-colors:active){
+  .slip::before{forced-color-adjust:none;background:radial-gradient(circle,CanvasText 0 1px,transparent 1.4px) 0 0/6px 2px repeat-x}
+}

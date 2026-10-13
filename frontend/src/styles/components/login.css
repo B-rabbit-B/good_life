@@ -1,0 +1,16 @@
+/* 登录与注册（设计稿 01，第 369 至 376 行）：背景场露得最多的一页，表单写在瓷胎面板上；页脚说明压在页底 */
+.login{display:flex;flex-direction:column;min-height:100%;padding-top:env(safe-area-inset-top)}
+/* 字标：设计稿用数字字体，但数字子集只有数字与少数符号，字母会落到回退字体里与连字符混排，所以整体用系统黑体 */
+.wm{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;padding:28px var(--gutter) 0}
+.wm b{font-weight:500;font-size:1.3125rem;letter-spacing:-.01em}
+.wm span{font-size:.8125rem;color:var(--ink-2)}
+.login-h{margin:56px var(--gutter) 6px}
+.login-p{margin:0 var(--gutter) 18px;color:var(--ink-2);font-size:.9375rem}
+.login-plate{padding:12px var(--plate-pad) 16px}
+.login-plate .ttabs{margin:0 0 2px}
+.login-submit{margin-top:22px}
+.login-next{margin:12px 0 0}
+.foot-note{margin:auto var(--gutter) 0;padding:16px 0 12px;font-size:var(--fs-12);color:var(--ink-2);line-height:1.6}
+/* 登录已过期：页题下面一块瓷胎面板（role="status" 播报），状态组件自己的页边去掉 */
+.login-expired{margin-top:0}
+.login-expired .state{padding:12px 0 14px}

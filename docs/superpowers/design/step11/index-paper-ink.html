@@ -1,0 +1,2007 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>good-life 刻度</title>
+<meta name="description" content="good-life 步骤 11 移动端 H5 视觉设计第三稿：刻度（按评审意见修订）。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- 宋体只要 700 一个字重；数字只要 Source Serif 4 的 500 一个字重 -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&family=Source+Serif+4:opsz,wght@8..60,500&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   设计令牌
+   ========================================================= */
+:root{
+  --paper:#F4F5F2;
+  --sheet:#FFFFFF;
+  --ink:#1C2024;
+  --ink-2:#474D53;
+  --ink-3:#656B71;
+  --ink-4:#9AA0A5;        /* 只画刻度，永远不用于文字 */
+  --rule:#CFD3CD;         /* 细线 1.39:1 */
+  --rule-2:#B3B8B2;       /* 控件边框 1.84:1 */
+  --rule-3:#959B96;       /* “仅供参考”边框 2.6:1 */
+  --skel:#CBCFC9;         /* 骨架块 */
+  --accent:#2B4A8B;
+  --accent-press:#213B70;
+  --accent-wash:#E8EDF6;
+  --ok:#2E6A4E;
+  --warn:#86540B;
+  --warn-line:#A97521;
+  --warn-wash:#F6EEDD;
+  --danger:#A63421;
+  --danger-press:#8C2B1B;
+  --danger-wash:#F8E6E1;
+  --scrim:rgba(28,32,36,.44);
+
+  --font-sans:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","MiSans","Hiragino Sans GB","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
+  /* 安卓没有可靠的系统宋体，回退直接落到黑体，不假装有“系统宋体回退” */
+  --font-display:"Noto Serif SC",var(--font-sans);
+  --font-num:"Source Serif 4",var(--font-sans);
+
+  --fs-12:12px; --fs-14:14px; --fs-16:16px; --fs-18:18px; --fs-22:22px; --fs-28:28px; --fs-44:44px;
+  --gutter:20px;
+  --r-mark:2px; --r-ctl:6px; --r-sheet:14px;
+  --d-1:120ms; --d-2:200ms; --d-3:320ms; --d-4:480ms;
+  --ease-out:cubic-bezier(.2,.7,.2,1);
+  --ease-sheet:cubic-bezier(.32,.72,0,1);
+  --ease-std:cubic-bezier(.4,0,.2,1);
+}
+
+/* =========================================================
+   展示页外框（非产品界面）
+   ========================================================= */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#E7E8E4;color:var(--ink);font-family:var(--font-sans);font-size:16px;line-height:1.7}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.deck{max-width:1720px;margin:0 auto;padding:56px 40px 120px}
+.deck-head{display:grid;grid-template-columns:minmax(0,680px) 1fr;gap:40px;align-items:end;padding-bottom:28px;border-bottom:1px solid #C9CCC6}
+.deck-head h1{font-family:var(--font-display);font-weight:700;font-size:40px;line-height:1.2;margin:0 0 12px}
+.deck-head h1 small{display:block;font-family:var(--font-sans);font-weight:400;font-size:16px;color:var(--ink-3);margin-bottom:10px}
+.deck-head p{margin:0;color:var(--ink-2);max-width:38em}
+.deck-ctl{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+.deck-ctl button{min-height:44px;padding:0 16px;border:1px solid #B7BBB5;border-radius:6px;font-size:14px;background:var(--paper)}
+.deck-ctl button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.deck-sec{margin-top:64px}
+.deck-sec>h2{font-family:var(--font-display);font-weight:700;font-size:24px;margin:0 0 6px}
+.deck-sec>p{margin:0 0 28px;color:var(--ink-2);max-width:50em;font-size:15px}
+.grid{display:flex;flex-wrap:wrap;gap:48px 40px;align-items:flex-start}
+figure{margin:0;width:390px}
+figcaption{margin-top:16px;font-size:14px;color:var(--ink-2);line-height:1.65}
+figcaption b{display:block;font-family:var(--font-display);font-size:17px;color:var(--ink);margin-bottom:4px}
+figcaption b span{font-family:var(--font-sans);font-weight:400;color:var(--ink-3);margin-right:8px}
+
+/* =========================================================
+   手机画框
+   ========================================================= */
+.app{position:relative;width:390px;height:844px;background:var(--paper);border:1px solid #BFC3BD;border-radius:44px;overflow:hidden;display:flex;flex-direction:column;isolation:isolate}
+.app::after{content:"";position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:var(--ink);z-index:30;pointer-events:none}
+.sb{flex:none;height:47px;padding:14px 30px 0 34px;display:flex;justify-content:space-between;font-weight:600;font-size:16px;line-height:20px;position:relative;z-index:5}
+.sb svg{height:13px}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;position:relative}
+.scroll::-webkit-scrollbar{display:none}
+.pad{padding:0 var(--gutter)}
+.deck.long .app{height:auto;min-height:844px}
+.deck.long .scroll{overflow:visible}
+
+/* =========================================================
+   产品界面：基础
+   ========================================================= */
+.app,.panel{font-size:var(--fs-16);line-height:1.7;line-break:strict;text-spacing-trim:trim-start;hanging-punctuation:allow-end}
+.app p,.app li,.panel p,.mo-c,.open p{text-wrap:pretty}
+.nw{white-space:nowrap}
+.ic{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic-s{width:18px;height:18px}
+/* 数字：默认系统黑体加表格数字；16 号以上的展示数字才用 Source Serif 4 */
+.n{font-family:var(--font-sans);font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1}
+.ns,.ledger-big .n,.ledger-rem .n,.legend .n,.totals .n,.picker-val .n,.wk-figs .n,.pred .n,.meal-h .n,.item-k,.mt td,.cal-g .d,.cal-h b,.ds-num{font-family:var(--font-num);font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1;font-weight:500;font-variation-settings:"opsz" 16}
+.mt td:first-child{font-family:var(--font-sans);font-weight:400;font-variation-settings:normal}
+.t-display{font-family:var(--font-display);font-weight:700;font-size:var(--fs-28);line-height:1.3;letter-spacing:.01em;font-feature-settings:"palt" 1;margin:0}
+.t-title{font-family:var(--font-display);font-weight:700;font-size:var(--fs-22);line-height:1.4;margin:0}
+.t-h{font-family:var(--font-display);font-weight:700;font-size:var(--fs-18);line-height:1.45;margin:0}
+.t-small{font-size:var(--fs-14);line-height:1.65}
+.t-cap{font-size:var(--fs-12);line-height:1.5;color:var(--ink-3)}
+.mute{color:var(--ink-3)}
+.ink2{color:var(--ink-2)}
+.hr{height:1px;background:var(--rule);border:0;margin:0}
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:24px;padding-bottom:6px;border-bottom:1px solid var(--ink)}
+
+/* 页头 */
+.hdr{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:52px;padding:0 8px 0 var(--gutter)}
+.hdr-sub{padding-left:4px}
+.hdr-l{display:flex;align-items:center;gap:2px;min-width:0}
+.hdr-r{display:flex;align-items:center;flex:none}
+.hdr-big{padding:6px 12px 14px var(--gutter);align-items:flex-end;min-height:64px}
+.ibtn{min-width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-ctl);color:var(--ink-2)}
+.ibtn:active{background:rgba(28,32,36,.06)}
+.ibtn[aria-pressed="true"]{color:var(--accent)}
+
+/* 底部导航：只有文字，当前项上方一根靛色刻度；最右是拇指区的遮盖按钮 */
+.rnav{flex:none;position:relative;display:grid;grid-template-columns:repeat(var(--cols,4),1fr) 60px;height:86px;padding-bottom:34px;background:var(--paper);border-top:1px solid var(--rule)}
+.rnav a{position:relative;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink-3);min-height:52px;letter-spacing:.08em}
+.rnav a[aria-current="page"]{color:var(--ink);font-weight:600}
+.rnav a[aria-current="page"]::before{content:"";position:absolute;top:-1px;left:50%;width:2px;height:16px;margin-left:-1px;background:var(--accent)}
+.rnav .cov{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:52px;font-size:12px;color:var(--ink-3);border-left:1px solid var(--rule);margin:8px 0}
+.rnav .cov .ic{width:20px;height:20px}
+.rnav .cov[aria-pressed="true"]{color:var(--accent);font-weight:600}
+
+/* 文字标签页：视觉间距不变，点按区左右各外扩 8 像素 */
+.ttabs{display:flex;gap:24px;border-bottom:1px solid var(--rule);padding:0 var(--gutter)}
+.ttab{position:relative;display:flex;align-items:center;gap:4px;min-height:44px;padding:0 8px;margin:0 -8px;font-size:var(--fs-16);color:var(--ink-3);white-space:nowrap}
+.ttab[aria-selected="true"]{color:var(--ink);font-weight:600}
+.ttab[aria-selected="true"]::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;background:var(--ink)}
+.ttab .cnt{font-size:12px;font-weight:600;color:var(--warn)}
+.ttabs.sm{border-bottom:0;gap:18px;margin-top:2px}
+.ttabs.sm .ttab{font-size:14px}
+
+/* 按钮 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:var(--r-ctl);font-size:var(--fs-16);font-weight:600;letter-spacing:.04em;white-space:nowrap;transition:background var(--d-1) var(--ease-std),transform var(--d-1) var(--ease-std)}
+.btn:active{transform:scale(.985)}
+.btn-pri{background:var(--accent);color:#fff}
+.btn-pri:active{background:var(--accent-press)}
+.btn-qt{border:1px solid var(--rule-2);color:var(--ink)}
+.btn-dng{background:var(--danger);color:#fff}
+.btn-dng:active{background:var(--danger-press)}
+.btn-dng-qt{border:1px solid var(--danger);color:var(--danger)}
+.btn-txt{min-height:44px;min-width:44px;padding:0 6px;color:var(--accent);font-weight:500;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:14px}
+.btn-txt.ink{color:var(--ink)}
+.btn-sm{min-height:36px;padding:0 14px;font-size:var(--fs-14);position:relative}
+.btn-sm::before{content:"";position:absolute;top:-4px;bottom:-4px;left:0;right:0}
+.btn-blk{display:flex;width:100%}
+.btn[disabled]{background:#DDE0DC;color:var(--ink-3);cursor:not-allowed;transform:none}
+.btn-qt[disabled]{background:none;color:var(--ink-3);border-style:dashed}
+
+/* “仅供参考”：全站同一个样子 */
+.ref{display:inline-flex;align-items:center;height:22px;padding:0 7px;border:1px solid var(--rule-3);border-radius:var(--r-mark);font-size:12px;line-height:1;color:var(--ink-2);white-space:nowrap;vertical-align:2px;font-weight:400;font-family:var(--font-sans);letter-spacing:.04em}
+
+/* 结论标记：颜色加形状，形状 12 像素 */
+.vd{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-14);font-weight:600;white-space:nowrap}
+.vd::before{content:"";width:12px;height:12px;flex:none;border-radius:1px}
+.vd-ok{color:var(--ok)} .vd-ok::before{background:var(--ok)}
+.vd-warn{color:var(--warn)} .vd-warn::before{background:linear-gradient(135deg,var(--warn-line) 50%,transparent 50%);box-shadow:inset 0 0 0 1.5px var(--warn-line)}
+.vd-no{color:var(--danger)} .vd-no::before{background:linear-gradient(45deg,transparent 41%,var(--danger) 41% 59%,transparent 59%),linear-gradient(-45deg,transparent 41%,var(--danger) 41% 59%,transparent 59%);box-shadow:inset 0 0 0 1.5px var(--danger)}
+.vd-un{color:var(--ink-3)} .vd-un::before{border:1.5px dashed var(--ink-3)}
+
+.src{display:inline-block;font-size:12px;color:var(--ink-3)}
+
+/* 把握程度：五格 6×8，旁边写“高、中、低” */
+.conf{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.cells{display:inline-flex;gap:2px}
+.cells b{width:6px;height:8px;background:var(--rule-2)}
+.cells b.on{background:var(--ink-2)}
+
+/* 隐私遮盖：每页把敏感区包进 .sens（实现时为 <Sensitive> 组件） */
+.sens{position:relative}
+.sens::after{content:"";position:absolute;top:0;right:0;bottom:0;left:0;background:repeating-linear-gradient(135deg,var(--paper) 0 4px,#C3C8C2 4px 5px);opacity:0;visibility:hidden;transition:opacity var(--d-2) var(--ease-std),visibility 0s linear var(--d-2);z-index:4;border-radius:2px}
+.is-covered .sens::after{opacity:1;visibility:visible;transition:opacity var(--d-2) var(--ease-std)}
+.cover-note{display:none;align-items:center;gap:6px;margin:8px var(--gutter);font-size:var(--fs-14);color:var(--ink-2)}
+.is-covered .cover-note{display:flex}
+
+/* 输入 */
+.fld{display:block;padding-top:14px}
+.fld-l{display:block;font-size:var(--fs-14);color:var(--ink-2);margin-bottom:2px}
+.fld-i{display:flex;align-items:center;gap:8px;min-height:48px;border-bottom:1px solid var(--rule-2)}
+.fld-i input{flex:1;border:0;background:none;outline:none;height:46px;font-size:17px;min-width:0;width:100%}
+.fld{min-width:0}
+.fld-i:focus-within{border-bottom:2px solid var(--accent);margin-bottom:-1px}
+.fld-i.bad{border-bottom:2px solid var(--danger);margin-bottom:-1px}
+.fld-h{display:block;margin-top:6px;font-size:12px;color:var(--ink-3);line-height:1.5}
+.err{display:flex;gap:6px;align-items:flex-start;margin-top:8px;font-size:13px;line-height:1.6;color:var(--danger)}
+.err .ic{width:18px;height:18px;margin-top:1px}
+.err small{display:block;color:var(--ink-3);font-size:12px}
+.sel{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:0 10px 0 12px;border:1px solid var(--rule-2);border-radius:var(--r-ctl);font-size:15px;background:var(--sheet);min-width:0}
+.sel>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.area{display:block;width:100%;min-height:120px;padding:10px 12px;border:1px solid var(--rule-2);border-radius:var(--r-ctl);background:var(--sheet);font-size:15px;line-height:1.7;resize:none}
+.box{flex:none;width:20px;height:20px;border:1.5px solid var(--ink-2);border-radius:2px;display:inline-flex;align-items:center;justify-content:center;color:#fff}
+.box.on{background:var(--ink);border-color:var(--ink)}
+.box .ic{width:14px;height:14px;stroke-width:2.4}
+.chk{display:flex;gap:10px;align-items:flex-start;min-height:44px;padding:10px 0;font-size:14px;line-height:1.6;cursor:pointer}
+.chk .box{margin-top:1px}
+.opts{display:flex;border:1px solid var(--rule-2);border-radius:var(--r-ctl);overflow:hidden}
+.opt{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink-2);border-right:1px solid var(--rule-2);white-space:nowrap}
+.opt:last-child{border-right:0}
+.opt[aria-checked="true"]{background:var(--ink);color:#fff;font-weight:600}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.tag{display:inline-flex;align-items:center;gap:0;min-height:44px;padding:0 0 0 12px;border:1px solid var(--rule-2);border-radius:var(--r-mark);font-size:14px;background:var(--sheet)}
+.tag button{min-width:44px;min-height:44px;margin:-1px 0;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3)}
+.tag button .ic{width:16px;height:16px}
+.tag.add{border-style:dashed;color:var(--accent);padding:0 12px}
+.sw-t{position:relative;width:46px;height:28px;border-radius:14px;background:var(--rule-2);flex:none}
+.sw-t::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff}
+.sw-t.on{background:var(--ink)}
+.sw-t.on::after{left:21px}
+
+/* 底部固定操作区 */
+.stick{flex:none;padding:12px var(--gutter) 42px;border-top:1px solid var(--rule);background:var(--paper)}
+.stick .t-cap{display:block;margin-bottom:8px}
+
+/* 底部面板 */
+.scrim{position:absolute;top:0;right:0;bottom:0;left:0;background:var(--scrim);z-index:10;transition:opacity var(--d-3) var(--ease-std)}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:11;background:var(--sheet);border-radius:var(--r-sheet) var(--r-sheet) 0 0;padding:20px var(--gutter) 42px;transition:transform var(--d-3) var(--ease-sheet),opacity var(--d-3) var(--ease-std);max-height:calc(100% - 60px);overflow-y:auto}
+.sheet-closed .sheet{transform:translateY(100%)}
+.sheet-closed .scrim{opacity:0}
+.rm .sheet-closed .sheet{transform:none;opacity:0}
+.sheet .t-title{margin:0 0 12px}
+.quote{padding:10px 12px;background:var(--paper);border-radius:var(--r-mark)}
+.will{margin:6px 0 0;padding:0;list-style:none}
+.will li{display:grid;grid-template-columns:16px 1fr;gap:6px;font-size:14px;line-height:1.6;padding:7px 0;border-bottom:1px solid var(--rule)}
+.will li::before{content:"";width:8px;height:1.5px;background:var(--ink-3);margin-top:.8em}
+.will li:last-child{border-bottom:0}
+.will li.irrev{color:var(--danger)}
+.will li.irrev::before{background:var(--danger)}
+.sheet .note{font-size:12px;color:var(--ink-3);margin-top:10px}
+.dt-row{padding:10px 0 8px;border-bottom:1px solid var(--rule)}
+.dt-row.due{position:relative;padding-left:12px}
+.dt-row.due::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;background:var(--warn-line);border-radius:1px}
+.dt-l{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.dt-l b{font-size:15px}
+.dt-why{font-size:12px;color:var(--ink-3);text-align:right}
+.due .dt-why{color:var(--warn);font-weight:600}
+.dt-v{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+.dt-old{font-size:12px;color:var(--ink-3);white-space:nowrap}
+.dt-sel{flex:1;max-width:190px}
+.dt-quick{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 0 -6px}
+.dt-quick .on{font-weight:700;text-decoration:underline;text-underline-offset:4px}
+/* 方角开关，与标签同一家族 */
+.tg{appearance:none;-webkit-appearance:none;position:relative;flex:none;width:48px;height:28px;margin:0;border:1px solid var(--rule-2);border-radius:var(--r-mark);background:var(--sheet);cursor:pointer}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:1px;background:var(--rule-2);transition:transform var(--d-1) var(--ease-std)}
+.tg:checked{background:var(--ink);border-color:var(--ink)}
+.tg:checked::after{transform:translateX(20px);background:#fff}
+.tg-row{cursor:pointer;min-height:52px}
+.tg-row small{display:block;font-size:12px;color:var(--ink-3)}
+
+/* =========================================================
+   各屏
+   ========================================================= */
+
+/* 01 登录、免责 */
+.wm{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;padding:28px var(--gutter) 0}
+.wm b{font-family:var(--font-num);font-weight:500;font-size:21px;letter-spacing:-.01em}
+.wm span{font-size:13px;color:var(--ink-3)}
+.login-h{margin:72px var(--gutter) 6px}
+.login-p{margin:0 var(--gutter) 24px;color:var(--ink-2);font-size:15px}
+.foot-note{margin:auto var(--gutter) 0;padding:16px 0 44px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.6}
+.disc{list-style:none;margin:16px 0 0;padding:0;border-top:1px solid var(--ink)}
+.disc li{padding:14px 0;border-bottom:1px solid var(--rule);font-size:15px;line-height:1.75}
+.disc li b{font-weight:600}
+
+/* 02 建档：刻度尺由脚本按数值与容器宽度算出 */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px var(--gutter) 0}
+.step{font-size:12px;color:var(--ink-3);padding-top:10px;position:relative;line-height:1.4}
+.step::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--rule)}
+.step.on{color:var(--ink);font-weight:600}
+.step.on::before{background:var(--ink)}
+.picker{padding-top:16px}
+.picker-top{display:flex;justify-content:space-between;align-items:baseline}
+.picker-val{display:flex;align-items:baseline;gap:6px}
+.picker-val .n{font-size:40px;line-height:1}
+.picker-val>span:not(.n){font-size:14px;color:var(--ink-3)}
+.ruler{position:relative;height:58px;margin-top:10px;overflow:hidden;touch-action:pan-y}
+.ruler i{position:absolute;top:0;width:1px;height:12px;background:var(--ink-4)}
+.ruler i.mj{height:24px;background:var(--ink-2)}
+.ruler span{position:absolute;top:28px;font-size:12px;color:var(--ink-3);transform:translateX(-50%);font-variant-numeric:tabular-nums}
+.ruler .needle{position:absolute;top:0;left:50%;width:2px;height:34px;margin-left:-1px;background:var(--accent);z-index:2}
+.ruler::before,.ruler::after{content:"";position:absolute;top:0;height:26px;width:40px;z-index:1;pointer-events:none}
+.ruler::before{left:0;background:linear-gradient(90deg,var(--paper),rgba(244,245,242,0))}
+.ruler::after{right:0;background:linear-gradient(270deg,var(--paper),rgba(244,245,242,0))}
+
+/* 03 对话 */
+.rv1{display:flex;align-items:center;gap:10px;width:calc(100% - 2 * var(--gutter));margin:0 var(--gutter);min-height:44px;border-bottom:1px solid var(--rule);font-size:var(--fs-14);text-align:left}
+.rv1::before{content:"";width:3px;align-self:stretch;margin:10px 0;background:var(--warn-line);border-radius:1px;flex:none}
+.rv1 .cat{color:var(--ink);font-weight:600;white-space:nowrap}
+.rv1 .st{color:var(--warn);font-weight:600;white-space:nowrap}
+.rv1 .sp{flex:1}
+.rv1.prop::before{background:var(--accent)}
+.sheet{scrollbar-width:none}
+.sheet::-webkit-scrollbar{display:none}
+.rvx{margin:0 var(--gutter);border-bottom:1px solid var(--ink)}
+.rvx-i{padding:10px 0 6px;border-bottom:1px solid var(--rule)}
+.rvx-i:last-child{border-bottom:0}
+.rvx .mo-c{font-size:16px;margin:4px 0 4px}
+.rvx .acts-r{padding-top:6px}
+.day{display:flex;align-items:center;gap:12px;margin:18px var(--gutter) 6px;font-size:12px;color:var(--ink-3)}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--rule)}
+.open{margin:8px var(--gutter) 0;padding:6px 0 4px 16px;border-left:2px solid var(--accent)}
+.open .t-cap{display:block;margin-bottom:4px}
+.open p{margin:0;font-size:18px;font-weight:500;line-height:1.55}
+.open .acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.hist{margin:0 var(--gutter);font-size:15px;color:var(--ink-2);line-height:1.75}
+.hist p{margin:10px 0 0}
+.hist .u{text-align:right;color:var(--ink-3)}
+.msg-u{margin:24px var(--gutter) 0 64px;text-align:right;line-height:1.65}
+.msg-u span{display:inline-block;text-align:left;padding:8px 12px;background:#E4E7E2;border-radius:10px 10px 2px 10px}
+.msg-a{margin:18px var(--gutter) 0}
+.who{font-size:12px;color:var(--ink-3);margin-bottom:4px}
+.stream{font-size:var(--fs-16);line-height:1.8;min-height:5.4em;margin:0}
+.caret{display:inline-block;width:2px;height:1.05em;background:var(--accent);vertical-align:-3px;margin-left:1px;animation:blink 1s steps(1) infinite}
+.stream.done .caret{display:none}
+@keyframes blink{50%{opacity:0}}
+.after{transition:opacity var(--d-3) var(--ease-out),transform var(--d-3) var(--ease-out)}
+.pending .after{opacity:0;transform:translateY(4px)}
+.fold{display:flex;align-items:center;gap:6px;min-height:44px;font-size:var(--fs-14);color:var(--ink-2);width:100%;border-top:1px solid var(--rule);margin-top:10px}
+.fold .ic{width:18px;height:18px;transition:transform var(--d-2) var(--ease-std)}
+.fold[aria-expanded="true"] .ic{transform:rotate(180deg)}
+.fold em{font-style:normal;color:var(--ink-3)}
+.fold-b{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--d-2) var(--ease-std)}
+.fold-b>div{overflow:hidden}
+.fold[aria-expanded="true"]+.fold-b{grid-template-rows:1fr}
+@supports not (grid-template-rows:0fr){.fold-b{display:none}.fold[aria-expanded="true"]+.fold-b{display:block}}
+.ev{display:grid;grid-template-columns:4.6em 1fr;gap:2px 8px;font-size:13px;line-height:1.6;padding:2px 0 10px;color:var(--ink-2)}
+.slip{position:relative;margin-top:6px;padding:12px 14px;background:var(--sheet);border:1px solid var(--rule-2);border-radius:var(--r-mark)}
+.slip::before{content:"";position:absolute;left:10px;right:10px;top:-1px;height:1px;background:repeating-linear-gradient(90deg,var(--sheet) 0 3px,transparent 3px 6px)}
+.slip-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+.slip-h b{font-size:var(--fs-14);color:var(--danger);display:flex;align-items:center;gap:6px}
+.slip-h small{font-size:12px;color:var(--ink-2);border:1px solid var(--rule-3);padding:0 6px;border-radius:2px;line-height:20px;white-space:nowrap}
+.slip p{margin:0;font-size:var(--fs-14);line-height:1.65}
+.slip .food{display:grid;grid-template-columns:auto 1fr;gap:8px;margin-top:6px;padding-top:6px;border-top:1px solid var(--rule)}
+.slip .food b{font-weight:600;font-size:15px}
+.tip{display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:13px;color:var(--ink-3);line-height:1.6}
+.tip .ref{flex:none;vertical-align:0}
+.qa{flex:none;display:flex;align-items:center;padding:0 var(--gutter);height:44px;border-top:1px solid var(--rule);font-size:var(--fs-14)}
+.qa button{height:44px;color:var(--ink-2);padding:0 12px;position:relative;white-space:nowrap}
+.qa button:first-child{padding-left:0}
+.qa button+button::before{content:"";position:absolute;left:0;top:15px;height:14px;width:1px;background:var(--rule-2)}
+.cmp{flex:none;display:flex;align-items:center;gap:2px;padding:4px 8px 6px 4px;background:var(--paper)}
+.cmp-in{flex:1;min-width:0;height:44px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--rule-2);border-radius:var(--r-ctl);background:var(--sheet);color:var(--ink-3);font-size:15px;margin:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.send{flex:none;width:44px;height:44px;border-radius:var(--r-ctl);background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+.care{background:var(--danger);color:#fff;padding:16px var(--gutter) 18px}
+.care-h{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:22px}
+.care p{margin:6px 0 0;font-size:15px;line-height:1.7}
+.care .btn{background:#fff;color:var(--danger);margin-top:14px}
+.care small{display:block;font-size:12px;opacity:.9;margin-top:10px}
+.care-inline{margin:12px 0 0}
+
+/* 04 拍照识别 */
+.ph-big{margin:4px var(--gutter) 0;height:212px;border:1px solid var(--rule-2);border-radius:var(--r-mark);background:repeating-linear-gradient(135deg,transparent 0 7px,var(--rule) 7px 8px);display:flex;align-items:flex-end;padding:10px 12px;font-size:12px;color:var(--ink-2)}
+.prog-list{list-style:none;margin:20px var(--gutter) 0;padding:0}
+.prog-list li{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--rule);font-size:15px;align-items:start}
+.prog-list li small{display:block;font-size:12px;color:var(--ink-3)}
+.pm{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--rule-2);display:flex;align-items:center;justify-content:center;margin-top:2px}
+.pm.ok{background:var(--ink);border-color:var(--ink);color:#fff}
+.pm.ok .ic{width:14px;height:14px;stroke-width:2.2}
+.pm.run{border-color:var(--accent);border-right-color:transparent;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ph-top{display:grid;grid-template-columns:76px 1fr;gap:14px;padding:6px var(--gutter) 14px;align-items:center}
+.ph-img{width:76px;height:76px;border:1px solid var(--rule-2);border-radius:var(--r-mark);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--rule) 6px 7px);display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:var(--ink-2);line-height:1.35}
+.nr{display:flex;gap:8px;align-items:flex-start;margin:0 var(--gutter);padding:10px 12px;background:var(--warn-wash);border-radius:var(--r-mark);font-size:13px;line-height:1.6;color:#5D3B08}
+.nr .ic{width:18px;height:18px;color:var(--warn);margin-top:1px}
+.item{padding:14px 0;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:1fr auto;gap:2px 12px;position:relative}
+.item-n{font-size:17px;font-weight:600;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.item-k{font-size:20px;text-align:right;line-height:1.2;white-space:nowrap}
+.item-k small{font-family:var(--font-sans);font-weight:400;font-size:12px;color:var(--ink-3);margin-left:2px}
+.item-m{font-size:13px;color:var(--ink-3);grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 14px}
+.item.flag::before{content:"";position:absolute;left:-12px;top:14px;bottom:14px;width:2px;background:var(--warn-line)}
+.item .why{grid-column:1/-1;font-size:13px;color:var(--warn);line-height:1.55}
+.item .acts{grid-column:1/-1;display:flex;gap:12px;margin-left:-6px}
+.cands{grid-column:1/-1;margin-top:8px;border:1px solid var(--rule-2);border-radius:var(--r-ctl);background:var(--sheet)}
+.cand{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-bottom:1px solid var(--rule);font-size:15px}
+.cand:last-child{border-bottom:0}
+.radio{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--ink-3);flex:none}
+.radio.on{border:6px solid var(--accent)}
+.cand-acts{display:flex;gap:12px;padding:0 6px}
+.totals{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 0 14px;border-bottom:1px solid var(--ink)}
+.totals div{font-size:12px;color:var(--ink-3);line-height:1.45}
+.totals .n{display:block;font-size:19px;color:var(--ink);line-height:1.3}
+.verdict{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin:6px 0 4px}
+.verdict b{font-family:var(--font-display);font-size:28px;color:var(--danger);line-height:1.25}
+.reason{display:grid;grid-template-columns:5.2em 1fr;gap:2px 10px;padding:10px 0;border-bottom:1px solid var(--rule);font-size:14px;line-height:1.6}
+.reason p{margin:0}
+.reason .src{display:block}
+.unchecked{margin-top:12px;padding:10px 12px;border:1px dashed var(--rule-2);border-radius:var(--r-mark);font-size:13px;color:var(--ink-2);line-height:1.6}
+.when{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* 05 饮食记录 */
+.datebar{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 0}
+.datebar b{font-size:var(--fs-16);font-weight:600}
+.datebar b small{font-weight:400;color:var(--ink-3);margin-left:8px;font-size:14px}
+.ledger{padding:18px var(--gutter) 6px}
+.ledger-figs{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.ledger-big{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}
+.ledger-big .n{font-size:var(--fs-44);line-height:1;letter-spacing:-.015em}
+.ledger-big>span:not(.n){font-size:14px;color:var(--ink-3);white-space:nowrap}
+.ledger-big>span .n{font-size:17px;color:var(--ink-2);letter-spacing:0}
+.ledger-rem{text-align:right;font-size:13px;color:var(--ink-3);line-height:1.4;white-space:nowrap}
+.ledger-rem .n{display:block;font-size:22px;color:var(--accent)}
+.lt{position:relative;margin-top:16px;height:60px}
+.lt-ticks{position:absolute;left:0;right:2px;top:0;height:30px;display:flex;justify-content:space-between;align-items:flex-end}
+.lt-ticks i{width:2px;height:10px;background:var(--rule-2);transform-origin:bottom}
+.lt-ticks i.s1{background:var(--ink);height:30px}
+.lt-ticks i.s2{background:var(--ink-2);height:26px}
+.lt-ticks i.s3{background:var(--ink-3);height:22px}
+.lt-base{position:absolute;left:0;right:0;top:30px;height:1px;background:var(--ink)}
+.lt-need{position:absolute;right:0;top:-8px;width:2px;height:40px;background:var(--accent)}
+.lt-scale{position:absolute;left:0;right:0;top:36px;height:20px;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.lt-scale span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.lt-scale span:first-child{transform:none}
+.lt-scale .need{transform:none;left:auto !important;right:0;color:var(--accent)}
+.anim .lt-ticks i{animation:grow var(--d-4) var(--ease-out) both;animation-delay:calc(var(--i) * 6ms)}
+@keyframes grow{from{transform:scaleY(.1);opacity:.3}to{transform:none;opacity:1}}
+.legend{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:18px}
+.legend div{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);padding-top:6px}
+.legend .n{display:block;font-size:17px;color:var(--ink)}
+.legend i{display:inline-block;width:8px;height:8px;margin-right:5px}
+.mt{width:100%;border-collapse:collapse;font-size:14px}
+.mt th{font-weight:400;font-size:12px;color:var(--ink-3);text-align:right;padding:6px 0;border-bottom:1px solid var(--ink)}
+.mt th:first-child,.mt td:first-child{text-align:left}
+.mt td{padding:10px 0 9px;border-bottom:1px solid var(--rule);text-align:right;font-size:16px}
+.mt td:first-child{font-size:14px}
+.mt td small{font-family:var(--font-sans);font-weight:400;font-size:12px;color:var(--ink-3);margin-left:1px}
+.mt tr.warn td{color:var(--warn)}
+.mt tr.warn td:first-child{color:var(--ink)}
+.mt .bar{display:block;height:2px;background:var(--rule);margin-top:6px;position:relative;max-width:120px}
+.mt .bar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--w);background:var(--ink-2)}
+.mt tr.warn .bar::after{background:var(--warn-line)}
+.meal{padding:14px 0 10px;border-bottom:1px solid var(--rule)}
+.meal-h{display:flex;justify-content:space-between;align-items:baseline}
+.meal-h b{font-family:var(--font-display);font-size:17px}
+.meal-h b small{font-family:var(--font-sans);font-weight:400;font-size:13px;color:var(--ink-3);margin-left:8px}
+.meal-h .n{font-size:17px}
+.meal ul{list-style:none;margin:4px 0 0;padding:0}
+.meal li{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--ink-2);line-height:1.9}
+.meal li .n{color:var(--ink-3)}
+.meal .from{font-size:12px;color:var(--ink-3)}
+.meal.empty{display:flex;justify-content:space-between;align-items:center}
+
+/* 06 经期 */
+.phase{padding:10px var(--gutter) 0;display:grid;grid-template-columns:1fr auto;gap:0 12px;align-items:end}
+.phase p{margin:2px 0 0;font-size:14px;color:var(--ink-2);grid-column:1/-1}
+.cyc{position:relative;margin:18px var(--gutter) 0;height:60px}
+.cyc-t{position:absolute;left:0;right:0;top:18px;height:16px;display:flex;justify-content:space-between;align-items:flex-start}
+.cyc-t i{width:1px;height:10px;background:var(--ink-4)}
+.cyc-t i.m{width:4px;height:16px;background:var(--ink);margin:0 -1.5px}
+.cyc-t i.p{width:1px;height:16px;background:repeating-linear-gradient(180deg,var(--ink-2) 0 2px,transparent 2px 4px)}
+.cyc-now{position:absolute;top:0;width:2px;height:40px;background:var(--accent)}
+.cyc-now span{position:absolute;top:-2px;left:6px;white-space:nowrap;font-size:12px;color:var(--accent);font-weight:600}
+.cyc-l{position:absolute;left:0;right:0;top:42px;display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3)}
+.pred{margin:18px var(--gutter) 0;padding:12px 0;border-top:1px solid var(--ink);border-bottom:1px solid var(--rule);display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:baseline}
+.pred .n{font-size:30px;line-height:1.1;white-space:nowrap}
+.pred .n small{font-size:15px;color:var(--ink-3);font-family:var(--font-sans);font-weight:400;margin:0 1px}
+.pred p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.6}
+.cal{padding:8px var(--gutter) 0}
+.cal-h{display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px}
+.cal-h b{font-size:17px}
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px;text-align:center}
+.cal-g .wd{font-size:12px;color:var(--ink-3);height:24px}
+.cal-g .d{position:relative;height:44px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.cal-g .d span{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:2px}
+.cal-g .d.rec span{background:var(--ink);color:#fff}
+.cal-g .d.prd span{outline:1.5px dashed var(--ink-2);outline-offset:-1.5px}
+.cal-g .d.win::after{content:"";position:absolute;left:0;right:0;bottom:1px;height:3px;background:repeating-linear-gradient(135deg,var(--ink-3) 0 1.5px,transparent 1.5px 4px)}
+.cal-g .d.today span{color:var(--accent);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent)}
+.cal-g .d.log span::before{content:"";position:absolute;top:5px;right:calc(50% - 16px);width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+.cal-g .d.out{color:var(--ink-3);font-weight:400}
+.cal-g .d.out.rec span{background:var(--ink-2)}
+.cal-leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:12px 0 0;font-size:12px;color:var(--ink-3)}
+.cal-leg span{display:inline-flex;align-items:center;gap:6px}
+.cal-leg i{display:inline-block;width:12px;height:12px;border-radius:1px}
+
+/* 07 医嘱 */
+.mo{padding:16px 0 14px;border-bottom:1px solid var(--rule)}
+.mo-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.mo-cat{font-size:12px;color:var(--ink-3);letter-spacing:.04em}
+.mo-st{font-size:12px;font-weight:600;white-space:nowrap}
+.mo-st.act{color:var(--ink-2)}
+.mo-st.due{color:var(--warn)}
+.mo-st.pend{color:var(--accent)}
+/* 医嘱内容是动态文字：用黑体 500，左侧一道墨线保留“抄录”的感觉 */
+.mo-c{font-size:17px;font-weight:500;line-height:1.55;margin:6px 0 8px;padding-left:10px;border-left:1px solid var(--ink-2)}
+.mo-d{display:flex;flex-wrap:wrap;gap:2px 18px;font-size:12px;color:var(--ink-3)}
+.mo-d .n{color:var(--ink-2);font-size:13px}
+.prop{margin-top:12px;padding:12px 12px 4px;background:var(--sheet);border:1px solid var(--rule-2);border-left:3px solid var(--accent);border-radius:var(--r-mark)}
+.prop-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.prop-h b{font-size:13px;color:var(--accent)}
+.prop p{margin:4px 0 0;font-size:14px;line-height:1.65}
+.prop blockquote,.orig{margin:6px 0 0;padding-left:10px;border-left:1px solid var(--rule-2);font-size:13px;color:var(--ink-2);line-height:1.65}
+.acts-r{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;padding:10px 0 4px}
+.srcbox{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule)}
+.srcbox .ph-img{width:52px;height:52px;font-size:12px}
+.fields{display:grid;grid-template-columns:5.5em 1fr;gap:6px 10px;margin:10px 0 0;font-size:14px;line-height:1.6}
+.fields dt{color:var(--ink-3);font-size:13px}
+.fields dd{margin:0}
+.fields dd.miss{color:var(--warn)}
+.audit{list-style:none;margin:0;padding:0}
+.audit li{display:grid;grid-template-columns:4.4em 1fr;gap:2px 12px;padding:12px 0;border-bottom:1px solid var(--rule);font-size:14px;line-height:1.55}
+.audit time{font-size:12px;color:var(--ink-3);line-height:1.5}
+.audit b{font-weight:600}
+.audit .tr{display:block;font-size:12px;color:var(--ink-3)}
+.closed{padding:12px 0;border-bottom:1px solid var(--rule)}
+.closed .mo-c{color:var(--ink-2);border-left-color:var(--rule-2);margin:4px 0}
+
+/* 08 训练 */
+.lim{display:flex;gap:8px;margin:12px var(--gutter) 0;font-size:13px;color:var(--ink-2);line-height:1.6;padding:10px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.lim .ic{width:18px;height:18px;color:var(--warn);margin-top:2px}
+.wk{padding:16px var(--gutter) 0}
+.wk-figs{display:grid;grid-template-columns:.8fr 1fr 1.4fr;gap:12px}
+.wk-figs div{font-size:12px;color:var(--ink-3);line-height:1.4}
+.wk-figs .n{display:block;font-size:28px;color:var(--ink);line-height:1.15;white-space:nowrap}
+.wk-figs .n small{font-family:var(--font-sans);font-weight:400;font-size:13px;color:var(--ink-3);margin-left:2px}
+.wk-cols{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:96px;align-items:end;margin-top:16px;border-bottom:1px solid var(--ink)}
+.wk-col{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.wk-col .bar{width:100%;max-width:22px;height:var(--h);background:repeating-linear-gradient(0deg,var(--ink-2) 0 2px,transparent 2px 4px)}
+.wk-col.zero .bar{height:1px;background:var(--rule-2)}
+.wk-col .v{font-size:12px;color:var(--ink-2);margin-bottom:2px}
+.wk-lbl{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center;font-size:12px;color:var(--ink-3);padding-top:4px}
+.wk-lbl .on{color:var(--accent);font-weight:600}
+.srch{display:flex;align-items:center;gap:8px;margin:18px var(--gutter) 0;min-height:44px;padding:0 12px;border:1px solid var(--rule-2);border-radius:var(--r-ctl);background:var(--sheet);color:var(--ink-3);font-size:15px}
+.trw{padding:12px 0;border-bottom:1px solid var(--rule)}
+.trw-h{display:flex;justify-content:space-between;align-items:baseline}
+.trw-h b{font-size:16px;font-weight:600}
+.trw-h .n{font-size:15px;color:var(--ink-2)}
+.trw-d{font-size:13px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:2px 14px}
+.trw-x{font-size:13px;color:var(--warn);margin-top:4px;display:flex;gap:6px}
+.trend{display:grid;grid-template-columns:1fr 132px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule)}
+.trend svg{width:132px;height:44px;overflow:visible}
+
+/* 09 附近餐厅 */
+.need{display:flex;flex-wrap:wrap;margin:12px var(--gutter) 0;border-top:1px solid var(--rule)}
+.need button{min-height:44px;padding:0 12px 0 0;margin-right:10px;font-size:14px;color:var(--ink-3);display:inline-flex;align-items:center;gap:6px}
+.need button .box{width:18px;height:18px}
+.need button[aria-pressed="true"]{color:var(--ink);font-weight:600}
+.notice{margin:10px var(--gutter) 0;font-size:12px;color:var(--ink-3);line-height:1.6;padding:8px 10px;border-left:2px solid var(--rule-2)}
+.shop{padding:14px 0;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:1fr auto;gap:2px 12px}
+.shop-n{font-size:17px;font-weight:600;line-height:1.4}
+.shop-m{font-size:13px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.shop-o{grid-column:1;font-size:13px;color:var(--ink-2);line-height:1.6;margin-top:4px}
+.shop-o b{font-weight:500;color:var(--ink-3);margin-right:4px}
+.navb{grid-column:2;grid-row:1/4;align-self:center;width:56px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--accent);border:1px solid var(--rule-2);border-radius:var(--r-ctl)}
+.navb .ic{width:20px;height:20px}
+.avd{padding:12px 0;border-bottom:1px solid var(--rule)}
+.avd-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.avd-h b{font-size:15px;text-decoration:line-through;text-decoration-color:var(--danger);text-decoration-thickness:1.5px}
+.avd p{margin:4px 0 0;font-size:13px;line-height:1.6;color:var(--ink-2)}
+.avd p .src{margin-right:6px}
+.loc-off{margin:4px var(--gutter) 0;font-size:12px;color:var(--ink-3)}
+
+/* 10 设置 */
+.url{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.prov{padding:14px 0;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center}
+.prov b{font-size:16px;font-weight:600}
+.mask{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--ink-2);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.mask .ic{width:15px;height:15px;color:var(--ink-3)}
+.flow{list-style:none;margin:8px 0 0;padding:0}
+.fs{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:0 12px;padding-bottom:16px}
+.fs::before{content:"";position:absolute;left:13.5px;top:30px;bottom:2px;width:1px;background:var(--rule-2)}
+.fs:last-child::before{display:none}
+.fs-m{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:1px solid var(--rule-2);color:var(--ink-3);background:var(--paper)}
+.fs.ok .fs-m{background:var(--ink);border-color:var(--ink);color:#fff}
+.fs.cur .fs-m{border:2px solid var(--accent);color:var(--accent);font-weight:600}
+.fs.bad .fs-m{border:2px solid var(--danger);color:var(--danger)}
+.fs.off{color:var(--ink-3)}
+.fs-t{font-size:15px;font-weight:600;line-height:28px;display:flex;justify-content:space-between;gap:8px}
+.fs-t small{font-weight:400;font-size:12px;color:var(--ok);white-space:nowrap}
+.fs.bad .fs-t small{color:var(--danger)}
+.fs-b{font-size:13px;color:var(--ink-2);line-height:1.6}
+.use{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:center;margin-top:8px}
+.use>span{font-size:14px;white-space:nowrap}
+.caps{display:flex;flex-wrap:wrap;gap:6px;grid-column:2}
+.cap{flex:none;white-space:nowrap;font-size:12px;color:var(--ink-2);border:1px solid var(--rule-2);border-radius:2px;padding:0 6px;line-height:20px}
+.cap.man{border-style:dashed}
+.lnk{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:52px;border-bottom:1px solid var(--rule);font-size:15px}
+.lnk .ic{width:18px;height:18px;color:var(--ink-3)}
+.lnk .v{margin-left:auto;font-size:13px;color:var(--ink-3)}
+
+/* 13 我的 */
+.me-id{display:flex;justify-content:space-between;align-items:baseline;padding:4px var(--gutter) 12px}
+.me-id b{font-size:18px;font-weight:600}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ink)}
+.facts div{padding:10px 0 10px;border-bottom:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.4}
+.facts div b{display:block;font-size:16px;color:var(--ink);font-weight:500}
+
+/* 11 状态 */
+.panel{width:390px;background:var(--paper);border:1px solid #BFC3BD;border-radius:20px;overflow:hidden;position:relative}
+.panel-in{padding:20px var(--gutter) 24px;min-height:300px;display:flex;flex-direction:column}
+.st-h{font-family:var(--font-display);font-weight:700;font-size:20px;margin:12px 0 4px;line-height:1.4}
+.st-p{margin:0;font-size:14px;color:var(--ink-2);line-height:1.65}
+.st-code{font-size:12px;color:var(--ink-3);margin-top:6px}
+.st-acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.sk{background:var(--skel);border-radius:2px;height:14px;position:relative;overflow:hidden}
+.sk::after{content:"";position:absolute;top:0;bottom:0;left:0;width:100%;background:linear-gradient(90deg,transparent,rgba(244,245,242,.7),transparent);transform:translateX(-100%);animation:sweep 1.4s var(--ease-std) infinite}
+@keyframes sweep{to{transform:translateX(100%)}}
+.prog{display:flex;gap:4px;margin-top:16px}
+.prog i{flex:1;height:6px;background:var(--rule)}
+.prog i.on{background:var(--ink)}
+
+/* 12 设计系统 */
+.ds{background:var(--paper);border:1px solid #BFC3BD;border-radius:20px;padding:40px;display:grid;grid-template-columns:repeat(12,1fr);gap:40px 32px}
+.ds h3{font-family:var(--font-display);font-size:20px;margin:0 0 4px}
+.ds h3+p{margin:0 0 16px;font-size:13px;color:var(--ink-3)}
+.ds-c6{grid-column:span 6}.ds-c4{grid-column:span 4}.ds-c8{grid-column:span 8}
+.sw{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.sw div{font-size:12px;color:var(--ink-3);line-height:1.5}
+.sw i{display:block;height:56px;border-radius:2px;margin-bottom:8px;border:1px solid rgba(0,0,0,.08)}
+.sw b{display:block;color:var(--ink);font-size:13px}
+.ts{display:grid;grid-template-columns:76px 1fr;gap:10px 16px;align-items:baseline}
+.ts>span:nth-child(odd){font-size:12px;color:var(--ink-3)}
+.sp{display:flex;align-items:flex-end;flex-wrap:wrap;gap:14px}
+.sp div{text-align:center;font-size:12px;color:var(--ink-3)}
+.sp i{display:block;background:var(--accent-wash);border:1px solid var(--accent);margin:0 auto 6px}
+.comp{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.icons{display:grid;grid-template-columns:repeat(6,1fr);gap:14px 8px}
+.icons div{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)}
+.mot{width:100%;border-collapse:collapse;font-size:13px}
+.mot th{text-align:left;font-weight:400;color:var(--ink-3);font-size:12px;border-bottom:1px solid var(--ink);padding:6px 8px 6px 0}
+.mot td{padding:9px 8px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top;line-height:1.55}
+.mot button{color:var(--accent);font-size:13px;min-height:44px;min-width:44px}
+.navdemo{position:relative;width:100%;max-width:390px;border:1px solid var(--rule);background:var(--paper)}
+.navdemo .rnav{height:56px;padding-bottom:0}
+
+/* 网络字体未到时：标题与数字都落到系统黑体 */
+html.nofont{--font-display:var(--font-sans);--font-num:var(--font-sans)}
+html.nofont .t-display,html.nofont .t-title,html.nofont .t-h,html.nofont .st-h{letter-spacing:0}
+
+/* 减弱动效 */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:1ms !important;animation-iteration-count:1 !important;transition-duration:1ms !important}
+  .caret{animation:none}
+  .sk::after{display:none}
+  .sheet-closed .sheet{transform:none;opacity:0}
+}
+.rm *,.rm *::before,.rm *::after{animation-duration:1ms !important;animation-iteration-count:1 !important;transition-duration:1ms !important}
+.rm .sk::after{display:none}
+
+@media (max-width:860px){
+  .deck{padding:28px 16px 80px}
+  .deck-head{grid-template-columns:1fr}
+  .deck-ctl{justify-content:flex-start}
+  .ds{grid-template-columns:1fr;padding:24px}
+  .ds>*{grid-column:1/-1 !important}
+}
+@media (max-width:440px){
+  .deck{padding:24px 0 80px}
+  .deck-head,.deck-sec>h2,.deck-sec>p,figcaption{padding-left:16px;padding-right:16px}
+  .grid{gap:40px 0}
+  figure,.panel{width:100%}
+  .app{width:100%;border-radius:0;border-left:0;border-right:0}
+  .panel{border-radius:0;border-left:0;border-right:0}
+  .ds{border-radius:0;border-left:0;border-right:0;padding:24px 16px}
+  .icons{grid-template-columns:repeat(4,1fr)}
+  .mot{display:block;overflow-x:auto}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3.5 8.5h3.2L8.3 6h7.4l1.6 2.5h3.2V19h-17z"/><circle cx="12" cy="13.2" r="3.4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="1"/><path d="M3.5 16l4.8-4.6 4 3.8 2.6-2.4 5.6 5.2"/><circle cx="15.6" cy="9.4" r="1.4"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5.5M6.5 11 12 5.5l5.5 5.5"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M6.5 9.5 12 15l5.5-5.5"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="M9.5 6.5 15 12l-5.5 5.5"/></symbol>
+    <symbol id="i-cover" viewBox="0 0 24 24"><path d="M4 4l16 16"/><path d="M10.4 6.2A9.6 9.6 0 0 1 12 6c4.8 0 8 4.2 9 6-.5.9-1.5 2.3-3 3.6M6.5 7.7C4.7 8.9 3.5 10.8 3 12c1 1.8 4.2 6 9 6 1.5 0 2.9-.4 4.1-1"/><path d="M9.9 10a3 3 0 0 0 4.1 4.1"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M3 12c1-1.8 4.2-6 9-6s8 4.2 9 6c-1 1.8-4.2 6-9 6s-8-4.2-9-6z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 20.5s-6.3-5.8-6.3-10.6a6.3 6.3 0 0 1 12.6 0c0 4.8-6.3 10.6-6.3 10.6z"/><circle cx="12" cy="9.9" r="2.2"/></symbol>
+    <symbol id="i-nav" viewBox="0 0 24 24"><path d="M4.5 11.2 19.5 4.5l-6.7 15-1.9-5.9z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.3 4.3L19 7.3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4.2 20.8 19.5H3.2z"/><path d="M12 10v4.4M12 16.9v.3"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.3M12 7.9v.3"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.2 4h2.9l1.4 3.9-2 1.3a10.4 10.4 0 0 0 6.3 6.3l1.3-2 3.9 1.4v2.9a1.7 1.7 0 0 1-1.9 1.7A15.6 15.6 0 0 1 4.5 5.9 1.7 1.7 0 0 1 6.2 4z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M15.5 15.5 20 20"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4.5V8h-3.5"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="1"/><path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M5 19h3.6L18.8 8.8l-3.6-3.6L5 15.4z"/><path d="M13.6 6.8l3.6 3.6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l.9 12.5h9.2L17.5 7"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="1"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6.5 3.5h7.5l4 4v13h-11.5z"/><path d="M14 3.5V7.5h4M9.5 12h5M9.5 15.5h5"/></symbol>
+    <symbol id="i-bowl" viewBox="0 0 24 24"><path d="M3.5 11.5h17a8.5 8.5 0 0 1-17 0z"/><path d="M8 20h8M9 8.5c0-1.5 1-1.5 1-3M13 8.5c0-1.5 1-1.5 1-3"/></symbol>
+  </defs>
+</svg>
+
+<div class="deck" id="deck">
+
+<header class="deck-head">
+  <div>
+    <h1><small>good-life 步骤 11 移动端 H5 视觉设计 第三稿（按评审修订）</small>刻度</h1>
+    <p>把应用当作一把安静的尺：吃了多少、还差多少、医嘱管到哪天，用刻度量出来。刻度只出现在真正度量的地方：能量账本、身高体重尺、周期刻度和导航上的当前位置。纸白底、墨色字、宋体只做固定标题，一种靛蓝作强调；结论与风险用松、赭、朱三色并配形状。</p>
+  </div>
+  <div class="deck-ctl">
+    <button type="button" id="btn-replay">重放动效</button>
+    <button type="button" id="btn-rm" aria-pressed="false">模拟减弱动效</button>
+    <button type="button" id="btn-long" aria-pressed="false">展开全长</button>
+    <button type="button" id="btn-font" aria-pressed="false">系统字体回退</button>
+  </div>
+</header>
+
+<!-- ====================================================== -->
+<section class="deck-sec">
+  <h2>入口、免责与建档</h2>
+  <p>守卫顺序：未登录到登录页，未确认免责到免责页，档案未填完到建档页。</p>
+  <div class="grid">
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="wm"><b>good-life</b><span>个人档案驱动的健康生活助手</span></div>
+  <h2 class="t-display login-h">注册</h2>
+  <p class="login-p">之后的饮食、训练与医嘱记录，都只保存在你的账号下。</p>
+  <div class="ttabs" role="tablist">
+    <button class="ttab" role="tab" aria-selected="false">登录</button>
+    <button class="ttab" role="tab" aria-selected="true">注册</button>
+  </div>
+  <div class="pad">
+    <label class="fld"><span class="fld-l">用户名</span><span class="fld-i"><input value="zhou_ning" aria-label="用户名"></span><span class="fld-h">3 到 32 位，字母、数字或下划线</span></label>
+    <label class="fld"><span class="fld-l">密码</span><span class="fld-i"><input type="password" value="goodlife2026" aria-label="密码"><button class="ibtn" aria-label="显示密码" style="margin-right:-10px"><svg class="ic ic-s"><use href="#i-eye"/></svg></button></span><span class="fld-h">至少 8 位</span></label>
+    <div style="margin-top:28px"><button class="btn btn-pri btn-blk">注册并继续</button></div>
+    <p class="t-cap" style="margin:12px 0 0">下一步会请你阅读并确认免责声明，确认后才能开始使用。</p>
+  </div>
+  <p class="foot-note">只提供生活方式建议，不做医疗诊断，不替代医生。</p>
+</div>
+<figcaption><b><span>01</span>登录与注册</b>去掉了顶部的装饰刻度。标签页用文字加墨线，输入框只有底线，聚焦时变为 2 像素靛线。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">免责声明</h1><span class="t-cap" style="padding-bottom:6px">版本 2026-09-30</span></div>
+  <div class="scroll">
+    <div class="pad">
+      <p class="t-small ink2" style="margin:0">开始使用前，请读完下面四条。</p>
+      <ol class="disc">
+        <li>good-life 提供的所有内容，包括饮食建议、经期与排卵预测、训练建议和智能体的回答，<b>仅用于日常生活方式参考</b>，不构成医疗诊断、治疗建议或用药指导，不能替代医生、药师或营养师的专业意见。</li>
+        <li>如果你正在接受治疗、处于孕期或哺乳期、患有慢性病，或出现身体不适，<b>请以医嘱为准并及时就医</b>。</li>
+        <li>经期与排卵预测仅供参考，<b>不能用于避孕或诊断</b>。</li>
+        <li>你提供的健康相关信息会加密保存，仅用于为你本人生成建议。</li>
+      </ol>
+    </div>
+  </div>
+  <div class="stick">
+    <label class="chk" style="padding-top:0"><span class="box"></span><span>我已阅读并理解以上内容</span></label>
+    <button class="btn btn-pri btn-blk" disabled>确认并继续</button>
+    <span class="t-cap" style="margin:8px 0 0;text-align:center">之后可以在“我的”里随时查看</span>
+  </div>
+</div>
+<figcaption><b><span>01b</span>免责声明确认</b>正文原样取自后端，关键句加粗。勾选后按钮才可用；没有返回按钮，因为守卫要求先确认。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button></div></div>
+  <div class="steps" aria-label="建档进度，第 1 步，共 3 步">
+    <div class="step on">1 基本信息</div>
+    <div class="step">2 活动与目标</div>
+    <div class="step">3 饮食偏好与忌口</div>
+  </div>
+  <div class="scroll">
+    <div class="pad">
+      <h2 class="t-display" style="margin:28px 0 4px">基本信息</h2>
+      <p class="t-small ink2" style="margin:0 0 6px">用来估算每天需要多少能量与营养。之后可以在“我的”里修改。</p>
+      <div class="fld"><span class="fld-l">出生年份</span><span class="fld-i"><span class="ns" style="font-size:22px;flex:1">1993</span><svg class="ic ic-s mute"><use href="#i-down"/></svg></span></div>
+      <div class="fld"><span class="fld-l" id="g-l">性别</span>
+        <div class="opts" role="radiogroup" aria-labelledby="g-l" style="margin-top:6px">
+          <button class="opt" role="radio" aria-checked="true">女</button><button class="opt" role="radio" aria-checked="false">男</button><button class="opt" role="radio" aria-checked="false">其他</button>
+        </div>
+        <span class="fld-h">用于估算能量需要，也决定是否显示经期记录。</span>
+      </div>
+      <div class="picker">
+        <div class="picker-top"><span class="fld-l">身高</span><span class="picker-val"><span class="n">165</span><span>厘米</span></span></div>
+        <div class="ruler" data-value="165" data-step="1" data-major="10" data-ppu="8" role="slider" aria-label="身高" aria-valuemin="50" aria-valuemax="250" aria-valuenow="165" aria-valuetext="165 厘米" tabindex="0"></div>
+      </div>
+      <div class="picker">
+        <div class="picker-top"><span class="fld-l">体重</span><span class="picker-val"><span class="n">56.5</span><span>千克</span></span></div>
+        <div class="ruler" data-value="56.5" data-step="0.5" data-major="5" data-ppu="16" role="slider" aria-label="体重" aria-valuemin="20" aria-valuemax="300" aria-valuenow="56.5" aria-valuetext="56.5 千克" tabindex="0"></div>
+        <span class="fld-h">左右拖动刻度，或点数字直接输入。</span>
+      </div>
+    </div>
+  </div>
+  <div class="stick"><button class="btn btn-pri btn-blk">下一步</button></div>
+</div>
+<figcaption><b><span>02</span>建档：基本信息</b>刻度尺由数值与容器宽度算出：身高每厘米 8 像素、体重每千克 16 像素，指针永远在中线，可见范围等于宽度除以每单位像素；标签只画完整落在尺内的那几个，360 与 390 宽度下都与读数一致。</figcaption>
+</figure>
+
+  </div>
+</section>
+
+<!-- ====================================================== -->
+<section class="deck-sec">
+  <h2>对话</h2>
+  <p>开场一次只占一个位置：有医嘱到期时，开场问题就是复核本身；用户点“稍后”后，它收成顶部一行，只写类别和状态，绝不截断数字。</p>
+  <div class="grid">
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr"><h1 class="t-title">对话</h1><span class="t-cap" style="margin-right:12px">10月12日 周一</span></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="sens">
+    <button class="rv1 prop" aria-expanded="false" aria-label="运动限制有解除建议，展开查看"><span class="cat">运动限制</span><span class="st" style="color:var(--accent)">有解除建议</span><span class="sp"></span><svg class="ic ic-s mute"><use href="#i-down"/></svg></button>
+  </div>
+  <div class="scroll">
+    <div class="sens">
+      <div class="day">昨天</div>
+      <div class="hist">
+        <p class="u">练完腿，晚饭吃什么好？</p>
+        <p>可以吃一份鸡胸肉或豆腐，配一碗米饭和一份绿叶菜，蛋白质和碳水都能补上……</p>
+      </div>
+      <div class="day">今天 18:40</div>
+      <div class="open">
+        <span class="t-cap">今天想问你</span>
+        <p>你有一条医嘱（低盐饮食，每日钠不超过 <span class="nw">2000 毫克</span>）到了复查日，要不要现在看看？</p>
+        <div class="acts"><button class="btn btn-qt btn-sm">继续遵守</button><button class="btn btn-qt btn-sm">去医嘱页处理</button><button class="btn-txt ink">稍后</button></div>
+      </div>
+      <div style="height:16px"></div>
+    </div>
+  </div>
+  <div class="qa" aria-label="快捷操作"><button>附近吃什么</button><button>记一餐</button><button>看医嘱</button></div>
+  <div class="cmp">
+    <button class="ibtn" aria-label="拍照"><svg class="ic"><use href="#i-camera"/></svg></button>
+    <button class="ibtn" aria-label="从相册选图"><svg class="ic"><use href="#i-image"/></svg></button>
+    <div class="cmp-in">说点什么，或拍一张饭菜</div>
+    <button class="send" aria-label="发送"><svg class="ic"><use href="#i-send"/></svg></button>
+  </div>
+  <nav class="rnav" data-active="0"></nav>
+</div>
+<figcaption><b><span>03a</span>对话：打开应用时</b>医嘱到了复查日，所以今天的开场问题就是复核本身，这条不再重复挂到顶部；顶部只剩另一条“有解除建议”的条目（只写类别与状态）。“继续遵守”打开选复查日的面板（03d），“去医嘱页处理”跳转，“稍后”把它收成顶部一行（03b）。遮盖按钮在导航最右，拇指够得到。</figcaption>
+</figure>
+
+<figure>
+<div class="app" id="chat">
+  <div class="sb"></div>
+  <div class="hdr"><h1 class="t-title">对话</h1><span class="t-cap" style="margin-right:12px">10月12日 周一</span></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="sens">
+    <button class="rv1" aria-expanded="false" aria-label="医嘱待处理 2 条，展开查看"><span class="cat">医嘱待处理</span><span class="st">2 条</span><span class="sp"></span><svg class="ic ic-s mute"><use href="#i-down"/></svg></button>
+  </div>
+  <div class="scroll" id="chat-scroll">
+    <div class="sens">
+      <div class="day">18:41</div>
+      <div class="msg-u"><span>晚饭想吃卤猪肝配白粥，可以吗？</span></div>
+      <div class="msg-a pending" id="answer" aria-live="polite">
+        <div class="who">助手</div>
+        <p class="stream" id="stream" data-text="今晚可以换成清蒸鱼或鸡胸肉，配一碗杂粮粥，蛋白质够，也清淡。你今天的钠已经到 1,640 毫克，离上限 2,000 毫克只剩 360 毫克，卤味和咸菜这顿先放一放，粥里不要再加盐。想再吃点蔬菜，可以加一份白灼菜心。"><span class="caret"></span></p>
+        <div class="after">
+          <button class="fold" aria-expanded="false" aria-controls="ev1"><span>依据</span><em>3</em><span style="flex:1"></span><svg class="ic"><use href="#i-down"/></svg></button>
+          <div class="fold-b" id="ev1"><div>
+            <div class="ev"><span class="src">医嘱</span><span>每日钠不超过 <span class="nw">2000 毫克</span>（待复核期间仍按约束执行）</span><span class="src">当日摄入</span><span>今天已摄入钠 1,640 毫克</span><span class="src">目标</span><span>蛋白质还差 17.6 克</span></div>
+          </div></div>
+          <div class="slip" role="note" aria-label="系统附上的医嘱提醒">
+            <div class="slip-h"><b><svg class="ic ic-s"><use href="#i-doc"/></svg>医嘱提醒</b><small>系统附注</small></div>
+            <p>按你当前生效的医嘱，以下食物不建议：卤猪肝。</p>
+            <div class="food"><b>卤猪肝</b><span class="t-small">避免动物内脏与浓肉汤（高嘌呤）</span></div>
+          </div>
+          <div class="tip"><span class="ref">仅供参考</span><span>以上内容仅供日常生活参考，不能替代医生的诊断和建议。</span></div>
+        </div>
+      </div>
+      <div style="height:20px"></div>
+    </div>
+  </div>
+  <div class="qa" aria-label="快捷操作"><button>附近吃什么</button><button>记一餐</button><button>看医嘱</button></div>
+  <div class="cmp">
+    <button class="ibtn" aria-label="拍照"><svg class="ic"><use href="#i-camera"/></svg></button>
+    <button class="ibtn" aria-label="从相册选图"><svg class="ic"><use href="#i-image"/></svg></button>
+    <div class="cmp-in">说点什么，或拍一张饭菜</div>
+    <button class="send" aria-label="发送"><svg class="ic"><use href="#i-send"/></svg></button>
+  </div>
+  <nav class="rnav" data-active="0"></nav>
+</div>
+<figcaption><b><span>03b</span>对话：流式回答</b>收起的待处理条只写“医嘱待处理 2 条”，不放医嘱原文，避免截断成“每日钠不超过 200…”；展开见 03e。回答逐字流入，结束后才出现依据（默认折叠）、医嘱提醒附页和“仅供参考”。遮盖时消息、附页与提醒条全部盖住。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr"><h1 class="t-title">对话</h1><span class="t-cap" style="margin-right:12px">10月12日 周一</span></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="scroll">
+    <div class="sens">
+      <div class="day">21:07</div>
+      <div class="msg-u"><span>胸口很闷，一直出冷汗，有点喘不上气</span></div>
+      <div class="msg-a">
+        <div class="who">系统</div>
+        <div class="care care-inline" role="alert" style="margin-left:calc(-1 * var(--gutter));margin-right:calc(-1 * var(--gutter))">
+          <div class="care-h"><svg class="ic"><use href="#i-alert"/></svg>请尽快就医</div>
+          <p>你描述的胸口发闷、出冷汗和呼吸困难，可能需要紧急处理。请立即拨打 120，或请身边的人陪你去最近的医院急诊。不要独自开车。</p>
+          <a class="btn btn-blk" href="tel:120"><svg class="ic ic-s"><use href="#i-phone"/></svg>拨打 120</a>
+          <small>这是一条固定的安全提示，不是模型生成的。</small>
+        </div>
+      </div>
+      <div style="height:20px"></div>
+    </div>
+  </div>
+  <div class="cmp">
+    <button class="ibtn" aria-label="拍照"><svg class="ic"><use href="#i-camera"/></svg></button>
+    <button class="ibtn" aria-label="从相册选图"><svg class="ic"><use href="#i-image"/></svg></button>
+    <div class="cmp-in">说点什么，或拍一张饭菜</div>
+    <button class="send" aria-label="发送"><svg class="ic"><use href="#i-send"/></svg></button>
+  </div>
+  <nav class="rnav" data-active="0"></nav>
+</div>
+<figcaption><b><span>03c</span>对话：就医提示在消息流里</b>就医提示占满整条回答，左右出血到屏幕边，整块朱色，不可折叠也不可关闭；这一条下面不接任何饮食或训练建议，快捷按钮也隐藏。</figcaption>
+</figure>
+
+<figure>
+<div class="app sheet-app">
+  <div class="sb"></div>
+  <div class="hdr"><h1 class="t-title">对话</h1></div>
+  <div class="pad" style="opacity:.9">
+    <div class="open" style="margin:8px 0 0"><span class="t-cap">今天想问你</span><p>你有一条医嘱（低盐饮食，每日钠不超过 <span class="nw">2000 毫克</span>）到了复查日，要不要现在看看？</p></div>
+  </div>
+  <div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-c">
+    <h2 class="t-title" id="sh-c">继续遵守这条医嘱</h2>
+    <div class="quote"><span class="mo-cat">饮食要求</span><div class="mo-c" style="margin:4px 0 2px">低盐饮食，每日钠不超过 <span class="nw">2000 毫克</span></div><span class="t-cap">生效 2026-07-12</span></div>
+    <p class="t-small" style="margin:12px 0 0">两个日期一起提交，留空的一项会被清除。</p>
+    <div class="dt-row due">
+      <div class="dt-l"><b>复查日期</b><span class="dt-why">已到复查日期，这次复核由它触发</span></div>
+      <div class="dt-v"><span class="dt-old">原 2026-10-12</span><span class="sel dt-sel"><span class="n">2026-11-12</span><svg class="ic ic-s mute"><use href="#i-cal"/></svg></span></div>
+      <div class="dt-quick"><button class="btn-txt on">1 个月后</button><button class="btn-txt">3 个月后</button><button class="btn-txt ink">不再设</button></div>
+    </div>
+    <div class="dt-row">
+      <div class="dt-l"><b>预计结束</b><span class="dt-why">原来没有设，表示长期有效</span></div>
+      <div class="dt-v"><span class="dt-old">原 未设</span><span class="sel dt-sel"><span class="mute">不设（长期）</span><svg class="ic ic-s mute"><use href="#i-cal"/></svg></span></div>
+    </div>
+    <ul class="will" style="margin-top:8px">
+      <li>状态从“待复核”回到“生效中”，饮食建议继续按它约束。</li>
+      <li>复查日期改为 2026-11-12，那天打开应用时会再次提醒复核。</li>
+      <li>预计结束保持不设，继续长期有效。如果填了日期，到期前一天进入待复核。</li>
+      <li>记一条审计：时间、由你本人确认、两个新日期。</li>
+    </ul>
+    <button class="btn btn-pri btn-blk" style="margin-top:14px">继续遵守</button>
+    <button class="btn btn-qt btn-blk" style="margin-top:10px">取消</button>
+  </div>
+</div>
+<figcaption><b><span>03d</span>“继续遵守”到底改了什么</b>后端的“继续执行”会同时覆盖复查日期与预计结束两个字段，所以面板两个都显示：预填当前值，触发这次复核的那一项用赭线标出（措辞取自后端的到期原因）。提交时总是两个一起发，后果清单逐项说明各自变成什么；留空即清除。只会让约束继续，因此允许在对话里完成。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr"><h1 class="t-title">对话</h1><span class="t-cap" style="margin-right:12px">10月12日 周一</span></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="sens">
+    <button class="rv1" aria-expanded="true" aria-label="医嘱待处理 2 条，收起"><span class="cat">医嘱待处理</span><span class="st">2 条</span><span class="sp"></span><svg class="ic ic-s mute" style="transform:rotate(180deg)"><use href="#i-down"/></svg></button>
+    <div class="rvx">
+      <div class="rvx-i">
+        <div class="mo-h"><span class="mo-cat">饮食要求</span><span class="mo-st due">待复核，已到复查日期</span></div>
+        <div class="mo-c">低盐饮食，每日钠不超过 <span class="nw">2000 毫克</span></div>
+        <div class="acts-r"><button class="btn btn-qt btn-sm">继续遵守</button><button class="btn btn-qt btn-sm">去医嘱页处理</button></div>
+      </div>
+      <div class="rvx-i prop-i">
+        <div class="mo-h"><span class="mo-cat">运动限制</span><span class="mo-st pend">有解除建议</span></div>
+        <div class="mo-c">膝关节术后六周内避免跑跳</div>
+        <p class="t-cap" style="margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">助手根据你 10月10日 的话提出，仍在生效<span class="ref" style="vertical-align:0">仅供参考</span></p>
+        <div class="acts-r"><button class="btn btn-qt btn-sm">不解除</button><button class="btn btn-qt btn-sm">去医嘱页处理</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="scroll"><div class="sens"><div class="day">18:41</div><div class="msg-u"><span>晚饭想吃卤猪肝配白粥，可以吗？</span></div></div></div>
+  <div class="qa" aria-label="快捷操作"><button>附近吃什么</button><button>记一餐</button><button>看医嘱</button></div>
+  <div class="cmp">
+    <button class="ibtn" aria-label="拍照"><svg class="ic"><use href="#i-camera"/></svg></button>
+    <button class="ibtn" aria-label="从相册选图"><svg class="ic"><use href="#i-image"/></svg></button>
+    <div class="cmp-in">说点什么，或拍一张饭菜</div>
+    <button class="send" aria-label="发送"><svg class="ic"><use href="#i-send"/></svg></button>
+  </div>
+  <nav class="rnav" data-active="0"></nav>
+</div>
+<figcaption><b><span>03e</span>待处理条展开：两种条目</b>待复核列表里既有到期的条目，也有带解除建议、仍在生效的条目。后者标“有解除建议”，不写“待复核”，动作是“不解除 / 去医嘱页处理”，不出现“继续遵守”。收起时只写“医嘱待处理 2 条”；只有一条时写它的类别和状态（如“运动限制　有解除建议”）。开场问题只会因到期触发，所以带建议的条目只出现在这条里，不会成为开场卡片。</figcaption>
+</figure>
+
+  </div>
+</section>
+
+<!-- ====================================================== -->
+<section class="deck-sec">
+  <h2>拍照识别</h2>
+  <p>上传、识别中、结果、没认出食物四个状态。结果页很长，确认入库按钮固定在底部，并直接写出还差几项。</p>
+  <div class="grid">
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h1 class="t-title">拍照识别</h1></div></div>
+  <div class="scroll">
+    <div class="ph-big">你选的照片（不保留，识别后丢弃）</div>
+    <ol class="prog-list" aria-live="polite">
+      <li><span class="pm ok"><svg class="ic"><use href="#i-check"/></svg></span><span>上传完成<small>压缩后 <span class="n">1.2</span> MB</small></span></li>
+      <li><span class="pm run" aria-hidden="true"></span><span>正在认菜和份量<small>看图模型 qwen-vl-max，通常需要 5 到 15 秒</small></span></li>
+      <li><span class="pm"></span><span class="mute">按营养库计算热量与营养</span></li>
+    </ol>
+    <p class="t-cap pad" style="margin-top:14px">可以离开这一页，识别完成后会出现在对话里。</p>
+  </div>
+  <div class="stick"><button class="btn btn-qt btn-blk">取消识别</button></div>
+</div>
+<figcaption><b><span>04a</span>上传与识别中</b>进度写成三步，当前一步用转动的靛色圈。照片默认不保留，这里明说。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h1 class="t-title">识别结果</h1></div><div class="hdr-r"><button class="ibtn js-cover" aria-label="遮盖敏感内容" aria-pressed="false"><svg class="ic"><use href="#i-cover"/></svg></button></div></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点右上角恢复显示。</p>
+  <div class="scroll">
+    <div class="ph-top">
+      <div class="ph-img">图片<br>未保留</div>
+      <div><div style="font-size:17px;font-weight:600">晚餐草稿</div><div class="t-cap">18:52 识别，用时 6 秒<br>看图模型 qwen-vl-max</div></div>
+    </div>
+    <div class="nr"><svg class="ic"><use href="#i-alert"/></svg><span>有 2 项建议核对：1 项没有匹配到营养库，1 项把握较低、克数是估算的。</span></div>
+    <div class="pad sens">
+      <div class="item">
+        <span class="item-n">杂粮饭</span><span class="item-k" data-count="207">207<small>千卡</small></span>
+        <span class="item-m"><span>一碗，<span class="n">180</span> 克</span><span class="conf" data-c="0.91"></span><span>营养库：杂粮饭</span></span>
+      </div>
+      <div class="item">
+        <span class="item-n">清蒸鲈鱼 <span class="vd vd-ok">推荐</span></span><span class="item-k">231<small>千卡</small></span>
+        <span class="item-m"><span>半条，<span class="n">220</span> 克</span><span class="conf" data-c="0.84"></span><span>营养库：鲈鱼（蒸）</span></span>
+      </div>
+      <div class="item flag">
+        <span class="item-n">卤猪肝 <span class="vd vd-no">不建议</span></span><span class="item-k">129<small>千卡</small></span>
+        <span class="item-m"><span>一小碟，约 <span class="n">80</span> 克（估算）</span><span class="conf" data-c="0.58"></span></span>
+        <span class="why">把握较低，克数是估算的，建议核对菜名与克数。</span>
+        <span class="acts"><button class="btn-txt">修改</button><button class="btn-txt ink">删除这一项</button></span>
+      </div>
+      <div class="item flag">
+        <span class="item-n">酸汤肥牛</span><span class="item-k" style="font-family:var(--font-sans);font-size:14px;color:var(--warn);font-weight:600;align-self:center">待确认</span>
+        <span class="item-m"><span>一份，<span class="n">250</span> 克</span><span>没有匹配到营养库，不计入合计</span></span>
+        <div class="cands" role="radiogroup" aria-label="选择对应的食物">
+          <div class="cand"><span class="radio on"></span>肥牛（火锅用）</div>
+          <div class="cand"><span class="radio"></span>牛肉（肥瘦）</div>
+          <div class="cand"><span class="radio"></span>酸菜鱼</div>
+          <div class="cand-acts"><button class="btn-txt">改个名字</button><button class="btn-txt ink">删除这一项</button></div>
+        </div>
+      </div>
+      <div class="totals" style="margin-top:6px">
+        <div><span class="n" data-count="567">567</span>千卡</div>
+        <div><span class="n">61.4</span>蛋白质 克</div>
+        <div><span class="n">14.2</span>脂肪 克</div>
+        <div><span class="n">1,012</span>钠 毫克</div>
+      </div>
+      <p class="t-cap" style="margin:6px 0 0">合计只算已匹配的 3 项。菜品与份量由模型估算，热量与营养由营养库按份量计算，仅供参考；请核对后再确认入库。</p>
+      <h3 class="t-h" style="margin-top:28px">整餐评价 <span class="ref">仅供参考</span></h3>
+      <div class="verdict"><b>不建议</b><span class="t-small mute">按今天的医嘱与摄入评价</span></div>
+      <div class="reason"><span class="vd vd-no">卤猪肝</span><p><span class="src">医嘱</span>避免动物内脏与浓肉汤（高嘌呤）</p></div>
+      <div class="reason"><span class="vd vd-warn">卤猪肝</span><p><span class="src">当日摄入</span>加上这一餐，今天的钠预计 <span class="n">2,652</span> 毫克，超过医嘱上限 <span class="n">2,000</span> 毫克</p></div>
+      <div class="reason"><span class="vd vd-ok">鲈鱼</span><p><span class="src">目标</span>补足今天还差的蛋白质</p></div>
+      <div class="unchecked">酸汤肥牛没能匹配到营养库，暂时没有按医嘱和饮食约束核对。请先选择对应的食物或改名，核对之后再吃或再确认入库。</div>
+      <h3 class="t-h" style="margin-top:28px">吃的时间</h3>
+      <div class="when" style="margin-top:10px">
+        <div class="sel"><span><span class="t-cap">日期 </span><span class="n">10月12日</span></span><svg class="ic ic-s mute"><use href="#i-down"/></svg></div>
+        <div class="sel"><span><span class="t-cap">餐次 </span>晚餐</span><svg class="ic ic-s mute"><use href="#i-down"/></svg></div>
+      </div>
+      <div style="display:flex;justify-content:center;margin:16px 0 24px"><button class="btn-txt" style="color:var(--ink-3)">放弃这次识别</button></div>
+    </div>
+  </div>
+  <div class="stick"><button class="btn btn-pri btn-blk" disabled>确认入库（还有 1 项待确认）</button></div>
+</div>
+<figcaption><b><span>04b</span>识别结果</b>把握程度改为五格加文字“高、中、低”（不低于 0.85 为高，低于 0.6 为低，与后端“把握较低”阈值一致）。底部固定“确认入库（还有 1 项待确认）”，处理完才可点。遮盖时盖住菜名、数字与评价。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h1 class="t-title">拍照识别</h1></div></div>
+  <div class="scroll">
+    <div class="ph-big" style="height:150px">你选的照片（已丢弃）</div>
+    <div class="pad">
+      <h2 class="t-display" style="margin-top:24px">没有认出食物</h2>
+      <p class="t-small ink2" style="margin:6px 0 0">没有识别到食物，请对准饭菜重拍。</p>
+      <p class="t-cap" style="margin:4px 0 0">错误码 photo_not_food。这次没有产生识别记录。</p>
+      <div style="display:grid;gap:10px;margin-top:24px">
+        <button class="btn btn-pri btn-blk"><svg class="ic ic-s"><use href="#i-camera"/></svg>重拍</button>
+        <button class="btn btn-qt btn-blk"><svg class="ic ic-s"><use href="#i-image"/></svg>从相册换一张</button>
+        <button class="btn-txt" style="justify-self:center">手动记一餐</button>
+      </div>
+      <div class="sec-h" style="margin-top:32px"><h3 class="t-h" style="font-size:16px">拍照小提示</h3></div>
+      <ul class="will">
+        <li>光线充足，从斜上方拍，整盘入镜。</li>
+        <li>一张照片一餐；多道菜可以拍在同一张里。</li>
+        <li>只支持 JPEG、PNG、WebP，不超过 8 MB。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<figcaption><b><span>04c</span>没有认出食物</b>标题写结论，下面原样显示后端说明与错误码，再给三条出路。看图模型超时、没配看图模型等失败见“状态与异常”。</figcaption>
+</figure>
+
+  </div>
+</section>
+
+<!-- ====================================================== -->
+<section class="deck-sec">
+  <h2>记录：饮食与训练</h2>
+  <p>能量账本是整套设计最用力的地方：每格 25 千卡，三餐按墨色深浅排开，靛线是当天需要。</p>
+  <div class="grid">
+
+<figure>
+<div class="app" id="diary">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">记录</h1></div>
+  <div class="ttabs" role="tablist"><button class="ttab" role="tab" aria-selected="true">饮食</button><button class="ttab" role="tab" aria-selected="false">训练</button></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="scroll">
+    <div class="datebar"><button class="ibtn" aria-label="前一天"><svg class="ic"><use href="#i-back"/></svg></button><b>10月12日<small>今天</small></b><button class="ibtn" aria-label="后一天" disabled style="opacity:.35"><svg class="ic"><use href="#i-right"/></svg></button></div>
+    <div class="sens">
+      <div class="ledger">
+        <div class="ledger-figs">
+          <div class="ledger-big"><span class="n" data-count="1085">1,085</span><span>/ <span class="n">1,850</span> 千卡</span></div>
+          <div class="ledger-rem">还可摄入<span class="n" data-count="765">765</span></div>
+        </div>
+        <div class="lt" id="lt" role="img" aria-label="今日能量：早餐 412，午餐 515，加餐 158，共 1085 千卡；需要 1850 千卡">
+          <div class="lt-ticks" data-segs="412,515,158" data-total="1850" data-step="25"></div>
+          <div class="lt-base"></div><div class="lt-need"></div>
+          <div class="lt-scale"><span style="left:0">0</span><span style="left:27.03%">500</span><span style="left:54.05%">1000</span><span class="need">需要 1,850</span></div>
+        </div>
+        <div class="legend">
+          <div><i style="background:var(--ink)"></i>早餐<span class="n">412</span></div>
+          <div><i style="background:var(--ink-2)"></i>午餐<span class="n">515</span></div>
+          <div><i style="background:var(--ink-3)"></i>加餐<span class="n">158</span></div>
+          <div><i style="background:var(--rule-2)"></i>晚餐<span class="n mute" style="font-family:var(--font-sans);font-size:15px">未记</span></div>
+        </div>
+        <p class="t-cap" style="margin:10px 0 0;display:flex;gap:8px;align-items:center"><span class="ref" style="vertical-align:0">仅供参考</span>每日需要按你的档案与活动水平估算</p>
+      </div>
+      <div class="pad" style="margin-top:14px">
+        <table class="mt">
+          <thead><tr><th>营养素</th><th>已摄入</th><th>需要</th><th>还差</th></tr></thead>
+          <tbody>
+            <tr><td>蛋白质<span class="bar" style="--w:75%"></span></td><td>52.4<small>克</small></td><td>70</td><td>17.6</td></tr>
+            <tr><td>脂肪<span class="bar" style="--w:66%"></span></td><td>38.1<small>克</small></td><td>58</td><td>19.9</td></tr>
+            <tr><td>碳水化合物<span class="bar" style="--w:51%"></span></td><td>128.0<small>克</small></td><td>250</td><td>122.0</td></tr>
+            <tr><td>膳食纤维<span class="bar" style="--w:37%"></span></td><td>9.2<small>克</small></td><td>25</td><td>15.8</td></tr>
+            <tr class="warn"><td>钠 <span class="t-cap" style="color:var(--warn)">医嘱上限</span><span class="bar" style="--w:82%"></span></td><td>1,640<small>毫克</small></td><td>2,000</td><td>360</td></tr>
+          </tbody>
+        </table>
+        <div class="meal" style="margin-top:10px">
+          <div class="meal-h"><b>早餐<small>07:40</small></b><span class="n">412</span></div>
+          <ul><li>燕麦牛奶粥 一碗 <span class="n">186</span></li><li>水煮蛋 1 个 <span class="n">72</span></li><li>全麦面包 2 片 <span class="n">154</span></li></ul>
+        </div>
+        <div class="meal">
+          <div class="meal-h"><b>午餐<small>12:20</small></b><span class="n">515</span></div>
+          <ul><li>米饭 一碗 <span class="n">232</span></li><li>番茄炒蛋 半盘 <span class="n">155</span></li><li>清炒油麦菜 一盘 <span class="n">128</span></li></ul>
+          <span class="from">来自拍照识别</span>
+        </div>
+        <div class="meal">
+          <div class="meal-h"><b>加餐<small>15:30</small></b><span class="n">158</span></div>
+          <ul><li>苹果 1 个 <span class="n">95</span></li><li>无糖酸奶 一杯 <span class="n">63</span></li></ul>
+        </div>
+      </div>
+    </div>
+    <div class="pad">
+      <div class="meal empty"><b class="t-h" style="font-size:17px">晚餐</b><span style="display:flex;gap:4px"><button class="ibtn" aria-label="拍照记录" style="color:var(--accent)"><svg class="ic"><use href="#i-camera"/></svg></button><button class="btn-txt">手动记一餐</button></span></div>
+      <div style="height:30px"></div>
+    </div>
+  </div>
+  <nav class="rnav" data-active="1"></nav>
+</div>
+<figcaption><b><span>05</span>饮食记录：一天</b>账本刻度的需要线与“需要 1,850”都收在容器内，不再溢出。12 号以下的字已全部取消，刻度标尺用黑体表格数字。遮盖时盖住账本、营养表与三餐。</figcaption>
+</figure>
+
+<figure>
+<div class="app" id="fit">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">记录</h1><div class="hdr-r"><button class="ibtn" aria-label="记一次训练" style="color:var(--accent)"><svg class="ic"><use href="#i-plus"/></svg></button></div></div>
+  <div class="ttabs" role="tablist"><button class="ttab" role="tab" aria-selected="false">饮食</button><button class="ttab" role="tab" aria-selected="true">训练</button></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="scroll">
+    <div class="lim sens"><svg class="ic"><use href="#i-alert"/></svg><span>运动限制生效中：膝关节术后六周内避免跑跳，到 10月17日。</span></div>
+    <div class="wk">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 class="t-h">近 7 天</h3><span class="t-cap">10月6日 至 10月12日</span></div>
+      <div class="wk-figs" style="margin-top:8px">
+        <div><span class="n" data-count="4">4<small>次</small></span>训练</div>
+        <div><span class="n" data-count="168">168<small>分钟</small></span>总时长</div>
+        <div><span class="n" data-count="1020">1,020<small>千卡</small></span>估算消耗 <span class="ref" style="vertical-align:0">仅供参考</span></div>
+      </div>
+      <div class="wk-cols" role="img" aria-label="每日训练分钟：周二 45，周三 0，周四 38，周五 0，周六 50，周日 35，今天 0">
+        <div class="wk-col" style="--h:60%"><span class="v">45</span><i class="bar"></i></div>
+        <div class="wk-col zero"><i class="bar"></i></div>
+        <div class="wk-col" style="--h:51%"><span class="v">38</span><i class="bar"></i></div>
+        <div class="wk-col zero"><i class="bar"></i></div>
+        <div class="wk-col" style="--h:67%"><span class="v">50</span><i class="bar"></i></div>
+        <div class="wk-col" style="--h:47%"><span class="v">35</span><i class="bar"></i></div>
+        <div class="wk-col zero"><i class="bar"></i></div>
+      </div>
+      <div class="wk-lbl"><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span><span class="on">今天</span></div>
+    </div>
+    <div class="srch"><svg class="ic ic-s"><use href="#i-search"/></svg>搜索动作，比如 深蹲、卧推</div>
+    <div class="pad" style="margin-top:6px">
+      <div class="trend">
+        <div style="min-width:0"><div style="font-size:15px;font-weight:600">哑铃卧推</div><div class="t-cap">最大重量，近 6 次</div><div class="t-cap">8 到 12 千克</div></div>
+        <svg viewBox="0 0 132 44" aria-hidden="true"><path d="M2 36 H46 V26 H90 V14 H130" fill="none" stroke="var(--ink)" stroke-width="1.5"/><g fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"><rect x="0" y="34" width="4" height="4"/><rect x="22" y="34" width="4" height="4"/><rect x="44" y="24" width="4" height="4"/><rect x="66" y="24" width="4" height="4"/><rect x="88" y="12" width="4" height="4"/></g><rect x="110" y="12" width="4" height="4" fill="var(--accent)"/></svg>
+      </div>
+      <div class="trw"><div class="trw-h"><b>快走</b><span class="n">35 分钟</span></div><div class="trw-d"><span>10月11日 周日</span><span>有氧，中等强度</span><span>估算 <span class="n">160</span> 千卡</span></div></div>
+      <div class="trw"><div class="trw-h"><b>力量训练</b><span class="n">50 分钟</span></div><div class="trw-d"><span>10月10日 周六</span><span>哑铃卧推 <span class="n">4×10</span>，<span class="n">12</span> 千克</span><span>坐姿腿屈伸 <span class="n">3×12</span>，<span class="n">25</span> 千克</span></div></div>
+      <div class="trw"><div class="trw-h"><b>固定自行车</b><span class="n">38 分钟</span></div><div class="trw-d"><span>10月8日 周四</span><span>有氧，中等强度</span></div></div>
+      <div class="trw"><div class="trw-h"><b>开合跳</b><span class="n">15 分钟</span></div><div class="trw-d"><span>10月6日 周二</span><span>有氧</span></div><div class="trw-x"><svg class="ic ic-s"><use href="#i-alert"/></svg>与运动限制冲突：膝关节术后六周内避免跑跳</div></div>
+      <div style="height:20px"></div>
+    </div>
+  </div>
+  <nav class="rnav" data-active="1"></nav>
+</div>
+<figcaption><b><span>08</span>训练：记录与周汇总</b>三个数字一行，七根斜纹柱，今天用靛色标签。动作趋势是阶梯线。与运动限制冲突的记录行内赭色说明。训练页本身不在遮盖清单里，但顶部的运动限制是医嘱内容，遮盖时一并盖住。</figcaption>
+</figure>
+
+  </div>
+</section>
+
+<!-- ====================================================== -->
+<section class="deck-sec">
+  <h2>健康：经期与医嘱</h2>
+  <p>经期页只用墨与靛。医嘱的“待核对、生效中、历史与审计”三个标签都画出来了；确认生效与确认解除都在底部面板里写明后果，解除另需勾选“不能撤销”。</p>
+  <div class="grid">
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">健康</h1></div>
+  <div class="ttabs" role="tablist"><button class="ttab" role="tab" aria-selected="true">经期</button><button class="ttab" role="tab" aria-selected="false">医嘱<span class="cnt">2</span></button></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="scroll">
+    <div class="sens">
+      <div class="phase">
+        <h2 class="t-display">卵泡期</h2>
+        <span class="ref" style="margin-bottom:8px">仅供参考</span>
+        <p>本周期第 14 天。近几天精力通常较好，可以照常安排力量训练。</p>
+      </div>
+      <div class="cyc" role="img" aria-label="周期刻度：共约 29 天，第 1 到 5 天为经期，今天第 14 天，下次预计在第 28 到 32 天之间开始">
+        <div class="cyc-t" id="cyc"></div>
+        <div class="cyc-now" style="left:calc((100% - 2px) * 13 / 33)"><span>今天</span></div>
+        <div class="cyc-l"><span>第 1 天</span><span>第 14 天</span><span>预计下次</span></div>
+      </div>
+      <div class="pred">
+        <span class="n">10<small>月</small>28<small>日</small></span>
+        <p>预计下次开始。把握范围 10月26日 至 10月30日。<span class="ref">仅供参考</span></p>
+        <p style="grid-column:1/-1;color:var(--ink-3);font-size:12px">基于最近 4 个周期，周期长度在 27 到 31 天之间。</p>
+      </div>
+      <div class="cal">
+        <div class="cal-h"><button class="ibtn" aria-label="上个月" style="margin-left:-12px"><svg class="ic"><use href="#i-back"/></svg></button><b>2026 年 10 月</b><button class="ibtn" aria-label="下个月" style="margin-right:-12px"><svg class="ic"><use href="#i-right"/></svg></button></div>
+        <div class="cal-g" id="calg"></div>
+        <div class="cal-leg">
+          <span><i style="background:var(--ink)"></i>已记录经期</span>
+          <span><i style="outline:1.5px dashed var(--ink-2);outline-offset:-1.5px"></i>预计经期</span>
+          <span><i style="height:4px;background:repeating-linear-gradient(135deg,var(--ink-3) 0 1.5px,transparent 1.5px 4px)"></i>预计开始范围</span>
+          <span><i style="width:4px;height:4px;border-radius:50%;background:var(--ink-3)"></i>有当天记录</span>
+        </div>
+      </div>
+    </div>
+    <div class="pad" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px;padding-bottom:20px">
+      <button class="btn btn-qt">记录经期开始</button>
+      <button class="btn btn-pri">记录今天</button>
+    </div>
+  </div>
+  <nav class="rnav" data-active="2"></nav>
+</div>
+<figcaption><b><span>06</span>经期</b>月历格高 44；上月日期改用淡墨而非刻度灰。整页内容是一块敏感区，遮盖后只剩两个记录按钮。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">健康</h1></div>
+  <div class="ttabs" role="tablist"><button class="ttab" role="tab" aria-selected="false">经期</button><button class="ttab" role="tab" aria-selected="true">医嘱<span class="cnt">2</span></button></div>
+  <div class="ttabs sm" role="tablist">
+    <button class="ttab" role="tab" aria-selected="false">待核对 <span class="cnt">1</span></button>
+    <button class="ttab" role="tab" aria-selected="true">生效中 3</button>
+    <button class="ttab" role="tab" aria-selected="false">历史与审计</button>
+  </div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="scroll">
+    <div class="pad sens">
+      <div class="mo" style="padding-top:10px">
+        <div class="mo-h"><span class="mo-cat">饮食要求</span><span class="mo-st due">待复核，今天到复查日</span></div>
+        <div class="mo-c">低盐饮食，每日钠不超过 <span class="nw">2000 毫克</span></div>
+        <div class="mo-d"><span>生效 <span class="n">2026-07-12</span></span><span>复查 <span class="n">2026-10-12</span></span></div>
+        <p class="t-cap" style="margin:6px 0 0">复核前仍按这条约束给建议。</p>
+        <div class="acts-r"><button class="btn btn-qt btn-sm">继续遵守</button><button class="btn btn-dng-qt btn-sm">确认解除</button></div>
+      </div>
+      <div class="mo">
+        <div class="mo-h"><span class="mo-cat">运动限制</span><span class="mo-st act">生效中</span></div>
+        <div class="mo-c">膝关节术后六周内避免跑跳</div>
+        <div class="mo-d"><span>生效 <span class="n">2026-09-05</span></span><span>预计结束 <span class="n">2026-10-17</span></span></div>
+        <div class="prop">
+          <div class="prop-h"><b>助手提出了一条解除建议</b><span class="ref">仅供参考</span></div>
+          <p>依据是你在 10月10日 的对话里说：</p>
+          <blockquote>医生复查说膝盖恢复得不错，可以开始慢跑了。</blockquote>
+          <p class="t-cap" style="margin-top:6px">建议不会改变约束，只有你在这里确认后才会解除。</p>
+          <div class="acts-r"><button class="btn btn-qt btn-sm">不解除</button><button class="btn btn-dng-qt btn-sm">确认解除</button></div>
+        </div>
+      </div>
+      <div class="mo">
+        <div class="mo-h"><span class="mo-cat">饮食禁忌</span><span class="mo-st act">生效中</span></div>
+        <div class="mo-c">避免动物内脏与浓肉汤（高嘌呤）</div>
+        <div class="mo-d"><span>生效 <span class="n">2026-08-20</span></span><span>复查 <span class="n">2026-12-20</span></span></div>
+      </div>
+    </div>
+    <div class="pad"><button class="btn-txt" style="margin:8px 0 24px -6px;font-size:15px"><svg class="ic ic-s"><use href="#i-plus"/></svg>录入医嘱</button></div>
+  </div>
+  <nav class="rnav" data-active="2"></nav>
+</div>
+<figcaption><b><span>07a</span>医嘱：生效中</b>医嘱内容改为黑体 500，左侧一道墨线。解除建议标明是助手提出的，并加“仅供参考”。解除建议上的“不解除”只撤销建议、不改日期；待复核条目上的“继续遵守”要选新的复查日（同 03d）。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">健康</h1></div>
+  <div class="ttabs" role="tablist"><button class="ttab" role="tab" aria-selected="false">经期</button><button class="ttab" role="tab" aria-selected="true">医嘱<span class="cnt">2</span></button></div>
+  <div class="ttabs sm" role="tablist">
+    <button class="ttab" role="tab" aria-selected="true">待核对 <span class="cnt">1</span></button>
+    <button class="ttab" role="tab" aria-selected="false">生效中 3</button>
+    <button class="ttab" role="tab" aria-selected="false">历史与审计</button>
+  </div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="scroll">
+    <div class="pad sens">
+      <p class="t-cap" style="margin:12px 0 0">提取出来的条目要逐条核对，确认前不参与任何建议。</p>
+      <div class="srcbox">
+        <div class="ph-img">原图</div>
+        <div><div style="font-size:15px;font-weight:600">出院小结（图片）</div><div class="t-cap">10月11日 录入，提取出 1 条</div></div>
+        <button class="btn-txt">查看</button>
+      </div>
+      <div class="mo">
+        <div class="mo-h"><span class="mo-cat">用药相关饮食注意</span><span class="mo-st pend">待核对</span></div>
+        <p class="t-small" style="margin:6px 0 0;color:var(--warn);font-weight:600">10月25日 之后仍未确认，会自动作废</p>
+        <p class="t-cap" style="margin:8px 0 0">原文</p>
+        <div class="orig">头孢呋辛酯片 0.25g，每日两次，连服 7 天。服药期间及停药后 7 天内禁止饮酒。</div>
+        <dl class="fields">
+          <dt>提取内容</dt><dd style="font-weight:500">服药期间及停药后 7 天内禁止饮酒</dd>
+          <dt>涉及</dt><dd>酒精饮品、含酒精的菜（如醉虾、酒酿）</dd>
+          <dt>生效日期</dt><dd class="n">2026-10-11</dd>
+          <dt>预计结束</dt><dd><span class="n">2026-10-25</span><span class="t-cap" style="display:block">由“停药后 7 天内”推算，请核对</span></dd>
+          <dt>复查日期</dt><dd class="miss">原文没有写明。确认后不设复查日期，可先补上</dd>
+          <dt>提取把握</dt><dd>中</dd>
+        </dl>
+        <div class="acts-r" style="padding-top:14px"><button class="btn-txt ink">作废</button><button class="btn btn-qt btn-sm"><svg class="ic ic-s"><use href="#i-edit"/></svg>修改</button><button class="btn btn-pri btn-sm">确认生效</button></div>
+      </div>
+    </div>
+  </div>
+  <nav class="rnav" data-active="2"></nav>
+</div>
+<figcaption><b><span>07b</span>医嘱：待核对</b>来源、原文引用、提取出的字段逐行列出；缺的字段用赭色写清确认后的后果。有预计结束日期的待核对条目，过了那天仍未确认会被后端自动作废，所以在标题下用赭色写明期限。“作废”对应后端的作废动作，条目进入历史并留审计，不是物理删除。</figcaption>
+</figure>
+
+<figure>
+<div class="app sheet-app">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">健康</h1></div>
+  <div class="ttabs"><span class="ttab">经期</span><span class="ttab" aria-selected="true">医嘱</span></div>
+  <div class="pad" style="opacity:.9"><div class="mo"><div class="mo-h"><span class="mo-cat">用药相关饮食注意</span><span class="mo-st pend">待核对</span></div><div class="mo-c">服药期间及停药后 7 天内禁止饮酒</div></div></div>
+  <div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-e">
+    <h2 class="t-title" id="sh-e">确认这条医嘱生效</h2>
+    <div class="quote"><span class="mo-cat">用药相关饮食注意</span><div class="mo-c" style="margin:4px 0 4px">服药期间及停药后 7 天内禁止饮酒</div><span class="t-cap">来源：出院小结（图片），提取把握 中</span></div>
+    <p class="t-small" style="margin:14px 0 0;font-weight:600">确认后会发生：</p>
+    <ul class="will">
+      <li>状态从“待核对”变为“生效中”。</li>
+      <li>之后的对话、拍照评价和附近餐厅推荐都按它约束，酒类和含酒精的菜会标为不建议。</li>
+      <li>预计结束 2026-10-25。结束前一天（10月24日）起进入待复核，那天打开应用时会提醒你。</li>
+      <li>记一条审计：时间、由你本人确认、来源与修改过的字段。</li>
+    </ul>
+    <button class="btn btn-pri btn-blk" style="margin-top:16px">确认生效</button>
+    <button class="btn btn-qt btn-blk" style="margin-top:10px">返回修改</button>
+    <p class="note" style="text-align:center">医嘱只能在这里确认或解除，对话里无法完成。</p>
+  </div>
+</div>
+<figcaption><b><span>07c</span>确认生效：二次确认</b>生效之后仍可修改或解除，所以只用面板写明后果，不加勾选。去掉了假的拖动把手，面板只能用按钮关闭。</figcaption>
+</figure>
+
+<figure>
+<div class="app sheet-app" id="resolve-app">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">健康</h1></div>
+  <div class="ttabs"><span class="ttab">经期</span><span class="ttab" aria-selected="true">医嘱</span></div>
+  <div class="pad" style="opacity:.9"><div class="mo"><div class="mo-h"><span class="mo-cat">运动限制</span><span class="mo-st act">生效中</span></div><div class="mo-c">膝关节术后六周内避免跑跳</div></div></div>
+  <div class="scrim"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-r">
+    <h2 class="t-title" id="sh-r">确认解除这条医嘱</h2>
+    <div class="quote"><span class="mo-cat">运动限制</span><div class="mo-c" style="margin:4px 0 4px">膝关节术后六周内避免跑跳</div><span class="t-cap">来源：2026-09-05 出院小结（图片）</span></div>
+    <p class="t-small" style="margin:14px 0 0;font-weight:600">确认后会发生：</p>
+    <ul class="will">
+      <li>这条医嘱从“生效中”变为“已解除”。</li>
+      <li>之后的训练与饮食建议不再按它约束，开合跳、慢跑等不再提示冲突。</li>
+      <li>记一条审计：时间、由你本人确认、依据是 10月10日 对话中的解除建议。</li>
+      <li class="irrev">解除不能撤销。以后需要时，请重新录入。</li>
+    </ul>
+    <label class="chk" id="rs-chk" style="margin-top:6px;border-top:1px solid var(--rule)"><span class="box" id="rs-box"></span><span>我知道解除后不能撤销，需要重新录入才能恢复这条约束</span></label>
+    <button class="btn btn-dng btn-blk" id="rs-btn" disabled>确认解除</button>
+    <button class="btn btn-qt btn-blk" style="margin-top:10px">不解除，撤销这条建议</button>
+    <p class="note" style="text-align:center" id="rs-live" aria-live="assertive">医嘱只能在这里确认或解除，对话里无法完成。</p>
+  </div>
+</div>
+<figcaption><b><span>07d</span>确认解除：二次确认</b>先勾选“我知道解除后不能撤销”，“确认解除”才变成可点的朱色按钮，结果用 aria-live 播报。这条是带解除建议的生效条目，所以次按钮是“不解除”（撤销建议）；待复核条目这里是“继续遵守”（打开 03d），没有建议的生效条目是“取消”。图里可以勾选试一下；“已解除”2.2 秒后复原只是演示，正式版会关闭面板，列表里该条显示“已解除”。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">健康</h1></div>
+  <div class="ttabs" role="tablist"><button class="ttab" role="tab" aria-selected="false">经期</button><button class="ttab" role="tab" aria-selected="true">医嘱<span class="cnt">2</span></button></div>
+  <div class="ttabs sm" role="tablist">
+    <button class="ttab" role="tab" aria-selected="false">待核对 <span class="cnt">1</span></button>
+    <button class="ttab" role="tab" aria-selected="false">生效中 3</button>
+    <button class="ttab" role="tab" aria-selected="true">历史与审计</button>
+  </div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="scroll">
+    <div class="pad sens">
+      <div class="sec-h" style="margin-top:14px"><h3 class="t-h" style="font-size:16px">已结束</h3><span class="t-cap">2 条</span></div>
+      <div class="closed"><div class="mo-h"><span class="mo-cat">饮食禁忌</span><span class="mo-st act">已解除 2026-09-20</span></div><div class="mo-c">术后两周内避免辛辣刺激食物</div><span class="t-cap">由你本人确认解除</span></div>
+      <div class="closed"><div class="mo-h"><span class="mo-cat">饮食要求</span><span class="mo-st act">已作废 2026-09-06</span></div><div class="mo-c">每日饮水不少于 1500 毫升</div><span class="t-cap">重复录入，由你本人作废</span></div>
+      <div class="sec-h"><h3 class="t-h" style="font-size:16px">审计记录</h3><span class="t-cap">最近 5 条</span></div>
+      <ol class="audit">
+        <li><time>10-12<br>18:40</time><span><b>进入待复核</b> 低盐饮食，每日钠不超过 <span class="nw">2000 毫克</span><span class="tr">生效中 到 待复核，来源：系统（打开应用时检查，已到复查日期）</span></span></li>
+        <li><time>10-11<br>21:15</time><span><b>提取为待核对</b> 服药期间及停药后 7 天内禁止饮酒<span class="tr">来源：提取（出院小结），把握 中</span></span></li>
+        <li><time>10-10<br>20:41</time><span><b>提出解除建议</b> 膝关节术后六周内避免跑跳<span class="tr">状态不变，来源：助手（对话）</span></span></li>
+        <li><time>09-20<br>08:30</time><span><b>确认解除</b> 术后两周内避免辛辣刺激食物<span class="tr">生效中 到 已解除，来源：你本人</span></span></li>
+        <li><time>09-05<br>10:12</time><span><b>确认生效</b> 膝关节术后六周内避免跑跳<span class="tr">待核对 到 生效中，来源：你本人</span></span></li>
+      </ol>
+      <div style="height:24px"></div>
+    </div>
+  </div>
+  <nav class="rnav" data-active="2"></nav>
+</div>
+<figcaption><b><span>07e</span>医嘱：历史与审计</b>已结束的条目只读、颜色退一级。审计按时间倒序，每条写动作、条目、状态变化与来源（你本人、系统、提取、助手）。后端没有定时任务，状态在有人查询时才刷新，所以系统事件的时间是“打开应用时检查”的时间，不写成零点。跨条目的审计列表需要新增接口，见 DESIGN 的“后端需求”。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h1 class="t-title">录入医嘱</h1></div><div class="hdr-r"><button class="ibtn js-cover" aria-label="遮盖敏感内容" aria-pressed="false"><svg class="ic"><use href="#i-cover"/></svg></button></div></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点右上角恢复显示。</p>
+  <div class="scroll">
+    <div class="pad sens">
+      <p class="t-small ink2" style="margin:4px 0 12px">照你拿到的原文粘贴或拍照，不用改写。提取出的条目需要你逐条核对后才会生效。</p>
+      <label class="fld-l" for="ord-t">医嘱原文</label>
+      <textarea class="area" id="ord-t" rows="5">头孢呋辛酯片 0.25g，每日两次，连服 7 天。服药期间及停药后 7 天内禁止饮酒。一周后门诊复查。</textarea>
+      <span class="fld-h" style="text-align:right"><span class="n">47</span> / 5000</span>
+      <div class="fld"><span class="fld-l">开具日期</span><span class="fld-i"><span class="n" style="flex:1;font-size:17px">2026-10-11</span><svg class="ic ic-s mute"><use href="#i-cal"/></svg></span></div>
+      <p class="fld-l" style="margin:18px 0 6px">证据（可选）</p>
+      <div class="srcbox" style="border-top:1px solid var(--rule)">
+        <div class="ph-img">原图</div>
+        <div><div style="font-size:15px">出院小结.jpg</div><div class="t-cap"><span class="n">1.2</span> MB，加密保存</div></div>
+        <button class="ibtn" aria-label="移除这张图片"><svg class="ic ic-s"><use href="#i-x"/></svg></button>
+      </div>
+      <div style="display:flex;gap:4px;margin-top:4px"><button class="btn-txt"><svg class="ic ic-s"><use href="#i-camera"/></svg>拍照</button><button class="btn-txt"><svg class="ic ic-s"><use href="#i-image"/></svg>从相册选</button></div>
+    </div>
+    <div class="pad"><button class="btn-txt ink" style="margin:12px 0 24px -6px">不提取，手动填写一条</button></div>
+  </div>
+  <div class="stick"><button class="btn btn-pri btn-blk">提取条目</button></div>
+</div>
+<figcaption><b><span>07f</span>录入医嘱</b>原文与证据分开：原文用来提取，图片作为证据加密保存。提取完成后跳到“待核对”（07b）。也可以跳过提取，手动填写一条。</figcaption>
+</figure>
+
+  </div>
+</section>
+
+<!-- ====================================================== -->
+<section class="deck-sec">
+  <h2>附近餐厅、我的与设置</h2>
+  <p>辅助页面沿用同一套账目行，不再引入新的卡片样式。</p>
+  <div class="grid">
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h1 class="t-title">附近吃什么</h1></div><div class="hdr-r"><button class="ibtn js-cover" aria-label="遮盖敏感内容" aria-pressed="false"><svg class="ic"><use href="#i-cover"/></svg></button></div></div>
+  <div class="scroll">
+    <div class="pad sens">
+      <label class="fld" style="padding-top:4px"><span class="fld-l">在哪里</span><span class="fld-i" style="border-bottom-color:var(--ink)"><svg class="ic ic-s"><use href="#i-pin"/></svg><input value="海淀黄庄地铁站" aria-label="地名或地标"><span class="t-cap" style="white-space:nowrap">北京</span></span></label>
+    </div>
+    <p class="loc-off">没有开启定位，输入地名或地标即可，不会再请求定位。</p>
+    <div class="need" aria-label="需求">
+      <button aria-pressed="true"><span class="box on"><svg class="ic"><use href="#i-check"/></svg></span>清淡</button>
+      <button aria-pressed="true"><span class="box on"><svg class="ic"><use href="#i-check"/></svg></span>少油</button>
+      <button aria-pressed="false"><span class="box"></span>高蛋白</button>
+      <button aria-pressed="false"><span class="box"></span>不辣</button>
+      <button aria-pressed="false" style="color:var(--accent)">全部 12 项</button>
+    </div>
+    <p class="notice">到店可点与应避开是基于餐厅类别的一般性建议，不代表该店真实菜单，也不保证该店有这些菜。<span class="ref">仅供参考</span></p>
+    <div class="pad">
+      <div class="sec-h" style="margin-top:18px"><h3 class="t-h">2 公里内 4 家</h3><span class="t-cap">按适合程度与距离</span></div>
+      <div class="shop"><span class="shop-n">粥里坊</span><span class="shop-m"><span class="vd vd-ok">适合</span><span>粥铺</span><span class="n">320 米</span></span><span class="shop-o"><b>可点</b>小米南瓜粥、白灼菜心、蒸蛋羹</span><a class="navb" href="#" aria-label="导航到粥里坊"><svg class="ic"><use href="#i-nav"/></svg>导航</a></div>
+      <div class="shop"><span class="shop-n">岭南小馆</span><span class="shop-m"><span class="vd vd-warn">注意</span><span>粤菜</span><span class="n">650 米</span></span><span class="shop-o"><b>可点</b>清蒸鱼、白灼时蔬<br><b>适量</b>烧味、煲仔饭（钠偏高）</span><a class="navb" href="#" aria-label="导航到岭南小馆"><svg class="ic"><use href="#i-nav"/></svg>导航</a></div>
+      <div class="shop"><span class="shop-n">一碗面馆</span><span class="shop-m"><span class="vd vd-warn">注意</span><span>面馆</span><span class="n">480 米</span></span><span class="shop-o"><b>可点</b>清汤面，汤少喝<br><b>应避开</b>浓汤底拉面</span><a class="navb" href="#" aria-label="导航到一碗面馆"><svg class="ic"><use href="#i-nav"/></svg>导航</a></div>
+      <div class="shop"><span class="shop-n">东街小馆</span><span class="shop-m"><span class="vd vd-un">未核对</span><span class="n">900 米</span></span><span class="shop-o">无法判断这家店的类别，请到店自行留意。</span><a class="navb" href="#" aria-label="导航到东街小馆"><svg class="ic"><use href="#i-nav"/></svg>导航</a></div>
+      <div class="sec-h" style="margin-top:26px"><h3 class="t-h">已避开 2 类</h3><span class="ref">仅供参考</span></div>
+      <div class="avd"><div class="avd-h"><b>火锅</b><span class="t-cap">川味火锅坊</span></div><p><span class="src">医嘱</span>代表菜“火锅（浓汤底）”：避免动物内脏与浓肉汤（高嘌呤）</p></div>
+      <div class="avd"><div class="avd-h"><b>麻辣烫与串串</b><span class="t-cap">串串香</span></div><p><span class="src">当日摄入</span>代表菜“麻辣烫”：今天的钠已到 1,640 毫克，再吃一份预计超过医嘱上限</p></div>
+      <label class="chk sens" style="margin:14px 0 30px"><span class="box"></span><span>记住大致区域“海淀黄庄”，下次不用再输入。可在设置里清除。</span></label>
+    </div>
+  </div>
+</div>
+<figcaption><b><span>09</span>附近餐厅</b>拒绝定位之后的样子。“已避开 2 类”加上了“仅供参考”。遮盖只盖地点与“记住区域”两处，店铺本身不敏感。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-big"><h1 class="t-display">我的</h1></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="scroll">
+    <div class="me-id"><b>zhou_ning</b><span class="t-cap">注册于 2026-09-30</span></div>
+    <div class="pad">
+      <div class="sens">
+        <div class="facts">
+          <div>出生年份<b class="n">1993</b></div><div>性别<b>女</b></div><div>活动水平<b>轻度</b></div>
+          <div>身高<b><span class="n">165</span> 厘米</b></div><div>体重<b><span class="n">56.5</span> 千克</b></div><div>目标<b>维持体重</b></div>
+        </div>
+        <p class="t-small" style="margin:10px 0 0"><span class="mute">忌口　</span>动物内脏、酒精</p>
+        <p class="t-small" style="margin:2px 0 0"><span class="mute">健康状况　</span>膝关节半月板术后（2026-08）</p>
+      </div>
+      <button class="btn btn-qt btn-blk" style="margin-top:14px"><svg class="ic ic-s"><use href="#i-edit"/></svg>修改档案</button>
+      <div style="margin-top:20px;border-top:1px solid var(--ink)">
+        <div class="sens">
+          <label class="lnk tg-row"><span>打开应用时主动提问<small>每天最多问一个问题</small></span><input type="checkbox" class="tg" role="switch" checked></label>
+          <label class="lnk tg-row"><span>经期记录<small>关闭后隐藏经期入口，已有记录保留</small></span><input type="checkbox" class="tg" role="switch" checked></label>
+        </div>
+        <a class="lnk" href="#">模型服务<span class="v">2 个，对话已设置</span><svg class="ic"><use href="#i-right"/></svg></a>
+        <a class="lnk" href="#">隐私与数据<svg class="ic"><use href="#i-right"/></svg></a>
+        <a class="lnk" href="#">免责声明<span class="v">已确认 2026-09-30 版</span><svg class="ic"><use href="#i-right"/></svg></a>
+      </div>
+      <div style="display:flex;justify-content:center;margin:18px 0 24px"><button class="btn-txt" style="color:var(--ink-3)">退出登录</button></div>
+    </div>
+  </div>
+  <nav class="rnav" data-active="3"></nav>
+</div>
+<figcaption><b><span>13a</span>我的</b>档案摘要用三列事实格，整块可遮盖。两个开关对应后端设置：主动开场与经期记录。整行是标签、可聚焦、行高 52；开关改成与标签同族的方角样式，不用 iOS 胶囊。经期开关会透露性别相关信息，所以和档案一起放进敏感区。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h1 class="t-title">个人档案</h1></div><div class="hdr-r"><button class="ibtn js-cover" aria-label="遮盖敏感内容" aria-pressed="false"><svg class="ic"><use href="#i-cover"/></svg></button></div></div>
+  <p class="cover-note"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点右上角恢复显示。</p>
+  <div class="scroll">
+    <div class="pad sens">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+        <div class="fld"><span class="fld-l">身高</span><span class="fld-i"><input class="n" value="165" inputmode="decimal" aria-label="身高"><span class="t-cap">厘米</span></span></div>
+        <div class="fld"><span class="fld-l">体重</span><span class="fld-i"><input class="n" value="56.5" inputmode="decimal" aria-label="体重"><span class="t-cap">千克</span></span></div>
+      </div>
+      <div class="fld"><span class="fld-l">活动水平</span><div class="sel" style="margin-top:6px"><span>轻度：每周运动 1 到 3 次</span><svg class="ic ic-s mute"><use href="#i-down"/></svg></div></div>
+      <div class="fld"><span class="fld-l">目标</span><div class="opts" role="radiogroup" aria-label="目标" style="margin-top:6px"><button class="opt" role="radio" aria-checked="false">减脂</button><button class="opt" role="radio" aria-checked="false">增肌</button><button class="opt" role="radio" aria-checked="true">维持</button><button class="opt" role="radio" aria-checked="false">不设</button></div></div>
+      <div class="fld"><span class="fld-l">饮食偏好</span><div class="tags"><span class="tag">清淡<button aria-label="移除清淡"><svg class="ic"><use href="#i-x"/></svg></button></span><span class="tag">少油<button aria-label="移除少油"><svg class="ic"><use href="#i-x"/></svg></button></span><button class="tag add">添加</button></div></div>
+      <div class="fld"><span class="fld-l">忌口</span><div class="tags"><span class="tag">动物内脏<button aria-label="移除动物内脏"><svg class="ic"><use href="#i-x"/></svg></button></span><span class="tag">酒精<button aria-label="移除酒精"><svg class="ic"><use href="#i-x"/></svg></button></span><button class="tag add">添加</button></div></div>
+      <div class="fld"><label class="fld-l" for="hc-t">健康状况</label><textarea class="area" id="hc-t" rows="2" style="min-height:72px;margin-top:6px">膝关节半月板术后（2026-08）</textarea><span class="fld-h">只用于生成建议。医生的要求请到医嘱页录入，才会按约束执行。</span></div>
+      <p class="t-cap" style="margin:16px 0 24px">出生年份 1993，性别 女；上次更新 2026-10-02</p>
+    </div>
+  </div>
+  <div class="stick"><button class="btn btn-pri btn-blk">保存</button></div>
+</div>
+<figcaption><b><span>13b</span>修改档案</b>同一套下划线输入、分段选择与可移除标签（方角，不是胶囊）。健康状况下明确写出它与医嘱的区别。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h1 class="t-title">添加模型服务</h1></div></div>
+  <div class="scroll">
+    <div class="pad">
+      <ol class="flow" style="margin-top:12px">
+        <li class="fs bad"><span class="fs-m">1</span><div><div class="fs-t">填写地址与密钥<small>密钥无效</small></div>
+          <div class="fld" style="padding-top:6px"><span class="fld-l">类型</span><div class="sel" style="margin-top:4px"><span>OpenAI 兼容格式</span><svg class="ic ic-s mute"><use href="#i-down"/></svg></div></div>
+          <label class="fld"><span class="fld-l">名称</span><span class="fld-i"><input value="通义千问" aria-label="名称"></span></label>
+          <label class="fld"><span class="fld-l">服务地址</span><span class="fld-i"><input value="https://dashscope.aliyuncs.com/compatible-mode/v1" aria-label="服务地址" style="font-size:15px"></span></label>
+          <label class="fld"><span class="fld-l">密钥</span><span class="fld-i bad"><input type="password" value="sk-3f9a2c71e0b84d5a9e6f" aria-label="密钥" aria-invalid="true" aria-describedby="k-err"><button class="ibtn" aria-label="显示密钥" style="margin-right:-10px"><svg class="ic ic-s"><use href="#i-eye"/></svg></button></span></label>
+          <div class="err" id="k-err" role="alert"><svg class="ic"><use href="#i-alert"/></svg><span>服务拒绝了这个密钥（401）。请检查是否复制完整，或到服务商后台重新生成。<small>错误码 llm_invalid_key</small></span></div>
+          <p class="fld-h">保存后只显示掩码，原文无法再查看。</p>
+          <button class="btn btn-pri btn-blk" style="margin-top:12px">重新保存并获取模型</button>
+        </div></li>
+        <li class="fs off"><span class="fs-m">2</span><div><div class="fs-t">获取模型</div></div></li>
+        <li class="fs off"><span class="fs-m">3</span><div><div class="fs-t">测试连通</div></div></li>
+        <li class="fs off"><span class="fs-m">4</span><div><div class="fs-t">选择用途模型</div></div></li>
+      </ol>
+    </div>
+  </div>
+</div>
+<figcaption><b><span>10b</span>模型服务：填写密钥（失败）</b>失败写在出错的那一步里：步骤号变朱色圈，密钥框底线变朱色，说明原文与错误码紧贴在下面。地址错误与测试超时两种失败见“状态与异常”。</figcaption>
+</figure>
+
+<figure>
+<div class="app">
+  <div class="sb"></div>
+  <div class="hdr hdr-sub"><div class="hdr-l"><button class="ibtn" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h1 class="t-title">模型服务</h1></div></div>
+  <div class="scroll">
+    <div class="pad">
+      <div class="prov">
+        <div style="min-width:0"><b>DeepSeek</b><div class="url">https://api.deepseek.com/v1</div></div>
+        <span class="vd vd-ok">已连通</span>
+        <span class="mask" style="grid-column:1/-1"><svg class="ic"><use href="#i-lock"/></svg>sk-••••••••••••7c2e</span>
+      </div>
+      <div class="sec-h" style="border-bottom:0"><h3 class="t-h">添加：通义千问</h3><span class="t-cap">OpenAI 兼容格式</span></div>
+      <ol class="flow">
+        <li class="fs ok"><span class="fs-m"><svg class="ic ic-s" style="stroke-width:2"><use href="#i-check"/></svg></span><div style="min-width:0"><div class="fs-t">填写地址与密钥<small>已保存</small></div><div class="fs-b"><div class="url">https://dashscope.aliyuncs.com/compatible-mode/v1</div><span class="mask"><svg class="ic"><use href="#i-lock"/></svg>sk-••••••••••••a41f</span></div></div></li>
+        <li class="fs ok"><span class="fs-m"><svg class="ic ic-s" style="stroke-width:2"><use href="#i-check"/></svg></span><div><div class="fs-t">获取模型<small>14 个</small></div><div class="fs-b">其中 3 个能看图，9 个能调用工具。</div></div></li>
+        <li class="fs ok"><span class="fs-m"><svg class="ic ic-s" style="stroke-width:2"><use href="#i-check"/></svg></span><div><div class="fs-t">测试连通<small>用时 1.4 秒</small></div><div class="fs-b">qwen-plus 回复正常。</div></div></li>
+        <li class="fs cur"><span class="fs-m">4</span><div style="min-width:0"><div class="fs-t">选择用途模型</div>
+          <div class="use">
+            <span>日常对话</span><div class="sel"><span>deepseek-chat</span><svg class="ic ic-s mute"><use href="#i-down"/></svg></div>
+            <span class="caps"><span class="cap">工具调用</span></span>
+            <span>看图识别</span><div class="sel"><span>qwen-vl-max</span><svg class="ic ic-s mute"><use href="#i-down"/></svg></div>
+            <span class="caps"><span class="cap">看图</span><span class="cap man">工具调用 手动</span></span>
+          </div>
+          <button class="btn btn-pri btn-blk" style="margin-top:14px">保存用途</button>
+        </div></li>
+      </ol>
+      <div class="sec-h" style="margin-top:12px"><h3 class="t-h">其他设置</h3></div>
+      <a class="lnk" href="#">隐私与数据<svg class="ic"><use href="#i-right"/></svg></a>
+      <a class="lnk" href="#">已保存的大致区域<span class="v">海淀黄庄</span><svg class="ic"><use href="#i-right"/></svg></a>
+      <a class="lnk" href="#">免责声明<svg class="ic"><use href="#i-right"/></svg></a>
+      <div style="height:30px"></div>
+    </div>
+  </div>
+</div>
+<figcaption><b><span>10a</span>模型服务：选择用途</b>能力标签可换行、标签本身不换行；手动标注缩短为“工具调用 手动”，虚线框区分。密钥任何时候只显示掩码。</figcaption>
+</figure>
+
+  </div>
+</section>
+
+<!-- ====================================================== -->
+<section class="deck-sec">
+  <h2>状态、异常与变体</h2>
+  <p>每种状态都说清楚发生了什么、下一步做什么。骨架块加深到能在低亮度屏上看见，不再用刻度扫光。</p>
+  <div class="grid">
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">加载中：饮食记录</span>
+  <div class="sk" style="width:46%;height:36px;margin-top:20px"></div>
+  <div class="sk" style="height:30px;margin-top:16px"></div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+  <div class="sk" style="margin-top:28px;width:80%"></div>
+  <div class="sk" style="margin-top:14px;width:64%"></div>
+  <div class="sk" style="margin-top:14px;width:72%"></div>
+  <p class="t-cap" style="margin-top:auto;padding-top:20px" role="status">正在读取今天的记录</p>
+</div></div>
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">失败，可重试</span>
+  <h3 class="st-h">没能连上模型服务</h3>
+  <p class="st-p">DeepSeek 在 30 秒内没有回应。可以重试，或到设置里换一个对话模型。</p>
+  <p class="st-code">错误码 llm_timeout</p>
+  <div class="st-acts"><button class="btn btn-pri"><svg class="ic ic-s"><use href="#i-refresh"/></svg>重试</button><button class="btn btn-qt">去设置</button></div>
+  <p class="t-cap" style="margin-top:auto;padding-top:20px">你刚才发的话已保留，重试不用重新输入。</p>
+</div></div>
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">无数据</span>
+  <h3 class="st-h">10月9日 没有饮食记录</h3>
+  <p class="st-p">拍一张饭菜，或者手动记一餐。补记的记录会算进那一天。</p>
+  <div class="st-acts"><button class="btn btn-pri"><svg class="ic ic-s"><use href="#i-camera"/></svg>拍照记录</button><button class="btn btn-qt">手动记一餐</button></div>
+</div></div>
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">数据不足</span>
+  <h3 class="st-h">还不能预测下次经期</h3>
+  <p class="st-p">预测至少需要 2 个完整周期，目前记录了 1 个。下次经期开始时记一笔即可。</p>
+  <div class="prog" aria-label="已记录 1 个周期，共需 2 个"><i class="on"></i><i></i></div>
+  <p class="t-cap" style="margin:6px 0 0">1 / 2 个周期</p>
+  <div class="st-acts"><button class="btn btn-qt">记录经期开始</button></div>
+</div></div>
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">需要授权：第一次查附近餐厅（只问这一次）</span>
+  <h3 class="st-h">用一次你的位置？</h3>
+  <p class="st-p">只用来查找附近的餐厅，精确位置不会保存。不允许也没关系，可以输入地名或地标，以后不再询问。</p>
+  <div class="st-acts" style="flex-direction:column"><button class="btn btn-pri btn-blk"><svg class="ic ic-s"><use href="#i-pin"/></svg>允许定位</button><button class="btn btn-qt btn-blk">输入地点</button></div>
+</div></div>
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">需要授权：未配置模型、登录过期</span>
+  <h3 class="st-h">还没有可用的对话模型</h3>
+  <p class="st-p">对话和拍照识别都需要先添加一个模型服务，填地址与密钥，大约两分钟。</p>
+  <div class="st-acts"><button class="btn btn-pri">去添加模型服务</button></div>
+  <hr class="hr" style="margin:24px 0 0">
+  <h3 class="st-h" style="font-size:17px">登录已过期</h3>
+  <p class="st-p">请重新登录，记录不会丢失。</p>
+  <div class="st-acts" style="margin-top:12px"><button class="btn btn-qt btn-sm">重新登录</button></div>
+</div></div>
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">拍照识别失败：看图模型超时</span>
+  <h3 class="st-h">这次没有识别完成</h3>
+  <p class="st-p">看图模型 qwen-vl-max 在 60 秒内没有回应。照片还在本页，可以直接重试。</p>
+  <p class="st-code">错误码 llm_timeout</p>
+  <div class="st-acts"><button class="btn btn-pri"><svg class="ic ic-s"><use href="#i-refresh"/></svg>重试识别</button><button class="btn btn-qt">换一个看图模型</button></div>
+</div></div>
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">模型服务：步骤里的另外两种失败</span>
+  <ol class="flow" style="margin-top:14px">
+    <li class="fs bad"><span class="fs-m">2</span><div><div class="fs-t">获取模型<small>地址有误</small></div><div class="err" style="margin-top:2px"><svg class="ic"><use href="#i-alert"/></svg><span>请核对服务地址（例如是否少了或多了 /v1），也请确认模型编号正确。<small>错误码 llm_bad_url</small></span></div><button class="btn btn-qt btn-sm" style="margin-top:8px">修改地址</button></div></li>
+    <li class="fs bad"><span class="fs-m">3</span><div><div class="fs-t">测试连通<small>超时</small></div><div class="err" style="margin-top:2px"><svg class="ic"><use href="#i-alert"/></svg><span>qwen-plus 在 30 秒内没有回应。服务可能繁忙，稍后再试。<small>错误码 llm_timeout</small></span></div><button class="btn btn-qt btn-sm" style="margin-top:8px"><svg class="ic ic-s"><use href="#i-refresh"/></svg>重新测试</button></div></li>
+  </ol>
+</div></div>
+
+<div class="panel"><div class="panel-in" style="padding:0">
+  <div class="care" role="alert">
+    <div class="care-h"><svg class="ic"><use href="#i-alert"/></svg>请尽快就医</div>
+    <p>你提到胸口持续发紧，伴随出汗和呼吸困难。这可能需要紧急处理。请立即拨打 120，或请身边的人陪你去最近的医院急诊。</p>
+    <a class="btn btn-blk" href="tel:120"><svg class="ic ic-s"><use href="#i-phone"/></svg>拨打 120</a>
+    <small>这是一条固定的安全提示，不是模型生成的。</small>
+  </div>
+  <p class="t-cap" style="margin:16px var(--gutter) 20px">就医提示总在回答最上方，整块朱色，不折叠，不可关闭；下方不再接饮食或训练建议。消息流里的样子见 03c。</p>
+</div></div>
+
+<div class="panel"><div class="panel-in is-covered" style="padding-top:12px">
+  <span class="t-cap">一键遮盖：医嘱页</span>
+  <p class="cover-note" style="margin:10px 0 6px"><svg class="ic ic-s"><use href="#i-cover"/></svg>已遮盖，再点“遮盖”恢复显示。</p>
+  <div class="sens">
+    <div class="mo"><div class="mo-h"><span class="mo-cat">饮食禁忌</span><span class="mo-st act">生效中</span></div><div class="mo-c">避免动物内脏与浓肉汤（高嘌呤）</div></div>
+    <div class="mo"><div class="mo-h"><span class="mo-cat">运动限制</span><span class="mo-st act">生效中</span></div><div class="mo-c">膝关节术后六周内避免跑跳</div></div>
+  </div>
+  <p class="t-cap" style="margin-top:12px">斜纹盖住内容但保留版面；遮盖时敏感区同时对读屏隐藏。应用切到后台再回来时默认遮盖。</p>
+</div></div>
+
+<div class="panel"><div class="panel-in">
+  <span class="t-cap">导航变体</span>
+  <p class="st-p" style="margin-top:10px">四项加遮盖（默认）：</p>
+  <div class="navdemo" style="margin-top:6px"><nav class="rnav" data-active="2"></nav></div>
+  <p class="st-p" style="margin-top:18px">没有经期也没有医嘱模块时，“健康”整项隐藏，变成三项；当前刻度仍在当前项正中：</p>
+  <div class="navdemo" style="margin-top:6px"><nav class="rnav" data-active="1" data-items="对话,记录,我的"></nav></div>
+  <p class="st-p" style="margin-top:18px">只有医嘱、没有经期时，“健康”页不显示经期与医嘱的标签条，标题仍是“健康”，直接列出医嘱的三个子标签。</p>
+</div></div>
+
+  </div>
+</section>
+
+<!-- ====================================================== -->
+<section class="deck-sec">
+  <h2>设计系统</h2>
+  <p>所有数值都在页首的 CSS 变量里，DESIGN.md 中有完整表格。</p>
+  <div class="ds">
+    <div class="ds-c6">
+      <h3>颜色</h3><p>纸、墨、一种靛蓝强调，加三种语义色。语义色只在有结论或风险时出现。</p>
+      <div class="sw">
+        <div><i style="background:var(--paper)"></i><b>纸</b>#F4F5F2 底色</div>
+        <div><i style="background:var(--ink)"></i><b>墨</b>#1C2024 正文 15.0:1</div>
+        <div><i style="background:var(--ink-3)"></i><b>淡墨</b>#656B71 说明 4.9:1</div>
+        <div><i style="background:var(--accent)"></i><b>靛</b>#2B4A8B 唯一强调 7.8:1</div>
+        <div><i style="background:var(--rule)"></i><b>细线</b>#CFD3CD，控件边 #B3B8B2</div>
+        <div><i style="background:var(--sheet)"></i><b>白</b>#FFFFFF 面板与附页</div>
+        <div><i style="background:var(--ok)"></i><b>松</b>#2E6A4E 适合 5.8:1</div>
+        <div><i style="background:var(--warn-line)"></i><b>赭</b>文字 #86540B 5.8:1，线 #A97521 3.7:1</div>
+        <div><i style="background:var(--danger)"></i><b>朱</b>#A63421 不建议与就医 6.1:1</div>
+      </div>
+    </div>
+    <div class="ds-c6">
+      <h3>字体</h3><p>宋体（思源宋体 700）只用于固定的页题与小节题；动态文字一律黑体。16 号以上的展示数字用 Source Serif 4，16 号以下用黑体表格数字。</p>
+      <div class="ts">
+        <span>44 数字</span><span class="ds-num" style="font-size:44px;line-height:1">1,085</span>
+        <span>28 页题</span><span class="t-display">饮食记录</span>
+        <span>22 标题</span><span class="t-title">确认解除这条医嘱</span>
+        <span>18 小节</span><span class="t-h">整餐评价</span>
+        <span>17 医嘱内容</span><span class="mo-c" style="margin:0">低盐饮食，每日钠不超过 <span class="nw">2000 毫克</span></span>
+        <span>16 正文</span><span>你今天的钠已经到 1,640 毫克，离上限只剩 360 毫克。</span>
+        <span>14 辅助</span><span class="t-small ink2">建议不会改变约束，只有你确认后才会解除。</span>
+        <span>12 说明</span><span class="t-cap">基于最近 4 个周期，周期长度在 27 到 31 天之间。</span>
+      </div>
+    </div>
+    <div class="ds-c4">
+      <h3>间距与圆角</h3><p>4 的倍数；页边 20。圆角三级：标记 2，控件 6，面板 14。</p>
+      <div class="sp">
+        <div><i style="width:4px;height:4px"></i>4</div><div><i style="width:8px;height:8px"></i>8</div><div><i style="width:12px;height:12px"></i>12</div><div><i style="width:16px;height:16px"></i>16</div><div><i style="width:24px;height:24px"></i>24</div><div><i style="width:32px;height:32px"></i>32</div><div><i style="width:48px;height:48px"></i>48</div>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:20px">
+        <div style="width:56px;height:40px;border:1px solid var(--ink-2);border-radius:2px"></div>
+        <div style="width:56px;height:40px;border:1px solid var(--ink-2);border-radius:6px"></div>
+        <div style="width:56px;height:40px;border:1px solid var(--ink-2);border-radius:14px 14px 0 0;border-bottom:0"></div>
+      </div>
+    </div>
+    <div class="ds-c8">
+      <h3>组件</h3><p>自绘为主，行为与语义来自 react-aria-components。</p>
+      <div class="comp">
+        <button class="btn btn-pri">确认入库</button>
+        <button class="btn btn-qt">继续遵守</button>
+        <button class="btn btn-dng">确认解除</button>
+        <button class="btn btn-pri" disabled>确认入库</button>
+        <button class="btn-txt">去医嘱页处理</button>
+        <span class="ref">仅供参考</span>
+      </div>
+      <div class="comp" style="margin-top:14px">
+        <span class="vd vd-ok">适合</span><span class="vd vd-warn">注意</span><span class="vd vd-no">不建议</span><span class="vd vd-un">未核对</span>
+        <span class="conf t-small" data-c="0.91"></span><span class="conf t-small" data-c="0.72"></span><span class="conf t-small" data-c="0.58"></span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;margin-top:20px">
+        <div>
+          <button class="rv1" style="width:100%;margin:0"><span class="cat">饮食要求</span><span class="st">待复核</span><span class="sp"></span><svg class="ic ic-s mute"><use href="#i-down"/></svg></button>
+          <div style="margin-top:16px;padding:10px 12px;border:1px solid var(--rule-2);border-radius:2px;background:var(--sheet)">
+            <p class="t-small" style="margin:0">你提到医生说可以吃海鲜了。医嘱需要你本人在医嘱页处理。</p>
+            <button class="btn btn-qt btn-sm" style="margin-top:8px"><svg class="ic ic-s"><use href="#i-doc"/></svg>去医嘱页处理</button>
+          </div>
+          <label class="chk" style="margin-top:8px"><span class="box on"><svg class="ic"><use href="#i-check"/></svg></span><span>我知道解除后不能撤销，需要重新录入才能恢复这条约束</span></label>
+        </div>
+        <div>
+          <div class="slip"><div class="slip-h"><b><svg class="ic ic-s"><use href="#i-doc"/></svg>医嘱提醒</b><small>系统附注</small></div><p>按你当前生效的医嘱，以下食物不建议：麻婆豆腐。</p></div>
+          <button class="fold" aria-expanded="true" style="margin-top:14px"><span>依据</span><em>2</em><span style="flex:1"></span><svg class="ic"><use href="#i-down"/></svg></button>
+          <div class="fold-b"><div><div class="ev"><span class="src">目标</span><span>减脂，每日能量缺口约 300 千卡</span><span class="src">训练</span><span>昨天有力量训练</span></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="ds-c4">
+      <h3>图标</h3><p>一套线性图标，24 格，1.5 线宽，圆头圆角，内联 SVG。</p>
+      <div class="icons">
+        <div><svg class="ic"><use href="#i-camera"/></svg>拍照</div><div><svg class="ic"><use href="#i-image"/></svg>相册</div><div><svg class="ic"><use href="#i-send"/></svg>发送</div><div><svg class="ic"><use href="#i-cover"/></svg>遮盖</div><div><svg class="ic"><use href="#i-pin"/></svg>地点</div><div><svg class="ic"><use href="#i-nav"/></svg>导航</div>
+        <div><svg class="ic"><use href="#i-alert"/></svg>警示</div><div><svg class="ic"><use href="#i-info"/></svg>说明</div><div><svg class="ic"><use href="#i-doc"/></svg>医嘱</div><div><svg class="ic"><use href="#i-lock"/></svg>掩码</div><div><svg class="ic"><use href="#i-refresh"/></svg>重试</div><div><svg class="ic"><use href="#i-phone"/></svg>拨打</div>
+        <div><svg class="ic"><use href="#i-search"/></svg>搜索</div><div><svg class="ic"><use href="#i-cal"/></svg>日期</div><div><svg class="ic"><use href="#i-clock"/></svg>时间</div><div><svg class="ic"><use href="#i-edit"/></svg>修改</div><div><svg class="ic"><use href="#i-trash"/></svg>删除</div><div><svg class="ic"><use href="#i-bowl"/></svg>一餐</div>
+      </div>
+    </div>
+    <div class="ds-c8">
+      <h3>动效</h3><p>只给用户动作和数字变化做动效。系统开启“减弱动态效果”时全部变成直接显示。</p>
+      <table class="mot">
+        <thead><tr><th>对象</th><th>做什么</th><th>时长与曲线</th><th>减弱动效时</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>回答流入</td><td>按服务端分段逐字显示，靛色光标</td><td>跟随数据</td><td>整段一次出现</td><td><button data-demo="stream">演示</button></td></tr>
+          <tr><td>数字变化</td><td>从旧值数到新值</td><td>600 ms，缓出</td><td>直接显示终值</td><td><button data-demo="count">演示</button></td></tr>
+          <tr><td>能量刻度</td><td>刻度从左到右依次长出</td><td>480 ms，每格错开 6 ms</td><td>直接显示</td><td><button data-demo="ledger">演示</button></td></tr>
+          <tr><td>底部面板</td><td>自下滑入，遮罩淡入</td><td>320 ms，(.32,.72,0,1)</td><td>只淡入，不位移</td><td><button data-demo="sheet">演示</button></td></tr>
+          <tr><td>依据折叠</td><td>高度展开，箭头翻转</td><td>200 ms，标准曲线</td><td>直接展开</td><td></td></tr>
+          <tr><td>遮盖</td><td>斜纹淡入</td><td>200 ms</td><td>直接出现</td><td></td></tr>
+          <tr><td>识别进度</td><td>当前一步的圈转动</td><td>1000 ms 循环</td><td>静止，只靠文字</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  function reduced(){return root.classList.contains('rm')||window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
+
+  /* 状态栏 */
+  var SB='<span>9:41</span><svg viewBox="0 0 64 13" width="64" height="13" aria-hidden="true"><g fill="#1C2024"><rect x="0" y="8" width="3" height="5" rx=".6"/><rect x="5" y="6" width="3" height="7" rx=".6"/><rect x="10" y="3.5" width="3" height="9.5" rx=".6"/><rect x="15" y="1" width="3" height="12" rx=".6"/></g><path d="M25 5.2a8.4 8.4 0 0 1 11.6 0M27.3 7.6a5.1 5.1 0 0 1 7 0M29.6 10a1.8 1.8 0 0 1 2.4 0" fill="none" stroke="#1C2024" stroke-width="1.6" stroke-linecap="round"/><rect x="40.5" y=".8" width="21" height="11.4" rx="3" fill="none" stroke="#1C2024" stroke-opacity=".45"/><rect x="42.3" y="2.6" width="15.5" height="7.8" rx="1.6" fill="#1C2024"/><path d="M63 4.6v3.8" stroke="#1C2024" stroke-opacity=".45" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  document.querySelectorAll('.sb').forEach(function(el){el.innerHTML=SB;});
+
+  /* 底部导航：N 项文字 + 拇指区遮盖按钮 */
+  document.querySelectorAll('nav.rnav').forEach(function(nav){
+    var items=(nav.getAttribute('data-items')||'对话,记录,健康,我的').split(','), act=+nav.getAttribute('data-active');
+    nav.setAttribute('aria-label','主导航'); nav.style.setProperty('--cols',items.length);
+    var h=items.map(function(t,i){return '<a href="#"'+(i===act?' aria-current="page"':'')+'>'+t+'</a>';}).join('');
+    h+='<button class="cov js-cover" aria-pressed="false" aria-label="遮盖敏感内容"><svg class="ic"><use href="#i-cover"/></svg><span class="cov-t">遮盖</span></button>';
+    nav.innerHTML=h;
+  });
+
+  /* 刻度尺：按数值、每单位像素与容器宽度计算 */
+  function drawRuler(el){
+    var v=+el.dataset.value, step=+el.dataset.step, major=+el.dataset.major, ppu=+el.dataset.ppu;
+    var w=el.clientWidth, c=w/2, lo=v-c/ppu, hi=v+c/ppu, h='';
+    var k0=Math.ceil(lo/step)*step;
+    for(var k=k0;k<=hi+1e-9;k=Math.round((k+step)*100)/100){
+      var x=c+(k-v)*ppu, isMj=Math.abs(k/major-Math.round(k/major))<1e-6;
+      h+='<i'+(isMj?' class="mj"':'')+' style="left:'+x.toFixed(1)+'px"></i>';
+      if(isMj&&x-14>=0&&x+14<=w)h+='<span style="left:'+x.toFixed(1)+'px">'+k+'</span>';
+    }
+    h+='<b class="needle"></b>';
+    el.innerHTML=h;
+  }
+  var rulers=document.querySelectorAll('.ruler');
+  rulers.forEach(drawRuler);
+  if(window.ResizeObserver){var ro=new ResizeObserver(function(es){es.forEach(function(e){drawRuler(e.target);});});rulers.forEach(function(r){ro.observe(r);});}
+  else window.addEventListener('resize',function(){rulers.forEach(drawRuler);});
+
+  /* 把握程度：五格 + 高中低 */
+  document.querySelectorAll('.conf[data-c]').forEach(function(el){
+    var c=+el.getAttribute('data-c'), on=Math.max(1,Math.round(c*5)), word=c>=0.85?'高':(c>=0.6?'中':'低'), h='把握<i class="cells" aria-hidden="true">';
+    for(var i=0;i<5;i++)h+='<b'+(i<on?' class="on"':'')+'></b>';
+    el.innerHTML=h+'</i>'+word; el.setAttribute('aria-label','把握程度 '+c.toFixed(2)+'，'+word); el.setAttribute('role','img');
+  });
+
+  /* 数字计数 */
+  function fmt(v){return Math.round(v).toLocaleString('en-US');}
+  function countUp(el){
+    var to=+el.getAttribute('data-count'), small=el.querySelector('small'), tail=small?small.outerHTML:'';
+    if(reduced()){el.innerHTML=fmt(to)+tail;return;}
+    var t0=null,d=600;
+    function step(t){if(!t0)t0=t;var p=Math.min(1,(t-t0)/d),e=1-Math.pow(1-p,3);el.innerHTML=fmt(to*e)+tail;if(p<1)requestAnimationFrame(step);}
+    requestAnimationFrame(step);
+  }
+  function runCounts(){document.querySelectorAll('[data-count]').forEach(countUp);}
+
+  /* 能量刻度 */
+  document.querySelectorAll('.lt-ticks').forEach(function(box){
+    var segs=box.getAttribute('data-segs').split(',').map(Number), total=+box.getAttribute('data-total'), step=+box.getAttribute('data-step');
+    var n=Math.round(total/step), html='', acc=0, b=[];
+    segs.forEach(function(s){acc+=s;b.push(acc);});
+    for(var i=0;i<n;i++){var m=(i+.5)*step,cls=m<=b[0]?'s1':(m<=b[1]?'s2':(m<=b[2]?'s3':''));html+='<i class="'+cls+'" style="--i:'+i+'"></i>';}
+    box.innerHTML=html;
+  });
+  function replayLedger(){var lt=document.getElementById('lt');if(!lt)return;lt.classList.remove('anim');void lt.offsetWidth;if(!reduced())lt.classList.add('anim');}
+
+  /* 周期刻度 */
+  (function(){var c=document.getElementById('cyc');if(!c)return;var h='';for(var d=1;d<=34;d++){var cls=d<=5?'m':((d>=28&&d<=32)?'p':'');h+='<i class="'+cls+'"></i>';}c.innerHTML=h;})();
+
+  /* 月历：2026 年 10 月，1 日为周四，周一开头 */
+  (function(){
+    var g=document.getElementById('calg');if(!g)return;
+    var h='';['一','二','三','四','五','六','日'].forEach(function(w){h+='<span class="wd">'+w+'</span>';});
+    [28,29,30].forEach(function(d){h+='<span class="d out'+(d>=29?' rec':'')+'"><span>'+d+'</span></span>';});
+    for(var d=1;d<=31;d++){var c=['d'];if(d<=3)c.push('rec');if(d>=28)c.push('prd');if(d>=26&&d<=30)c.push('win');if(d===12)c.push('today');if([2,5,8,10,11].indexOf(d)>-1)c.push('log');
+      h+='<span class="'+c.join(' ')+'"'+(d===12?' aria-current="date"':'')+'><span>'+d+'</span></span>';}
+    h+='<span class="d out prd"><span>1</span></span>';
+    g.innerHTML=h;
+  })();
+
+  /* 回答流入 */
+  var streamTimer=null;
+  function runStream(){
+    var p=document.getElementById('stream'),wrap=document.getElementById('answer'),sc=document.getElementById('chat-scroll');
+    if(!p)return;clearTimeout(streamTimer);
+    var text=p.getAttribute('data-text');
+    function follow(){sc.scrollTop=sc.scrollHeight;}
+    wrap.classList.add('pending');wrap.setAttribute('aria-busy','true');p.classList.remove('done');sc.scrollTop=0;
+    function finish(){p.classList.add('done');wrap.classList.remove('pending');wrap.setAttribute('aria-busy','false');}
+    if(reduced()){p.textContent=text;finish();follow();return;}
+    var i=0;p.innerHTML='<span class="caret"></span>';
+    (function tick(){
+      i=Math.min(text.length,i+2+Math.floor(Math.random()*3));
+      p.innerHTML=text.slice(0,i)+'<span class="caret"></span>';follow();
+      if(i<text.length)streamTimer=setTimeout(tick,45);
+      else streamTimer=setTimeout(function(){finish();sc.scrollTo?sc.scrollTo({top:sc.scrollHeight,behavior:'smooth'}):follow();},260);
+    })();
+  }
+
+  /* 底部面板重放 */
+  function replaySheets(){
+    document.querySelectorAll('.sheet-app').forEach(function(a){a.classList.add('sheet-closed');void a.offsetWidth;setTimeout(function(){a.classList.remove('sheet-closed');},reduced()?0:60);});
+  }
+
+  /* 解除：勾选后才可确认 */
+  (function(){
+    var chk=document.getElementById('rs-chk'),box=document.getElementById('rs-box'),btn=document.getElementById('rs-btn'),live=document.getElementById('rs-live');
+    if(!chk)return;var on=false;
+    chk.addEventListener('click',function(e){e.preventDefault();on=!on;box.classList.toggle('on',on);box.innerHTML=on?'<svg class="ic"><use href="#i-check"/></svg>':'';btn.disabled=!on;chk.setAttribute('aria-checked',on?'true':'false');});
+    chk.setAttribute('role','checkbox');chk.setAttribute('aria-checked','false');chk.tabIndex=0;
+    chk.addEventListener('keydown',function(e){if(e.key===' '||e.key==='Enter'){e.preventDefault();chk.click();}});
+    btn.addEventListener('click',function(){if(btn.disabled)return;btn.textContent='已解除';live.textContent='已解除：膝关节术后六周内避免跑跳。审计已记录。';
+      setTimeout(function(){btn.textContent='确认解除';live.textContent='医嘱只能在这里确认或解除，对话里无法完成。';on=false;box.classList.remove('on');box.innerHTML='';btn.disabled=true;chk.setAttribute('aria-checked','false');},2200);});
+  })();
+
+  /* 依据折叠 */
+  document.querySelectorAll('.fold').forEach(function(f){f.addEventListener('click',function(){f.setAttribute('aria-expanded',f.getAttribute('aria-expanded')==='true'?'false':'true');});});
+
+  /* 遮盖：盖住本页所有 .sens，并对读屏隐藏 */
+  document.addEventListener('click',function(e){
+    var btn=e.target.closest('.js-cover');if(!btn)return;
+    var app=btn.closest('.app');if(!app)return;
+    var on=!app.classList.contains('is-covered');
+    app.classList.toggle('is-covered',on);
+    app.querySelectorAll('.js-cover').forEach(function(b){
+      b.setAttribute('aria-pressed',on?'true':'false');
+      b.setAttribute('aria-label',on?'已遮盖，点按恢复显示':'遮盖敏感内容');
+      var t=b.querySelector('.cov-t');if(t)t.textContent=on?'已遮盖':'遮盖';
+    });
+    /* 遮盖时：读屏隐藏 + inert 让键盘无法进入；不支持 inert 时回退为把子树内可聚焦元素设为 tabindex=-1 */
+    app.querySelectorAll('.sens').forEach(function(s){
+      if(on){s.setAttribute('aria-hidden','true');s.setAttribute('inert','');}
+      else{s.removeAttribute('aria-hidden');s.removeAttribute('inert');}
+      if(!('inert' in HTMLElement.prototype)){
+        s.querySelectorAll('a,button,input,textarea,select,[tabindex]').forEach(function(f){
+          if(on){f.dataset.ti=f.getAttribute('tabindex')||'';f.setAttribute('tabindex','-1');}
+          else{if(f.dataset.ti)f.setAttribute('tabindex',f.dataset.ti);else f.removeAttribute('tabindex');}
+        });
+      }
+    });
+  });
+
+  /* 展示页控制 */
+  function replayAll(){runCounts();replayLedger();runStream();replaySheets();}
+  document.getElementById('btn-replay').addEventListener('click',replayAll);
+  document.getElementById('btn-rm').addEventListener('click',function(){var on=!root.classList.contains('rm');root.classList.toggle('rm',on);this.setAttribute('aria-pressed',on?'true':'false');replayAll();});
+  document.getElementById('btn-long').addEventListener('click',function(){var d=document.getElementById('deck'),on=!d.classList.contains('long');d.classList.toggle('long',on);this.setAttribute('aria-pressed',on?'true':'false');rulers.forEach(drawRuler);});
+  document.getElementById('btn-font').addEventListener('click',function(){var on=!root.classList.contains('nofont');root.classList.toggle('nofont',on);this.setAttribute('aria-pressed',on?'true':'false');});
+  document.querySelectorAll('[data-demo]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var k=b.getAttribute('data-demo'),beh=reduced()?'auto':'smooth';
+      if(k==='stream'){document.getElementById('chat').scrollIntoView({behavior:beh,block:'center'});runStream();}
+      if(k==='count')runCounts();
+      if(k==='ledger'){document.getElementById('diary').scrollIntoView({behavior:beh,block:'center'});replayLedger();runCounts();}
+      if(k==='sheet'){document.getElementById('resolve-app').scrollIntoView({behavior:beh,block:'center'});replaySheets();}
+    });
+  });
+
+  replayAll();
+})();
+</script>
+</body>
+</html>

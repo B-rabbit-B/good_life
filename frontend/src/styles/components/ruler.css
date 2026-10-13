@@ -1,0 +1,29 @@
+/* 刻度尺选择器：圆头刻度、带圆点的钴蓝指针固定在中线，两端 44 像素淡出到瓷白（设计稿第 388 至 402 行；计算见 DESIGN.md 第六节） */
+.picker{padding:14px 0 6px}
+.picker+.picker{border-top:1px solid var(--line)}
+.picker-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.picker-top .fld-l{margin:0}
+.picker-val{display:flex;align-items:baseline;justify-content:flex-end;gap:6px;min-height:44px;min-width:44px;padding:0 4px;border-radius:var(--r-2)}
+.picker-val .ns{font-size:2.5rem;line-height:1}
+.picker-val>span:not(.ns){font-size:var(--fs-14);color:var(--ink-3)}
+.picker-edit{display:flex;align-items:center;gap:6px}
+.picker-edit input{width:6.5em;height:44px;padding:0 12px;border:0;border-radius:var(--r-2);background:#fff;box-shadow:inset 0 0 0 2px var(--accent);font-size:1.375rem;text-align:right;outline:none}
+.picker-edit>span{font-size:var(--fs-14);color:var(--ink-3)}
+.ruler{position:relative;height:60px;margin-top:10px;overflow:hidden;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none;border-radius:var(--r-2);background:linear-gradient(180deg,var(--plate-2),rgba(243,246,251,0) 80%)}
+.ruler:active{cursor:grabbing}
+.ruler i{position:absolute;top:0;width:1.5px;height:12px;border-radius:0 0 2px 2px;background:var(--ink-4)}
+.ruler i.mj{height:24px;background:var(--ink-2)}
+.ruler span{position:absolute;top:30px;font-size:var(--fs-12);color:var(--ink-3);transform:translateX(-50%);font-variant-numeric:tabular-nums}
+.ruler .needle{position:absolute;top:0;left:50%;width:3px;height:36px;margin-left:-1.5px;border-radius:0 0 3px 3px;background:var(--accent);z-index:2}
+.ruler .needle::after{content:"";position:absolute;left:-2.5px;bottom:-4px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px #fff}
+.ruler::before,.ruler::after{content:"";position:absolute;top:0;height:28px;width:44px;z-index:1;pointer-events:none}
+.ruler::before{left:0;background:linear-gradient(90deg,#fff,rgba(255,255,255,0))}
+.ruler::after{right:0;background:linear-gradient(270deg,#fff,rgba(255,255,255,0))}
+
+@media (forced-colors:active){
+  .ruler i,.ruler .needle,.ruler .needle::after{forced-color-adjust:none}
+  .ruler i{background:GrayText}
+  .ruler i.mj{background:CanvasText}
+  .ruler .needle,.ruler .needle::after{background:Highlight;box-shadow:none}
+  .picker-edit input{border:2px solid CanvasText}
+}

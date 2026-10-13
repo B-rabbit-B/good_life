@@ -1,0 +1,37 @@
+/* 四种材质：瓷胎 plate、静玻璃 still、活玻璃 chrome、厚玻璃 sheet（设计稿第 142 至 170 行）。
+   默认写实色；只有浏览器支持 backdrop-filter 且根节点 data-glass="on" 时才升级为玻璃。
+   data-glass 由 components/glass/GlassModeProvider.tsx 设置；打开底部面板时根节点另有 data-sheet-open。 */
+
+/* 瓷胎：密集数据一律放在不透明面板上；一屏只有少数几块，组内用细线分行 */
+.plate{background:var(--plate-face);box-shadow:var(--plate-edge)}
+.plate{margin:12px var(--plate-x) 0;padding:4px var(--plate-pad);border-radius:var(--r-4);position:relative}
+.plate>:last-child,.plate>.sens>:last-child{border-bottom:0}
+
+/* 静玻璃：开场卡、系统附注。在滚动列表里，不用 backdrop-filter */
+.still{background:var(--still-tint);box-shadow:var(--still-edge)}
+
+/* 活玻璃：底部导航、对话底座、操作坞、轻提示、吸顶页头（画在 .top::before 上） */
+.chrome,.top::before{background-color:var(--chrome-solid);background-image:var(--grain);background-size:160px;box-shadow:var(--chrome-edge)}
+
+/* 厚玻璃：底部面板 */
+.sheet{background-color:var(--sheet-solid);box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(14,27,51,.06),0 -16px 40px -20px rgba(10,22,44,.45)}
+
+@supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  :root[data-glass="on"] .chrome,:root[data-glass="on"] .top::before{background-color:var(--chrome-tint);-webkit-backdrop-filter:blur(var(--blur-chrome)) saturate(var(--sat));backdrop-filter:blur(var(--blur-chrome)) saturate(var(--sat))}
+  :root[data-glass="on"] .sheet{background-color:var(--sheet-tint);-webkit-backdrop-filter:blur(var(--blur-sheet)) saturate(1.2);backdrop-filter:blur(var(--blur-sheet)) saturate(1.2)}
+  /* 面板滑入时是实色，停稳后才打开模糊（模糊半径从不做动画，只过渡底色） */
+  :root[data-glass="on"] .sheet[data-entering]{background-color:var(--sheet-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  /* 高于视口 40% 的面板（模糊总面积的上限，DESIGN.md 第十二节）一直用实色 */
+  :root[data-glass="on"] .sheet[data-solid]{background-color:var(--sheet-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  /* 面板打开时，遮罩下面的外壳关掉模糊：遮罩已经把它们压暗，同屏只让面板这一层模糊 */
+  :root[data-glass="on"][data-sheet-open] .chrome,:root[data-glass="on"][data-sheet-open] .top::before{background-color:var(--chrome-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+
+/* 降级：系统减少透明、“减少透明”设置、低端机。外壳去掉颗粒，静玻璃换实色；高光边、细线与投影保留 */
+:root:not([data-glass="on"]) .chrome,:root:not([data-glass="on"]) .top::before{background-image:none}
+:root[data-glass="off"] .still{background:var(--still-solid)}
+
+/* 强制颜色（Windows 高对比）：所有材质退成系统色面板，真边框，去掉阴影与模糊 */
+@media (forced-colors:active){
+  .chrome,.top::before,.sheet,.still,.plate{background:Canvas !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;border:1px solid CanvasText;box-shadow:none !important}
+}

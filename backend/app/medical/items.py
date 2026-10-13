@@ -87,6 +87,20 @@ def list_events(db: Session, user_id: uuid.UUID, item_id: uuid.UUID) -> list[Med
     return list(db.scalars(query.order_by(MedicalItemEvent.seq)))
 
 
+def list_user_events(
+    db: Session, user_id: uuid.UUID, limit: int
+) -> list[tuple[MedicalItemEvent, MedicalItem]]:
+    """本人全部条目的事件，新的在前；每条事件附上它所属的条目。"""
+    query = (
+        owned_by(MedicalItemEvent, user_id)
+        .add_columns(MedicalItem)
+        .join(MedicalItem, (MedicalItem.id == MedicalItemEvent.item_id) & (MedicalItem.user_id == user_id))
+        .order_by(MedicalItemEvent.occurred_at.desc(), MedicalItemEvent.seq.desc())
+        .limit(limit)
+    )
+    return [(event, item) for event, item in db.execute(query)]
+
+
 REVIEW_LEAD_DAYS = 1
 SUBJECT_REQUIRED_CATEGORIES = ("diet_avoid", "diet_require", "medication_diet", "exercise_limit")
 CONSTRAINT_REMINDER = "以上是你确认过的医嘱约束，请遵医嘱；待复核的条目在你确认解除之前仍按原要求执行，如有疑问请咨询医生。"

@@ -1,0 +1,19 @@
+/* 周期刻度：一行压缩整个周期；经期是加粗的海军蓝刻度，预计范围是虚线刻度，今天是一根钴蓝针（设计稿第 570 至 577 行） */
+.cyc{position:relative;margin:16px 0 0;height:60px}
+.cyc-t{position:absolute;left:0;right:0;top:18px;height:16px;display:flex;justify-content:space-between;align-items:flex-start}
+.cyc-t i{width:1.5px;height:10px;border-radius:0 0 2px 2px;background:var(--ink-4)}
+.cyc-t i.m{width:5px;height:16px;border-radius:0 0 3px 3px;background:var(--ink);margin:0 -1.75px}
+.cyc-t i.p{width:1.5px;height:16px;background:repeating-linear-gradient(180deg,var(--ink-2) 0 2px,transparent 2px 4px)}
+.cyc-now{position:absolute;top:0;width:3px;height:40px;border-radius:var(--r-pill);background:var(--accent)}
+.cyc-now span{position:absolute;top:-3px;left:8px;white-space:nowrap;font-size:var(--fs-12);line-height:1.5;color:var(--accent);font-weight:600}
+.cyc-now.end span{left:auto;right:8px}
+.cyc-l{position:absolute;left:0;right:0;top:42px;display:flex;justify-content:space-between;font-size:var(--fs-12);line-height:1.5;color:var(--ink-3)}
+
+@media (forced-colors:active){
+  .cyc-t i,.cyc-now{forced-color-adjust:none}
+  .cyc-t i{background:GrayText}
+  .cyc-t i.m{background:CanvasText}
+  .cyc-t i.p{background:repeating-linear-gradient(180deg,CanvasText 0 2px,transparent 2px 4px)}
+  .cyc-now{background:Highlight}
+  .cyc-now span{color:CanvasText}
+}
