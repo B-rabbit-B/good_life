@@ -9,7 +9,7 @@ import { Sensitive } from '../../components/Sensitive'
 import { Sheet } from '../../components/Sheet'
 import { useToast } from '../../components/Toast'
 import { WillList, type WillItem } from '../../components/WillList'
-import { INVALID_DATE_REASONS } from '../../lib/contract'
+import { INVALID_DATE_REASONS, STILL_DUE } from '../../lib/contract'
 import { addMonths, todayISO } from '../../lib/dates'
 import { useSingleFlight } from '../../lib/singleFlight'
 import { CATEGORY_LABELS } from '../../lib/labels'
@@ -36,7 +36,7 @@ export interface ContinueSheetProps {
 
 /** 错误写在哪里：still_due 写在触发项下，invalid_item_dates 与字段校验写在对应字段下，其余写在按钮上方 */
 function errorPlace(error: ApiError, trigger: DateKey | null): DateKey | 'form' {
-  if (error.code === 'still_due') return trigger ?? 'form'
+  if (error.code === STILL_DUE) return trigger ?? 'form'
   if (error.code === 'invalid_item_dates') return INVALID_DATE_REASONS[error.message] ?? 'form'
   const field = error.details?.[0]?.field.split('.').pop()
   if (error.code === 'validation_error' && field === 'review_date') return 'review'

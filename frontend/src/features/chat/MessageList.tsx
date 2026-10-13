@@ -4,6 +4,7 @@ import type { Capabilities, MessageOut } from '../../api/types'
 import { Button } from '../../components/Button'
 import { Icon } from '../../components/Icon'
 import { Sensitive } from '../../components/Sensitive'
+import { AGENT_MODEL_NOT_CONFIGURED } from '../../lib/contract'
 import { dayLabel, todayISO } from '../../lib/dates'
 import '../../styles/components/chat.css'
 import { collapseRetriedUserMessages } from './agentText'
@@ -11,8 +12,6 @@ import { AssistantMessage, PendingAnswer } from './AssistantMessage'
 import { UserMessage } from './UserMessage'
 import type { LiveTurn } from './useChatStream'
 
-/** 没有对话模型时发消息得到的错误码：页面改显示“去添加模型服务”，不在气泡里重复 */
-export const MODEL_NOT_CONFIGURED = 'agent_model_not_configured'
 
 function SendError({ error, onRetry }: { error: ApiError; onRetry: () => void }) {
   return (
@@ -97,7 +96,7 @@ export function MessageList({ messages, anchorCount, slot, live, caps, toolsByMe
       rows.push(
         <AssistantMessage key={id} message={{ id, text: live.text, evidence, flags }} caps={caps} live toolsUsed={toolsUsed} />,
       )
-    } else if (live.error && live.error.code !== MODEL_NOT_CONFIGURED) {
+    } else if (live.error && live.error.code !== AGENT_MODEL_NOT_CONFIGURED) {
       rows.push(<SendError key="live-error" error={live.error} onRetry={onRetry} />)
     }
   }

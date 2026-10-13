@@ -26,6 +26,7 @@ import { ErrorState } from '../../components/states/ErrorState'
 import { LoadingState } from '../../components/states/LoadingState'
 import { Title } from '../../components/Title'
 import { useToast } from '../../components/Toast'
+import { PHOTO_GRAMS_OUT_OF_RANGE, PHOTO_ITEMS_NEED_CONFIRMATION } from '../../lib/contract'
 import { dayLabel, defaultMealType, formatMonthDay, todayISO } from '../../lib/dates'
 import { fmtFixed, fmtNum } from '../../lib/format'
 import { MEAL_LABELS, type MealType } from '../../lib/labels'
@@ -39,7 +40,7 @@ import { MealEvaluation } from './MealEvaluation'
 const MEAL_OPTIONS = (Object.keys(MEAL_LABELS) as MealType[]).map((value) => ({ value, label: MEAL_LABELS[value] }))
 const STATUS_TEXT: Record<RecognitionOut['status'], string> = { draft: '草稿', confirmed: '已确认入库', discarded: '已放弃' }
 // 确认入库被这两种错误挡回时，把焦点移到第一个需要处理的项
-const BACK_TO_ITEMS = new Set(['photo_items_need_confirmation', 'photo_grams_out_of_range'])
+const BACK_TO_ITEMS = new Set([PHOTO_ITEMS_NEED_CONFIRMATION, PHOTO_GRAMS_OUT_OF_RANGE])
 
 const asApiError = (error: unknown) => (error instanceof ApiError ? error : networkError())
 // 另一个修正还没回来时跳过这一次（不提示错误）

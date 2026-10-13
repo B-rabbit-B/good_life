@@ -16,6 +16,7 @@ import { Sensitive } from '../../components/Sensitive'
 import { ErrorState } from '../../components/states/ErrorState'
 import { LoadingState } from '../../components/states/LoadingState'
 import { Title } from '../../components/Title'
+import { RESTAURANT_LOCATION_NOT_GRANTED } from '../../lib/contract'
 import { fmtDistance } from '../../lib/format'
 import { useSingleFlight } from '../../lib/singleFlight'
 import '../../styles/components/field-input.css'
@@ -32,7 +33,6 @@ const RADIUS = 2000
 const DENIED_NOTE = '没有开启定位，输入地名或地标即可，不会再请求定位。'
 const FAILED_NOTE = '没能取得定位，输入地名或地标即可。'
 const REMEMBER = '记住大致区域，下次不用再输入。可在设置里清除。'
-const NOT_GRANTED = 'restaurant_location_not_granted'
 
 type Mode = 'auto' | 'gps' | 'place'
 type Kind = 'gps' | 'place' | 'saved'
@@ -91,7 +91,7 @@ export default function RestaurantsPage() {
     } catch (caught) {
       const failure = caught as ApiError
       setResult(null)
-      if (failure.code === NOT_GRANTED) {
+      if (failure.code === RESTAURANT_LOCATION_NOT_GRANTED) {
         toPlace(failure.message)
         void settings.refetch()
       } else {

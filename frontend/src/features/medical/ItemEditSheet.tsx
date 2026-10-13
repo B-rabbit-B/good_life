@@ -11,14 +11,13 @@ import { Sheet } from '../../components/Sheet'
 import { TagField } from '../../components/TagField'
 import { TextField } from '../../components/TextField'
 import { useToast } from '../../components/Toast'
-import { INVALID_DATE_REASONS } from '../../lib/contract'
+import { INVALID_DATE_REASONS, MAX_CONTENT, SUBJECTS_REQUIRED } from '../../lib/contract'
 import { CATEGORY_LABELS, type ItemCategory } from '../../lib/labels'
 import { useSingleFlight } from '../../lib/singleFlight'
 import '../../styles/components/medical.css'
 import { errorsOf, FORM_ERROR, otherErrors } from '../onboarding/fieldErrors'
 
 // app/medical/schemas.py：内容最多 500 个字
-const MAX_CONTENT = 500
 
 export interface ItemFormValues {
   category: ItemCategory
@@ -40,7 +39,7 @@ function itemErrors(error: unknown): Record<string, string> {
     const field = INVALID_DATE_REASONS[error.message]
     return { [field === 'end' ? 'end_date' : field === 'review' ? 'review_date' : FORM_ERROR]: error.message }
   }
-  if (error instanceof ApiError && error.code === 'subjects_required') return { subjects: error.message }
+  if (error instanceof ApiError && error.code === SUBJECTS_REQUIRED) return { subjects: error.message }
   return errorsOf(error)
 }
 

@@ -4,6 +4,7 @@ import type { PhotoItemOut } from '../../api/types'
 import { Button } from '../../components/Button'
 import { Sheet } from '../../components/Sheet'
 import { TextField } from '../../components/TextField'
+import { MAX_NAME_LENGTH } from '../../lib/contract'
 import { fmtNum } from '../../lib/format'
 import { useSingleFlight } from '../../lib/singleFlight'
 import { errorsOf, FORM_ERROR, otherErrors } from '../onboarding/fieldErrors'
@@ -12,8 +13,6 @@ import type { ItemChange } from './itemsUpdate'
 
 type EditChange = Extract<ItemChange, { kind: 'edit' }>
 
-// app/photos/recognition.py 的 MAX_NAME_LENGTH：菜名与份量说法最多 30 个字
-const MAX_NAME_LENGTH = 30
 
 const FIELD_LABELS: Record<string, string> = { name: '菜名', portion_text: '份量说法', grams: '克数' }
 

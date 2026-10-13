@@ -9,11 +9,12 @@ import { useScroller, useSensitivePage } from '../../app/AppShell'
 import { PageHeader } from '../../components/PageHeader'
 import { ErrorState } from '../../components/states/ErrorState'
 import { LoadingState } from '../../components/states/LoadingState'
+import { AGENT_MODEL_NOT_CONFIGURED } from '../../lib/contract'
 import { formatMonthDay, formatWeekday, todayISO } from '../../lib/dates'
 import '../../styles/components/chat.css'
 import { riskCategory } from './agentText'
 import { ChatDock, COMPOSER_ID } from './ChatDock'
-import { MessageList, MODEL_NOT_CONFIGURED } from './MessageList'
+import { MessageList } from './MessageList'
 import { NoModelPrompt } from './NoModelPrompt'
 import { OpeningCard } from './OpeningCard'
 import { PendingStrip, STRIP_TOGGLE_ID } from './PendingStrip'
@@ -80,7 +81,7 @@ export default function ChatPage() {
   const target = shownOpening?.kind === 'review_due' ? reviewItems[0] : undefined
   const stripItems = target ? reviewItems.filter((item) => item.id !== target.id) : reviewItems
   const noModel = (assignments.isSuccess && !assignments.data.some((a) => a.purpose === 'chat'))
-    || live?.error?.code === MODEL_NOT_CONFIGURED
+    || live?.error?.code === AGENT_MODEL_NOT_CONFIGURED
 
   // 开场卡片收起后焦点落在页头的待处理条上（没有时回到输入框）
   const onCollapsed = useCallback(() => {

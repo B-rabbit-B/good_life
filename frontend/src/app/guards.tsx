@@ -14,6 +14,7 @@ import { getToken } from '../api/token'
 import type { CapabilityKey } from '../api/types'
 import { Field } from '../components/Field'
 import { ErrorState } from '../components/states/ErrorState'
+import { DISCLAIMER_NOT_ACCEPTED } from '../lib/contract'
 import { BootSplash, useRemoveBootShell } from './BootSplash'
 import { PATHS, onboardingPath } from './paths'
 import { firstIncompleteStep, isProfileComplete } from './profile'
@@ -24,7 +25,6 @@ export interface LoginState {
   expired?: boolean
 }
 
-const DISCLAIMER_NOT_ACCEPTED = 'disclaimer_not_accepted'
 
 const sessionEnded = (error: unknown) => error instanceof ApiError && error.status === 401 && isSessionEnded(error.code)
 /** 免责声明换了版本（或还没确认）：后端对业务接口答 403 disclaimer_not_accepted。守卫与外壳（变更出错时）共用 */

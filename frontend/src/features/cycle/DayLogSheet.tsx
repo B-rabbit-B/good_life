@@ -14,6 +14,7 @@ import { Sensitive } from '../../components/Sensitive'
 import { Sheet } from '../../components/Sheet'
 import { TextField } from '../../components/TextField'
 import { useToast } from '../../components/Toast'
+import { MAX_NOTE } from '../../lib/contract'
 import { formatMonthDay, todayISO } from '../../lib/dates'
 import { FLOW_LABELS, MOOD_LABELS } from '../../lib/cycleLabels'
 import type { Flow, Mood } from '../../lib/labels'
@@ -21,7 +22,6 @@ import { useSingleFlight } from '../../lib/singleFlight'
 import { errorsOf, FORM_ERROR } from '../onboarding/fieldErrors'
 
 // app/cycle/schemas.py 的 DayLogIn.note：最多 500 个字
-const MAX_NOTE = 500
 const FLOW_OPTIONS = (Object.keys(FLOW_LABELS) as Flow[]).map((value) => ({ value, label: FLOW_LABELS[value] }))
 const MOOD_OPTIONS = (Object.keys(MOOD_LABELS) as Mood[]).map((value) => ({ value, label: MOOD_LABELS[value] }))
 

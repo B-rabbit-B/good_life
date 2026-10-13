@@ -8,6 +8,7 @@ import { Sheet } from '../../components/Sheet'
 import { TextField } from '../../components/TextField'
 import { useToast } from '../../components/Toast'
 import { WillList } from '../../components/WillList'
+import { MAX_REASON } from '../../lib/contract'
 import { CATEGORY_LABELS } from '../../lib/labels'
 import { ITEM_STATUS_LABELS } from '../../lib/medicalLabels'
 import { useSingleFlight } from '../../lib/singleFlight'
@@ -16,7 +17,6 @@ import '../../styles/components/medical.css'
 import { errorsOf, FORM_ERROR } from '../onboarding/fieldErrors'
 
 // app/medical/schemas.py 的 Reason：原因最多 500 个字
-const MAX_REASON = 500
 
 function VoidBody({ item, onClose }: { item: MedicalItemOut; onClose: () => void }) {
   const [reason, setReason] = useState('')

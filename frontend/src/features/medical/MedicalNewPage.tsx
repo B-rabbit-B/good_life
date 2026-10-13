@@ -17,6 +17,7 @@ import { IconButton } from '../../components/IconButton'
 import { PageHeader } from '../../components/PageHeader'
 import { Sensitive } from '../../components/Sensitive'
 import { TextField } from '../../components/TextField'
+import { MAX_EVIDENCE_BYTES, MAX_TEXT } from '../../lib/contract'
 import { todayISO } from '../../lib/dates'
 import { fmtBytes } from '../../lib/format'
 import { useSingleFlight } from '../../lib/singleFlight'
@@ -24,8 +25,6 @@ import '../../styles/components/medical.css'
 import { errorsOf, FORM_ERROR } from '../onboarding/fieldErrors'
 
 // app/medical/schemas.py 的 OrderCreate.text 与 app/medical/orders.py 的证据上限、类型：界面只先提示，以后端结果为准
-const MAX_TEXT = 5000
-const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
 const EVIDENCE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 const PENDING_TAB = `${PATHS.medical}?tab=pending`
 

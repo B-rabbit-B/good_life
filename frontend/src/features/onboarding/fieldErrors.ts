@@ -3,11 +3,12 @@
 // username_taken 归到用户名；其余错误（包括 invalid_credentials）归到整个表单。
 import { useEffect, type RefObject } from 'react'
 import { ApiError } from '../../api/errors'
+import { USERNAME_TAKEN } from '../../lib/contract'
 
 /** 不属于某个字段、显示在表单上的错误放在这个键下 */
 export const FORM_ERROR = 'form'
 
-const FIELD_OF_CODE: Record<string, string> = { username_taken: 'username' }
+const FIELD_OF_CODE: Record<string, string> = { [USERNAME_TAKEN]: 'username' }
 
 const fieldName = (field: string) =>
   field.split('.').filter((part) => part !== '' && !/^\d+$/.test(part)).pop() ?? FORM_ERROR

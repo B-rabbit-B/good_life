@@ -89,3 +89,39 @@ export const LLM_INVALID_URL = 'llm_invalid_url'
 
 /** app.sdk.client 写入审计的结果（成功 ok、失败 error） */
 export const AUDIT_OUTCOMES = ['ok', 'error'] as const
+
+/** app.medical.schemas.Content：医嘱条目内容的长度上限 */
+export const MAX_CONTENT = 500
+/** app.medical.schemas.Reason：作废、解除等理由的长度上限 */
+export const MAX_REASON = 500
+/** app.cycle.schemas.DayLogIn.note：经期日记录备注的长度上限 */
+export const MAX_NOTE = 500
+/** app.photos.recognition.MAX_NAME_LENGTH：识别项菜名与份量说法的长度上限 */
+export const MAX_NAME_LENGTH = 30
+/** app.medical.schemas.OrderCreate.text：医嘱原文的长度上限 */
+export const MAX_TEXT = 5000
+/** app.medical.orders.MAX_EVIDENCE_BYTES：医嘱原件文件的大小上限 */
+export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
+
+/** 界面按错误码分支的几个接口错误码（后端没有常量，test_frontend_contract.py 按抛出处的源码原文核对） */
+export const STILL_DUE = 'still_due'
+export const SUBJECTS_REQUIRED = 'subjects_required'
+export const USERNAME_TAKEN = 'username_taken'
+export const PHOTO_ITEMS_NEED_CONFIRMATION = 'photo_items_need_confirmation'
+export const PHOTO_GRAMS_OUT_OF_RANGE = 'photo_grams_out_of_range'
+export const AGENT_MODEL_NOT_CONFIGURED = 'agent_model_not_configured'
+export const DISCLAIMER_NOT_ACCEPTED = 'disclaimer_not_accepted'
+export const RESTAURANT_LOCATION_NOT_GRANTED = 'restaurant_location_not_granted'
+
+/**
+ * 会改动用户数据的智能体工具（app.sdk.tooling.agent_registry 里 level 为 write 的，加上 app.agent.assembly 的 remember_preference）
+ * 各自改动的数据域；一轮对话结束后按 tools_used 查这张表，让对应页面的缓存失效。
+ */
+export const WRITE_TOOL_DOMAINS: Record<string, 'nutrition' | 'fitness' | 'cycle' | 'medical' | 'profile'> = {
+  nutrition_log_meal: 'nutrition',
+  fitness_log_workout: 'fitness',
+  cycle_record_period: 'cycle',
+  medical_submit_order: 'medical',
+  medical_propose_resolution: 'medical',
+  remember_preference: 'profile',
+}
