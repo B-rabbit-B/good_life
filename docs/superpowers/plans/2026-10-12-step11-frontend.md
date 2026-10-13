@@ -20,7 +20,7 @@
 - 前端命令在 `E:\workspace\good-life\frontend` 下用 pnpm（Node 22、pnpm 12 已安装）；只用 pnpm 安装依赖，`pnpm-lock.yaml` 进仓库。
 - 前端测试标题（`it`、`test` 的第一个参数）只用小写英文字母、数字、空格、逗号、撇号、下划线与连字符，用单引号包住，便于验收记录逐字引用。
 - TypeScript 用 `strict: true` 与 `noUncheckedIndexedAccess: true`；`pnpm lint`（ESLint，`--max-warnings 0`）、`pnpm typecheck`（`tsc --noEmit`）、`pnpm test`（`vitest run`）三项都必须零错误；每个任务提交前跑这三项，后端有改动的任务再跑后端全量。
-- 测试绝不访问真实网络：Vitest 用 MSW，`onUnhandledRequest: "error"`；Playwright 只访问 `127.0.0.1`，其他地址一律 `route.abort()`；模型、看图模型、高德只用 `app.e2e_server` 启动的本地模拟服务（复用 `app/phase2_acceptance.py` 的 `_AcceptanceModel`、`_MockAmap` 与 `app/phase2_demo.py` 的 `_Handler`）。
+- 测试绝不访问真实网络：Vitest 用 MSW，`onUnhandledRequest: "error"`；Playwright 只访问 `127.0.0.1`，其他地址一律拦下并记录（Chromium 用 `route.abort()`；WebKit 因 Playwright 路由会丢掉上传表单的文件内容，改为把代理指向本机未监听端口，使外网请求连接失败，并在 afterEach 断言没有发往本机以外的请求）；模型、看图模型、高德只用 `app.e2e_server` 启动的本地模拟服务（复用 `app/phase2_acceptance.py` 的 `_AcceptanceModel`、`_MockAmap` 与 `app/phase2_demo.py` 的 `_Handler`）。
 - 新依赖只允许 MIT、Apache-2.0、BSD-2-Clause、BSD-3-Clause，由 `src/test/deps.test.ts` 读 `node_modules` 里的许可证字段检查；全部写进 `docs/01-交付物/依赖许可证.md` 新增的“五、前端依赖（步骤 11）”一节（版本、用途、许可证、能否商用）。
 - 字体 Noto Serif SC 与 Source Serif 4（OFL-1.1）是 DESIGN.md 第八节允许的资源例外，列在同一节的“字体资源”表；不用 axe-core 及其包装（MPL-2.0），无障碍检查用本计划里的自写断言。
 - 不引入任何动画库（framer-motion、motion、gsap、react-spring、@react-spring/*、animejs、react-bits）；动效只用 CSS 与 Web Animations API，只动 transform 与 opacity，模糊半径永不做动画。
