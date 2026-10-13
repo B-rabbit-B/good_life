@@ -4,8 +4,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { networkError } from '../../api/client'
-import { ApiError } from '../../api/errors'
+import { asApiError } from '../../api/errors'
 import {
   useConfirmRecognition, useDeleteRecognition, useDiscardRecognition, useObjectUrl, useRecognition,
   useRecognitionImage, useUpdateRecognitionItems,
@@ -42,7 +41,6 @@ const STATUS_TEXT: Record<RecognitionOut['status'], string> = { draft: '草稿',
 // 确认入库被这两种错误挡回时，把焦点移到第一个需要处理的项
 const BACK_TO_ITEMS = new Set([PHOTO_ITEMS_NEED_CONFIRMATION, PHOTO_GRAMS_OUT_OF_RANGE])
 
-const asApiError = (error: unknown) => (error instanceof ApiError ? error : networkError())
 // 另一个修正还没回来时跳过这一次（不提示错误）
 const SKIPPED = new Error('上一个修正还没完成')
 const DELETE_TITLE = '删除这条识别（连同照片）'

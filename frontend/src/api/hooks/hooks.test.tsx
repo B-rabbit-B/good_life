@@ -12,7 +12,8 @@ import { server } from '../../test/msw/server'
 import { createTestQueryClient, renderRouter } from '../../test/render'
 import { qk } from '../keys'
 import { getToken, setToken } from '../token'
-import { useLogin, useLogout, useMe } from './auth'
+import { useLogout } from '../../app/useLogout'
+import { useLogin, useMe } from './auth'
 import { useCapabilities, useUpdateProfile } from './profile'
 
 const handle: RouteHandle = { nav: 'none', sensitive: false }

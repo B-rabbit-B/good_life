@@ -13,9 +13,9 @@ import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { todayISO } from '../../lib/dates'
-import { TrainingView } from '../fitness/TrainingView'
+import { TrainingView } from '../fitness'
 import { DiaryView } from './DiaryView'
-import { useQueryParams } from './queryParams'
+import { useQueryParams } from '../../lib/queryParams'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const SEGMENT_LABELS = { diet: '饮食', training: '训练' } as const

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { ApiError } from '../../api/errors'
+import { type ApiError, asApiError } from '../../api/errors'
 import { useCancelProposal } from '../../api/hooks/medical'
 import { useOrders, useResolveItem } from '../../api/hooks/medicalPage'
 import type { MedicalItemOut } from '../../api/types'
@@ -14,7 +14,7 @@ import { ITEM_STATUS_LABELS } from '../../lib/medicalLabels'
 import { useSingleFlight } from '../../lib/singleFlight'
 import '../../styles/components/medical-item.css'
 import '../../styles/components/medical.css'
-import { ONLY_HERE_NOTE, toApiError } from './ConfirmEffectSheet'
+import { ONLY_HERE_NOTE } from './ConfirmEffectSheet'
 import { resolveSecondaryFor } from './itemActions'
 import { sourceName } from './OrderSource'
 
@@ -67,7 +67,7 @@ export function ResolveSheet({ item, isOpen, onClose, onContinue }: {
     try {
       await resolve.mutateAsync(item.id)
     } catch (caught) {
-      setError(toApiError(caught))
+      setError(asApiError(caught))
       throw caught
     }
     resolved.current = true
@@ -93,7 +93,7 @@ export function ResolveSheet({ item, isOpen, onClose, onContinue }: {
     run?.then(() => {
       onClose()
       toast.show('已撤销解除建议')
-    }).catch((caught: unknown) => setError(toApiError(caught)))
+    }).catch((caught: unknown) => setError(asApiError(caught)))
       .finally(() => setCancelling(false))
   }
 

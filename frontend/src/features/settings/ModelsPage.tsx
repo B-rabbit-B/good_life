@@ -1,7 +1,7 @@
 // 模型服务（设计稿 10a 上半）：服务列表（名称、完整地址、密钥掩码、测试连通）、当前用途、“添加模型服务”、
 // “其他设置”三行链接（隐私与数据、已保存的大致区域（区域名在敏感区里）、免责声明）。
 import { Link } from 'react-router'
-import type { ApiError } from '../../api/errors'
+import { asApiError } from '../../api/errors'
 import { useAssignments, useProviders } from '../../api/hooks/llmSettings'
 import { useCapabilities } from '../../api/hooks/profile'
 import { useRestaurantSettings } from '../../api/hooks/restaurants'
@@ -73,7 +73,8 @@ export default function ModelsPage() {
   useSensitivePage('models')
   const providers = useProviders()
   const assignments = useAssignments()
-  const error = (providers.error ?? assignments.error) as ApiError | null
+  const failed = providers.error ?? assignments.error
+  const error = failed === null ? null : asApiError(failed)
   return (
     <>
       <PageHeader titleKey="models" variant="sub" back={PATHS.me} />

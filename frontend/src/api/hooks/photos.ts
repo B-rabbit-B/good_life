@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
-import { api, handleErrorResponse, networkError } from '../client'
+import { api, apiBlob } from '../client'
+import { invalidateRecognitionRecords } from '../invalidation'
 import { qk } from '../keys'
-import { getToken } from '../token'
 import type { PhotoItemIn, RecognitionOut, RecognitionSummaryOut } from '../types'
 import type { MealType } from '../../lib/labels'
 
@@ -21,17 +21,6 @@ export function useRecognition(id: string) {
   return useQuery({
     queryKey: qk.recognition(id),
     queryFn: ({ signal }) => api<RecognitionOut>(`${base}/${id}`, { signal }),
-  })
-}
-
-/**
- * 当日摄入变了（确认入库、手动记一餐）：其他草稿的整餐评价是按当日摄入算的，连同列表一起重新取。
- * 保留的图片（键的第四段是 image）不变，不重取；except 是刚写进缓存的那一条。
- */
-export function invalidateRecognitionRecords(queryClient: QueryClient, except?: string): Promise<void> {
-  return queryClient.invalidateQueries({
-    queryKey: qk.recognitions,
-    predicate: (query) => query.queryKey.length <= 3 && (except === undefined || query.queryKey[2] !== except),
   })
 }
 
@@ -94,22 +83,6 @@ export function useDeleteRecognition(id: string) {
   })
 }
 
-/** 取保留的图片（JPEG 字节）；与 api() 同样带令牌、解析错误 */
-async function fetchImage(id: string, signal: AbortSignal): Promise<Blob> {
-  const headers = new Headers()
-  const token = getToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
-  let response: Response
-  try {
-    response = await fetch(new URL(`${base}/${id}/image`, window.location.href), { headers, signal })
-  } catch (error) {
-    if (signal.aborted) throw error
-    throw networkError()
-  }
-  if (!response.ok) return handleErrorResponse(response)
-  return response.blob()
-}
-
 /**
  * 保留的照片：只在 image_kept 为真时请求（enabled）。图片不留在查询缓存里（gcTime 0），离开页面就丢掉。
  * 返回图片的字节（没取到时为 null）与是否取失败；显示时用 useObjectUrl 生成 object URL（卸载时释放）。
@@ -117,7 +90,7 @@ async function fetchImage(id: string, signal: AbortSignal): Promise<Blob> {
 export function useRecognitionImage(id: string, enabled: boolean): { blob: Blob | null; failed: boolean } {
   const image = useQuery({
     queryKey: qk.recognitionImage(id),
-    queryFn: ({ signal }) => fetchImage(id, signal),
+    queryFn: ({ signal }) => apiBlob(`${base}/${id}/image`, signal),
     enabled,
     gcTime: 0,
     staleTime: Infinity,

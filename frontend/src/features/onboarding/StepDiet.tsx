@@ -8,12 +8,12 @@ import { Dock } from '../../components/Dock'
 import { TagField } from '../../components/TagField'
 import { TextField } from '../../components/TextField'
 import { Title } from '../../components/Title'
-import { errorsOf, otherErrors, PROFILE_FIELD_LABELS, useFocusFirstInvalid } from './fieldErrors'
-import { FormError } from './FormError'
+import { errorsOf, otherErrors, PROFILE_FIELD_LABELS, useFocusFirstInvalid } from '../../lib/formErrors'
+import { HEALTH_HINT } from '../../lib/labels'
+import { FormError } from '../../components/FormError'
 import { STEP_TITLE_ID } from './stepTitle'
 
 const SHOWN = ['diet_preferences', 'food_avoidances', 'health_conditions']
-export const HEALTH_HINT = '只用于生成建议。医生的要求请到医嘱页录入，才会按约束执行。'
 
 export function StepDiet({ profile, onDone }: { profile: ProfileOut; onDone: () => void }) {
   const update = useUpdateProfile()

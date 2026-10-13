@@ -14,7 +14,7 @@ import { ITEM_STATUS_LABELS } from '../../lib/medicalLabels'
 import { useSingleFlight } from '../../lib/singleFlight'
 import '../../styles/components/medical-item.css'
 import '../../styles/components/medical.css'
-import { errorsOf, FORM_ERROR } from '../onboarding/fieldErrors'
+import { errorsOf, FORM_ERROR } from '../../lib/formErrors'
 
 // app/medical/schemas.py 的 Reason：原因最多 500 个字
 

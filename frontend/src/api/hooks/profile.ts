@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../client'
+import { invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
 import type { Capabilities, ProfileOut, ProfileUpdate } from '../types'
 
@@ -27,7 +28,7 @@ export function useUpdateProfile() {
     mutationFn: (body: ProfilePatch) => api<ProfileOut>('/api/profile', { method: 'PATCH', json: body }),
     onSuccess: async (profile) => {
       queryClient.setQueryData(qk.profile, profile)
-      await queryClient.invalidateQueries({ queryKey: qk.capabilities })
+      await invalidateDomain(queryClient, 'profile')
     },
   })
 }

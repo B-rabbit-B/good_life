@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EventOut } from '../../api/types'
+import type { EventOut } from '../types'
 import { DUE_REASONS } from '../../lib/contract'
 import { dueFieldOf, dueReasonOf, shortDue } from './dueReason'
 import { proposerOf } from './proposer'

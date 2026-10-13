@@ -1,6 +1,7 @@
 // 训练的接口：本周汇总、一段日期里的训练、记一次训练、搜索动作与动作趋势。记一次训练之后刷新全部训练查询。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../client'
+import { invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
 import type { ExerciseSearchOut, ExerciseTrendOut, WeekSummaryOut, WorkoutIn, WorkoutOut } from '../types'
 
@@ -32,7 +33,7 @@ export function useCreateWorkout() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (body: WorkoutInput) => api<WorkoutOut>(`${base}/workouts`, { method: 'POST', json: body }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fitness'] }),
+    onSuccess: () => invalidateDomain(queryClient, 'fitness'),
   })
 }
 

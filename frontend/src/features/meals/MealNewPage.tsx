@@ -20,8 +20,8 @@ import { defaultMealType, todayISO } from '../../lib/dates'
 import { MEAL_LABELS, type MealType } from '../../lib/labels'
 import '../../styles/components/meals.css'
 import { useSingleFlight } from '../../lib/singleFlight'
-import { errorsOf } from '../onboarding/fieldErrors'
-import { useQueryParams } from './queryParams'
+import { errorsOf } from '../../lib/formErrors'
+import { useQueryParams } from '../../lib/queryParams'
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const SEARCH_DELAY_MS = 250

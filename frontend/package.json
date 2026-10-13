@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
+    "test:ci": "vitest run --maxWorkers=2",
     "api:gen": "node scripts/gen-api.mjs",
     "fonts": "node scripts/subset-fonts.mjs",
     "e2e": "playwright test --pass-with-no-tests --project=iphone-13 --project=pixel-7",

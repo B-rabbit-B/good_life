@@ -1,5 +1,5 @@
-import { useItemEvents } from '../../api/hooks/medical'
-import type { MedicalItemOut } from '../../api/types'
+import { useItemEvents } from '../hooks/medical'
+import type { MedicalItemOut } from '../types'
 import { dueFieldOf, dueReasonOf } from './dueReason'
 import { proposerOf } from './proposer'
 

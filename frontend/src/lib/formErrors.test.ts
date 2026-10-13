@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '../../api/errors'
-import { errorsOf, FORM_ERROR, fieldErrors, otherErrors } from './fieldErrors'
+import { ApiError } from '../api/errors'
+import { errorsOf, FORM_ERROR, fieldErrors, otherErrors } from './formErrors'
 
 describe('field errors', () => {
   it('puts each validation detail under the last segment of its field', () => {

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../client'
+import { invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
 import type { EventOut, MedicalItemOut } from '../types'
 import { useCapabilities } from './profile'
@@ -38,20 +39,12 @@ export function useItemEvents(id: string, enabled: boolean) {
 }
 
 /**
- * 条目或医嘱变了：待处理列表、条目（含各条目的事件，键在 ['medical', 'items'] 下）、医嘱、当前约束与审计都要重新取。
+ * 条目或医嘱变了：按医嘱域的失效表（invalidation.ts）重新取全部医嘱查询，以及跟着变的饮食、训练记录与识别记录。
  * 在变更的 onSuccess 里等它完成，mutateAsync 返回时列表已是新的。
  */
 export function useRefreshMedical() {
   const queryClient = useQueryClient()
-  return async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: qk.reviews }),
-      queryClient.invalidateQueries({ queryKey: qk.medicalItems }),
-      queryClient.invalidateQueries({ queryKey: qk.orders }),
-      queryClient.invalidateQueries({ queryKey: ['medical', 'constraints'] }),
-      queryClient.invalidateQueries({ queryKey: ['medical', 'events'] }),
-    ])
-  }
+  return () => invalidateDomain(queryClient, 'medical')
 }
 
 export interface ContinueInput {

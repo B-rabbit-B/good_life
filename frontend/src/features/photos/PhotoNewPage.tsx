@@ -6,8 +6,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { ApiError } from '../../api/errors'
-import { networkError } from '../../api/client'
+import { ApiError, asApiError } from '../../api/errors'
 import { useRecognitions } from '../../api/hooks/photos'
 import { qk } from '../../api/keys'
 import { getToken } from '../../api/token'
@@ -129,7 +128,7 @@ export default function PhotoNewPage() {
       if (current()) void navigate(`/photos/${record.id}`, { replace: true })
     } catch (error) {
       if (isAbort(error) || !current()) return
-      setRun({ kind: 'failed', file, keep: keepImage, error: error instanceof ApiError ? error : networkError() })
+      setRun({ kind: 'failed', file, keep: keepImage, error: asApiError(error) })
     }
   }, [navigate, queryClient])
 

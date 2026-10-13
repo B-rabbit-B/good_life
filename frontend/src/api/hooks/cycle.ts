@@ -1,6 +1,7 @@
 // 经期的接口：经期记录、每日记录、预测、阶段、提示与统计。任何一次修改之后刷新全部经期查询（预测、阶段与统计都按经期重算）。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../client'
+import { invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
 import type { CycleStatsOut, DayLogIn, DayLogOut, PeriodOut, PhaseOut, PredictionOut, TipsOut } from '../types'
 
@@ -8,7 +9,7 @@ const base = '/api/cycle'
 
 function useRefreshCycle() {
   const queryClient = useQueryClient()
-  return () => queryClient.invalidateQueries({ queryKey: ['cycle'] })
+  return () => invalidateDomain(queryClient, 'cycle')
 }
 
 /** 全部经期记录，新的在前 */

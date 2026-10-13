@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError } from '../../api/errors'
+import { ApiError, asApiError } from '../../api/errors'
 import { useConfirmItem } from '../../api/hooks/medicalPage'
 import type { MedicalItemOut, OrderOut } from '../../api/types'
 import { ConfirmSheet } from '../../components/ConfirmSheet'
@@ -13,8 +13,6 @@ import { sourceName } from './OrderSource'
 
 export const ONLY_HERE_NOTE = '医嘱只能在这里确认或解除，对话里无法完成。'
 
-export const toApiError = (caught: unknown) =>
-  caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught))
 
 /**
  * 确认生效（07c）：引文框写类别、内容与来源（证据文件名或“原文”，提取把握），列出确认后会发生的四件事；
@@ -48,7 +46,7 @@ export function ConfirmEffectSheet({ item, order, isOpen, onClose, onEdit }: {
     try {
       await confirm.mutateAsync(item.id)
     } catch (caught) {
-      setError(toApiError(caught))
+      setError(asApiError(caught))
       throw caught
     }
     onClose()

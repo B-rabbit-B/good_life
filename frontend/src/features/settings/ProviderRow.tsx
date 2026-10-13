@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ApiError } from '../../api/errors'
+import { type ApiError, asApiError } from '../../api/errors'
 import { useTestProvider } from '../../api/hooks/llmSettings'
 import type { ConnectionReportOut, ProviderOut } from '../../api/types'
 import { Button } from '../../components/Button'
@@ -20,7 +20,7 @@ export function ProviderRow({ provider, modelId }: { provider: ProviderOut; mode
     try {
       setResult({ report: await test.mutateAsync(modelId) })
     } catch (caught) {
-      setResult({ error: caught as ApiError })
+      setResult({ error: asApiError(caught) })
     }
   })
   return (

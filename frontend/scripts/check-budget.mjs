@@ -1,4 +1,5 @@
-// 首屏预算（对话路由，gzip 后）：脚本 150 KB、样式 22 KB；预加载字体合计 45 KiB（46,080 B）。pnpm build:check 在构建后运行。
+// 首屏预算（对话路由，gzip 后）：脚本 150 KB、样式 22 KB；预加载字体合计 45 KiB（46,080 B）；脚本块最多 8 个
+// （每多一块就多一次请求与一份压缩开销，块数涨上去通常是代码拆分的分组失效了）。pnpm build:check 在构建后运行。
 // 计入的块：index.html 入口与对话页（src/features/chat/ChatPage.tsx），以及它们静态导入的全部块；
 // 对话页还不存在时（任务 6 之前）只检查入口。
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -10,6 +11,7 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const dist = join(root, 'dist')
 const KB = 1024
 const LIMITS = { script: 150 * KB, style: 22 * KB, font: 45 * KB }
+const MAX_SCRIPT_CHUNKS = 8
 const ENTRY = 'index.html'
 const CHAT_ROUTE = 'src/features/chat/ChatPage.tsx'
 const FONTS = join(root, 'public', 'fonts')
@@ -55,4 +57,8 @@ for (const group of groups) {
     for (const row of [...group.rows].sort((a, b) => b.bytes - a.bytes)) console.log(`        ${kb(row.bytes)}  ${row.file}`)
   }
 }
+const chunksOver = scripts.length > MAX_SCRIPT_CHUNKS
+failed ||= chunksOver
+console.log(`${chunksOver ? '超出' : '通过'}  脚本块数 ${scripts.length} / 上限 ${MAX_SCRIPT_CHUNKS}`)
+if (chunksOver) for (const file of [...scripts].sort()) console.log(`        ${file}`)
 process.exit(failed ? 1 : 0)

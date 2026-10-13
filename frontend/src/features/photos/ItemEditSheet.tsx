@@ -7,8 +7,8 @@ import { TextField } from '../../components/TextField'
 import { MAX_NAME_LENGTH } from '../../lib/contract'
 import { fmtNum } from '../../lib/format'
 import { useSingleFlight } from '../../lib/singleFlight'
-import { errorsOf, FORM_ERROR, otherErrors } from '../onboarding/fieldErrors'
-import { FormError } from '../onboarding/FormError'
+import { errorsOf, FORM_ERROR, otherErrors } from '../../lib/formErrors'
+import { FormError } from '../../components/FormError'
 import type { ItemChange } from './itemsUpdate'
 
 type EditChange = Extract<ItemChange, { kind: 'edit' }>

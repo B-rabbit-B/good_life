@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../test/msw/server'
-import { api, ApiError, handleErrorResponse, isSessionEnded, networkError, onUnauthorized } from './client'
+import { api, apiBlob, ApiError, handleErrorResponse, isSessionEnded, networkError, onUnauthorized } from './client'
 import { getToken, setToken, TOKEN_KEY } from './token'
 
 async function caught(promise: Promise<unknown>): Promise<ApiError> {
@@ -181,5 +181,41 @@ describe('token storage', () => {
     })
     expect(getToken()).toBeNull()
     spy.mockRestore()
+  })
+})
+
+describe('api blob', () => {
+  it('fetches bytes with the bearer token', async () => {
+    setToken('tok-blob')
+    let seen: string | null = null
+    server.use(http.get('/api/photos/recognitions/r1/image', ({ request }) => {
+      seen = request.headers.get('Authorization')
+      return new HttpResponse(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/jpeg' } })
+    }))
+    const blob = await apiBlob('/api/photos/recognitions/r1/image', new AbortController().signal)
+    expect(seen).toBe('Bearer tok-blob')
+    expect(blob.size).toBe(3)
+  })
+
+  it('parses the unified error body and clears an ended session', async () => {
+    setToken('tok-old')
+    const listener = vi.fn()
+    const off = onUnauthorized(listener)
+    server.use(http.get('/api/medical/evidence/e1', () => HttpResponse.json(
+      { error: { code: 'invalid_token', message: '登录已失效' } }, { status: 401 },
+    )))
+    const error = await caught(apiBlob('/api/medical/evidence/e1', new AbortController().signal))
+    off()
+    expect(error).toMatchObject({ status: 401, code: 'invalid_token' })
+    expect(getToken()).toBeNull()
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the network error when fetch is rejected and rethrows an abort', async () => {
+    server.use(http.get('/api/medical/evidence/e2', () => HttpResponse.error()))
+    expect(await caught(apiBlob('/api/medical/evidence/e2', new AbortController().signal))).toMatchObject({ code: 'network_error' })
+    const controller = new AbortController()
+    controller.abort()
+    await expect(apiBlob('/api/medical/evidence/e2', controller.signal)).rejects.not.toBeInstanceOf(ApiError)
   })
 })

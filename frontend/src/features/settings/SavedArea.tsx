@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { ApiError } from '../../api/errors'
+import { ApiError, asApiError } from '../../api/errors'
 import { useClearArea, useRestaurantSettings } from '../../api/hooks/restaurants'
 import { Button } from '../../components/Button'
 import { ConfirmSheet } from '../../components/ConfirmSheet'
@@ -8,7 +8,6 @@ import { useToast } from '../../components/Toast'
 import { Title } from '../../components/Title'
 import { todayISO } from '../../lib/dates'
 
-const toApiError = (caught: unknown) => (caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught)))
 
 /**
  * 已保存的大致区域（敏感区 savedArea）：区域名与保存日期，“清除”经确认面板后删除。
@@ -29,7 +28,7 @@ export function SavedArea({ enabled }: { enabled: boolean }) {
     try {
       await clear.mutateAsync()
     } catch (caught) {
-      setError(toApiError(caught))
+      setError(asApiError(caught))
       throw caught
     }
     setOpen(false)

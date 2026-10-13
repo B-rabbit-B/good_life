@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ApiError } from '../../api/errors'
+import { type ApiError, asApiError } from '../../api/errors'
 import { useSetAssignment, useUpdateModelOverrides } from '../../api/hooks/llmSettings'
 import type { ModelOut } from '../../api/types'
 import { Button } from '../../components/Button'
@@ -91,7 +91,7 @@ export function StepAssign({ models, tested, onDone }: { models: ModelOut[]; tes
         const updated = await overrides.mutateAsync({ pk: model.id, overrides: { [cap]: on ? true : null } })
         setWarnings(updated.assignment_warnings)
       } catch (caught) {
-        setOverrideError(caught as ApiError)
+        setOverrideError(asApiError(caught))
       }
     })
   }
@@ -105,7 +105,7 @@ export function StepAssign({ models, tested, onDone }: { models: ModelOut[]; tes
       try {
         await assign.mutateAsync({ purpose, modelPk: model.id })
       } catch (caught) {
-        failed[purpose] = caught as ApiError
+        failed[purpose] = asApiError(caught)
       }
     }
     setErrors(failed)

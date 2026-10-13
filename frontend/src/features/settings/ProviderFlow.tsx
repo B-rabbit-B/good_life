@@ -2,7 +2,7 @@
 // 2 获取模型；3 测试连通（前端计时）；4 选择用途模型。失败写在出错的那一步里（flowReducer.stepForError）。
 // 密钥只在这里的局部状态里：不进 URL、存储与查询缓存；创建与修改的变更用完就 reset（变更缓存里不留请求体）。
 import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
-import type { ApiError } from '../../api/errors'
+import { type ApiError, asApiError } from '../../api/errors'
 import {
   useAddModel, useCreateProvider, useFetchModels, usePresets, useProviderModels, useTestProvider, useUpdateProvider,
   type ProviderChanges,
@@ -94,7 +94,7 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
       setTestModel(defaultTestModel(result.models))
       dispatch({ type: 'fetched' })
     } catch (caught) {
-      const error = caught as ApiError
+      const error = asApiError(caught)
       dispatch({ type: 'failed', phase: 'fetch', code: error.code, message: error.message })
     } finally {
       setRunning(null)
@@ -121,7 +121,7 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
         if (Object.keys(patch).length > 0) provider = await update.mutateAsync({ id: provider.id, changes: patch })
       }
     } catch (caught) {
-      const error = caught as ApiError
+      const error = asApiError(caught)
       dispatch({ type: 'failed', phase: 'save', code: error.code, message: error.message })
       setRunning(null)
       return
@@ -151,7 +151,7 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
       setTestModel(modelId)
       dispatch({ type: 'fetched' })
     } catch (caught) {
-      setAddError(caught as ApiError)
+      setAddError(asApiError(caught))
     } finally {
       setRunning(null)
     }
@@ -171,7 +171,7 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
         dispatch({ type: 'failed', phase: 'test', code, message: report.message })
       }
     } catch (caught) {
-      const error = caught as ApiError
+      const error = asApiError(caught)
       dispatch({ type: 'failed', phase: 'test', code: error.code, message: error.message })
     } finally {
       setRunning(null)

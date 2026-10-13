@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { ApiError } from '../../api/errors'
+import { ApiError, asApiError } from '../../api/errors'
 import { useGrants, useRevokeGrant } from '../../api/hooks/grants'
 import type { GrantOut } from '../../api/types'
 import { Button } from '../../components/Button'
@@ -10,7 +10,6 @@ import { Title } from '../../components/Title'
 import { formatStamp, todayISO } from '../../lib/dates'
 import { ACCESS_LABELS, GRANT_STATUS_LABELS } from '../../lib/settingsLabels'
 
-const toApiError = (caught: unknown) => (caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught)))
 
 /**
  * 外部授权（敏感区 grants）：每个授权的名称、权限、状态、到期与最近使用；有效的可以吊销（确认面板里显式按“吊销”）。
@@ -31,7 +30,7 @@ export function GrantList() {
     try {
       await revoke.mutateAsync(target.id)
     } catch (caught) {
-      setError(toApiError(caught))
+      setError(asApiError(caught))
       throw caught
     }
     setOpen(false)

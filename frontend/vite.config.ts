@@ -34,7 +34,7 @@ export default defineConfig(({ mode }) => {
               {
                 name: 'common',
                 minShareCount: 2,
-                test: /[\\/]src[\\/](lib[\\/](dates|labels|motion|contract)|components[\\/](RefTag|Sensitive|ButtonLink|IconButton|PageHeader|states[\\/]AuthNeededState)|api[\\/]hooks[\\/](llm|medical)\.|features[\\/]medical[\\/](dueReason|proposer|useItemContext)\.|styles[\\/]components[\\/](fold|medical-item)\.css)/,
+                test: /[\\/]src[\\/](lib[\\/](dates|labels|motion|contract)|components[\\/](RefTag|Sensitive|ButtonLink|IconButton|PageHeader|states[\\/]AuthNeededState)|api[\\/]hooks[\\/](llm|medical)\.|api[\\/]itemContext[\\/](dueReason|proposer|useItemContext)\.|styles[\\/]components[\\/](fold|medical-item)\.css)/,
               },
             ],
           },
@@ -46,6 +46,12 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
       css: false,
+      // 每个文件独立进程；并发进程数封顶（CI 上 2 个），默认超时放宽：机器忙时 jsdom 与懒加载页面的首个用例会超过 5 秒。
+      // 个别文件 beforeAll 里写的 60 秒（预热懒加载页面）保留
+      pool: 'forks',
+      maxWorkers: process.env.CI ? 2 : 4,
+      testTimeout: 15_000,
+      hookTimeout: 20_000,
     },
   }
 })

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError } from '../../api/errors'
+import { ApiError, asApiError } from '../../api/errors'
 import { useCancelProposal, useMedicalItems } from '../../api/hooks/medical'
 import type { MedicalItemOut } from '../../api/types'
 import { Sensitive } from '../../components/Sensitive'
@@ -12,7 +12,7 @@ import { ActiveItem } from './ActiveItem'
 import { ContinueSheet } from './ContinueSheet'
 import { ItemEditSheet } from './ItemEditSheet'
 import { ResolveSheet } from './ResolveSheet'
-import { useSheetHost } from './useSheetHost'
+import { useSheetHost } from '../../components/useSheetHost'
 
 type ActiveSheet = { kind: 'resolve' | 'continue' | 'edit'; item: MedicalItemOut; dueReason: string | null }
 
@@ -33,7 +33,7 @@ export function ActiveTab() {
 
   if (items.data === undefined) {
     if (items.isError) {
-      const error = items.error instanceof ApiError ? items.error : new ApiError(0, 'unknown_error', String(items.error))
+      const error = asApiError(items.error)
       return <div className="plate"><ErrorState error={error} onRetry={() => void items.refetch()} /></div>
     }
     return <LoadingState variant="list" text="正在读取生效中的医嘱" />

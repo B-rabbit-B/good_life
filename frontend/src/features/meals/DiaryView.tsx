@@ -1,7 +1,6 @@
 import { Button as AriaButton } from 'react-aria-components'
 import { Link } from 'react-router'
-import { networkError } from '../../api/client'
-import { ApiError } from '../../api/errors'
+import { asApiError } from '../../api/errors'
 import { useMeals, useSummary } from '../../api/hooks/nutrition'
 import { PATHS } from '../../app/paths'
 import { buttonClassName } from '../../components/Button'
@@ -16,7 +15,7 @@ import '../../styles/components/meals.css'
 import { Ledger } from './Ledger'
 import { MealList } from './MealList'
 import { NutrientTable } from './NutrientTable'
-import { useQueryParams } from './queryParams'
+import { useQueryParams } from '../../lib/queryParams'
 
 function DateBar({ date, onChange }: { date: string; onChange: (date: string) => void }) {
   const today = todayISO()
@@ -84,7 +83,7 @@ export function DiaryView({ date }: { date: string }) {
     body = (
       <div className="plate">
         <ErrorState
-          error={failed instanceof ApiError ? failed : networkError()}
+          error={asApiError(failed)}
           onRetry={() => {
             void summary.refetch()
             void meals.refetch()

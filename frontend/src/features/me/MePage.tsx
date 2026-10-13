@@ -3,7 +3,8 @@
 // 经期记录开关只给女性用户；切换后由后端的能力清单决定导航（useUpdateProfile 等能力清单刷新完才算完成）。
 import { Link } from 'react-router'
 import { useAgentSettings, useUpdateAgentSettings } from '../../api/hooks/agent'
-import { useLogout, useMe } from '../../api/hooks/auth'
+import { useMe } from '../../api/hooks/auth'
+import { useLogout } from '../../app/useLogout'
 import { useDisclaimerStatus } from '../../api/hooks/disclaimer'
 import { useAssignments, useProviders } from '../../api/hooks/llm'
 import { useProfile, useUpdateProfile } from '../../api/hooks/profile'

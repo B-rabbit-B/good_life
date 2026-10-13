@@ -3,7 +3,7 @@
 // （“填完”的判断与守卫相同，见 app/profile.ts）。
 import { useEffect, useRef } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router'
-import type { ApiError } from '../../api/errors'
+import { asApiError } from '../../api/errors'
 import { useProfile } from '../../api/hooks/profile'
 import { onboardingPath, PATHS } from '../../app/paths'
 import { firstIncompleteStep, isProfileComplete } from '../../app/profile'
@@ -56,7 +56,7 @@ export default function OnboardingPage() {
       <>
         <PageHeader variant="sub" />
         {profile.isError
-          ? <ErrorState error={profile.error as ApiError} onRetry={() => void profile.refetch()} />
+          ? <ErrorState error={asApiError(profile.error)} onRetry={() => void profile.refetch()} />
           : <LoadingState variant="page" text="正在读取档案" />}
       </>
     )

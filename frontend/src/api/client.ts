@@ -2,10 +2,10 @@
 // 401 且错误码是 not_authenticated 或 invalid_token 时清令牌并通知监听者（外壳据此回登录页并清缓存）。
 // 登录接口的 401 invalid_credentials 不在此列，只由表单提示。
 // 自己发 fetch 的模块（流式对话 sse.ts、上传 upload.ts）用 handleErrorResponse 与 networkError 套用同样的规则。
-import { ApiError } from './errors'
+import { ApiError, networkError } from './errors'
 import { clearToken, getToken } from './token'
 
-export { ApiError }
+export { ApiError, networkError }
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 export type ApiQuery = Record<string, string | number | boolean | undefined>
@@ -24,7 +24,6 @@ export interface ApiInit {
 }
 
 const SESSION_ENDED = new Set(['not_authenticated', 'invalid_token'])
-const NETWORK_MESSAGE = '网络连接失败，请检查网络后重试'
 const httpMessage = (status: number) => `服务暂时不可用，请稍后再试（HTTP ${status}）`
 
 const unauthorizedListeners = new Set<() => void>()
@@ -32,11 +31,6 @@ const unauthorizedListeners = new Set<() => void>()
 /** 这个错误码表示登录已失效（not_authenticated 或 invalid_token），应回登录页 */
 export function isSessionEnded(code: string): boolean {
   return SESSION_ENDED.has(code)
-}
-
-/** 网络失败（fetch 本身被拒绝、且不是主动取消）时的统一错误 */
-export function networkError(): ApiError {
-  return new ApiError(0, 'network_error', NETWORK_MESSAGE)
 }
 
 /** 登录失效（401 not_authenticated 或 invalid_token）时调用 listener；返回取消函数。 */
@@ -74,10 +68,15 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, 'http_error', httpMessage(status))
 }
 
-export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
+function authHeaders(): Headers {
   const headers = new Headers()
   const token = getToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
+  return headers
+}
+
+export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
+  const headers = authHeaders()
   let body = init.body
   if (init.json !== undefined) {
     headers.set('Content-Type', 'application/json')
@@ -100,6 +99,19 @@ export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
   const data = await readJson(response)
   if (data === undefined) throw new ApiError(response.status, 'http_error', httpMessage(response.status))
   return data as T
+}
+
+/** 取一个文件的字节（照片、医嘱原件）：与 api() 一样带令牌、解析错误、统一网络错误；主动取消原样抛出 */
+export async function apiBlob(path: string, signal: AbortSignal): Promise<Blob> {
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path), { headers: authHeaders(), signal })
+  } catch (error) {
+    if (signal.aborted) throw error
+    throw networkError()
+  }
+  if (!response.ok) return handleErrorResponse(response)
+  return response.blob()
 }
 
 /**

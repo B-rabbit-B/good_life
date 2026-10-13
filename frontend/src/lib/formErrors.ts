@@ -2,8 +2,8 @@
 // validation_error 的 details 按字段名归位，字段名取 field 的最后一段（列表下标跳过：food_avoidances.2 归到 food_avoidances）；
 // username_taken 归到用户名；其余错误（包括 invalid_credentials）归到整个表单。
 import { useEffect, type RefObject } from 'react'
-import { ApiError } from '../../api/errors'
-import { USERNAME_TAKEN } from '../../lib/contract'
+import { ApiError } from '../api/errors'
+import { USERNAME_TAKEN } from './contract'
 
 /** 不属于某个字段、显示在表单上的错误放在这个键下 */
 export const FORM_ERROR = 'form'

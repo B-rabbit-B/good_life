@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { ApiError } from '../../api/errors'
+import { asApiError } from '../../api/errors'
 import { useOrders } from '../../api/hooks/medicalPage'
 import type { MedicalItemOut, OrderOut } from '../../api/types'
 import { Button } from '../../components/Button'
@@ -13,7 +13,7 @@ import { ItemEditSheet } from './ItemEditSheet'
 import { ManualItemSheet } from './ManualItemSheet'
 import { OrderSource } from './OrderSource'
 import { PendingItem } from './PendingItem'
-import { useSheetHost } from './useSheetHost'
+import { useSheetHost } from '../../components/useSheetHost'
 import { VoidSheet } from './VoidSheet'
 
 type PendingSheet =
@@ -51,7 +51,7 @@ export function PendingTab() {
   const host = useSheetHost<PendingSheet>()
   if (orders.data === undefined) {
     if (orders.isError) {
-      const error = orders.error instanceof ApiError ? orders.error : new ApiError(0, 'unknown_error', String(orders.error))
+      const error = asApiError(orders.error)
       return <div className="plate"><ErrorState error={error} onRetry={() => void orders.refetch()} /></div>
     }
     return <LoadingState variant="list" text="正在读取待核对的条目" />

@@ -15,7 +15,7 @@ import { INVALID_DATE_REASONS, MAX_CONTENT, SUBJECTS_REQUIRED } from '../../lib/
 import { CATEGORY_LABELS, type ItemCategory } from '../../lib/labels'
 import { useSingleFlight } from '../../lib/singleFlight'
 import '../../styles/components/medical.css'
-import { errorsOf, FORM_ERROR, otherErrors } from '../onboarding/fieldErrors'
+import { errorsOf, FORM_ERROR, otherErrors } from '../../lib/formErrors'
 
 // app/medical/schemas.py：内容最多 500 个字
 

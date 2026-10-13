@@ -6,7 +6,7 @@ import { useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { useEffect, type ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { isSessionEnded } from '../api/client'
-import { ApiError } from '../api/errors'
+import { ApiError, asApiError } from '../api/errors'
 import { useDisclaimerStatus } from '../api/hooks/disclaimer'
 import { useCapabilities, useProfile } from '../api/hooks/profile'
 import { qk } from '../api/keys'
@@ -31,8 +31,6 @@ const sessionEnded = (error: unknown) => error instanceof ApiError && error.stat
 export const disclaimerOutdated = (error: unknown) =>
   error instanceof ApiError && error.status === 403 && error.code === DISCLAIMER_NOT_ACCEPTED
 
-const asApiError = (error: unknown) =>
-  error instanceof ApiError ? error : new ApiError(0, 'unknown_error', '出了点问题，请稍后再试')
 
 function GuardError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   useRemoveBootShell()

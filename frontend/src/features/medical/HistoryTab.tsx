@@ -1,4 +1,4 @@
-import { ApiError } from '../../api/errors'
+import { asApiError } from '../../api/errors'
 import { useItemEvents, useMedicalItems } from '../../api/hooks/medical'
 import { useMedicalEvents } from '../../api/hooks/medicalPage'
 import type { EventOut, MedicalItemOut } from '../../api/types'
@@ -62,7 +62,7 @@ export function HistoryTab() {
   const failed = (items.isError && !items.data) || (events.isError && !events.data)
   if (failed) {
     const caught = items.error ?? events.error
-    const error = caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught))
+    const error = asApiError(caught)
     return <div className="plate"><ErrorState error={error} onRetry={() => void Promise.all([items.refetch(), events.refetch()])} /></div>
   }
   if (items.data === undefined) return <LoadingState variant="list" text="正在读取历史与审计" />

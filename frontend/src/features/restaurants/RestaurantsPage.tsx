@@ -3,7 +3,7 @@
 // 需求胶囊最多选 3 个；“记住大致区域”随这次检索一起交给后端。结果：提示原文加“仅供参考”、店铺面板、已避开的类型、免责原文。
 // 坐标只用于这一次请求：不放进状态、存储或查询键，检索变更用完就 reset。地点输入与“记住区域”一行在敏感区里。
 import { useEffect, useRef, useState } from 'react'
-import type { ApiError } from '../../api/errors'
+import { type ApiError, asApiError } from '../../api/errors'
 import { useNeeds, useRestaurantSearch, useRestaurantSettings, useSetConsent, type SearchWhere } from '../../api/hooks/restaurants'
 import type { RestaurantSearchOut } from '../../api/types'
 import { useSensitivePage } from '../../app/AppShell'
@@ -89,7 +89,7 @@ export default function RestaurantsPage() {
       setResult(out)
       if (kind !== 'saved') setRemember(false)
     } catch (caught) {
-      const failure = caught as ApiError
+      const failure = asApiError(caught)
       setResult(null)
       if (failure.code === RESTAURANT_LOCATION_NOT_GRANTED) {
         toPlace(failure.message)
@@ -162,14 +162,14 @@ export default function RestaurantsPage() {
       <>
         {header}
         {settings.isError
-          ? <ErrorState error={settings.error as ApiError} onRetry={() => void settings.refetch()} />
+          ? <ErrorState error={asApiError(settings.error)} onRetry={() => void settings.refetch()} />
           : <LoadingState variant="list" text="正在读取" />}
       </>
     )
   }
 
   if (mode === 'auto' && data.should_ask_location) {
-    const consentError = consent.error as ApiError | null
+    const consentError = consent.error ? asApiError(consent.error) : null
     return (
       <>
         {header}

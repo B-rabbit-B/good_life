@@ -1,9 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError, networkError } from '../../api/client'
+import { ApiError } from '../../api/client'
+import { asApiError } from '../../api/errors'
 import { useConversation } from '../../api/hooks/agent'
+import { invalidateDomain } from '../../api/invalidation'
 import { qk } from '../../api/keys'
 import { streamMessage, type TurnDone } from '../../api/sse'
+import { WRITE_TOOL_DOMAINS } from '../../lib/contract'
 import { usePrefersReducedMotion } from '../../lib/motion'
 
 export interface LiveTurn {
@@ -88,6 +91,9 @@ export function useChatStream(conversationId: string | null, ensureConversation:
             setLive({ key, userText: text, text: acc, phase: 'done', turn: done })
             void queryClient.invalidateQueries({ queryKey: qk.conversation(id) })
             void queryClient.invalidateQueries({ queryKey: qk.conversations, exact: true })
+            // 智能体这一轮写了哪些域（记了一餐、一次训练、经期……）：让那些页面的缓存失效
+            const domains = new Set(done.tools_used.flatMap((tool) => WRITE_TOOL_DOMAINS[tool] ?? []))
+            for (const domain of domains) void invalidateDomain(queryClient, domain)
           } else {
             fail(new ApiError(event.status, event.code, event.message))
           }
@@ -95,7 +101,7 @@ export function useChatStream(conversationId: string | null, ensureConversation:
       })
     } catch (error) {
       if (controller.signal.aborted) return
-      fail(error instanceof ApiError ? error : networkError())
+      fail(asApiError(error))
     }
   }, [ensureConversation, queryClient])
 

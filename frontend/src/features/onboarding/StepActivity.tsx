@@ -8,8 +8,8 @@ import { Dock } from '../../components/Dock'
 import { RadioSegment } from '../../components/RadioSegment'
 import { Title } from '../../components/Title'
 import { ACTIVITY_HINTS, ACTIVITY_LABELS, GOAL_LABELS, type ActivityLevel, type Goal } from '../../lib/labels'
-import { errorsOf, otherErrors, PROFILE_FIELD_LABELS } from './fieldErrors'
-import { FormError } from './FormError'
+import { errorsOf, otherErrors, PROFILE_FIELD_LABELS } from '../../lib/formErrors'
+import { FormError } from '../../components/FormError'
 import { STEP_TITLE_ID } from './stepTitle'
 
 const LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']

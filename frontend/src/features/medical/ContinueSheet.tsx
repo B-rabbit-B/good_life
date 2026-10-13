@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { ApiError } from '../../api/errors'
+import { ApiError, asApiError } from '../../api/errors'
 import { useContinueItem } from '../../api/hooks/medical'
 import type { MedicalItemOut } from '../../api/types'
 import type { SensitiveArea } from '../../app/sensitiveAreas'
@@ -16,7 +16,7 @@ import { CATEGORY_LABELS } from '../../lib/labels'
 import '../../styles/components/continue.css'
 import '../../styles/components/field-input.css'
 import '../../styles/components/medical-item.css'
-import { dueFieldOf } from './dueReason'
+import { dueFieldOf } from '../../api/itemContext/dueReason'
 
 type DateKey = 'review' | 'end'
 
@@ -120,7 +120,7 @@ function ContinueBody({ item, dueReason, onClose, onDone, area = 'content' }: Om
         // 两个键永远都带上：后端会同时覆盖复查日期与预计结束，没提交的那项会被清空
         await continueItem.mutateAsync({ id: item.id, review_date: review, end_date: end })
       } catch (caught) {
-        setError(caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught)))
+        setError(asApiError(caught))
         return
       }
       done.current = true

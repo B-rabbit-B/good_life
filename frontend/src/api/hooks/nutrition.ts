@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../client'
+import { invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
-import { invalidateRecognitionRecords } from './photos'
 import type { FoodDetailOut, MealCreate, MealOut, NutritionSearchOut, SummaryOut } from '../types'
 
 /** 某一天的汇总：摄入、需求与还可摄入（YYYY-MM-DD） */
@@ -52,12 +52,6 @@ export function useCreateMeal() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (body: MealInput) => api<MealOut>('/api/nutrition/meals', { method: 'POST', json: body }),
-    onSuccess: async (_meal, { eaten_on }) => {
-      await Promise.all([
-        invalidateRecognitionRecords(queryClient),
-        queryClient.invalidateQueries({ queryKey: qk.summary(eaten_on) }),
-        queryClient.invalidateQueries({ queryKey: qk.meals(eaten_on) }),
-      ])
-    },
+    onSuccess: () => invalidateDomain(queryClient, 'nutrition'),
   })
 }

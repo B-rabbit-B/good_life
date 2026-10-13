@@ -18,12 +18,11 @@ import { TextField } from '../../components/TextField'
 import { useToast } from '../../components/Toast'
 import { todayISO } from '../../lib/dates'
 import {
-  ACTIVITY_HINTS, ACTIVITY_LABELS, GENDER_LABELS, GOAL_LABELS, type ActivityLevel, type Goal,
+  ACTIVITY_HINTS, ACTIVITY_LABELS, GENDER_LABELS, GOAL_LABELS, HEALTH_HINT, type ActivityLevel, type Goal,
 } from '../../lib/labels'
 import '../../styles/components/me.css'
-import { errorsOf, otherErrors, PROFILE_FIELD_LABELS, useFocusFirstInvalid } from '../onboarding/fieldErrors'
-import { FormError } from '../onboarding/FormError'
-import { HEALTH_HINT } from '../onboarding/StepDiet'
+import { errorsOf, otherErrors, PROFILE_FIELD_LABELS, useFocusFirstInvalid } from '../../lib/formErrors'
+import { FormError } from '../../components/FormError'
 
 const LEVELS: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active']
 const ACTIVITY_OPTIONS = LEVELS.map((value) => ({ value, label: `${ACTIVITY_LABELS[value]}：${ACTIVITY_HINTS[value]}` }))

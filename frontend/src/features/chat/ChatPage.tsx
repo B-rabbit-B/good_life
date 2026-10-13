@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { ApiError, networkError } from '../../api/client'
+import { networkError } from '../../api/client'
+import { asApiError } from '../../api/errors'
 import { useConversation, useConversations, useCreateConversation, useOpening } from '../../api/hooks/agent'
 import { useAssignments } from '../../api/hooks/llm'
 import { useMedicalReviews } from '../../api/hooks/medical'
@@ -114,7 +115,7 @@ export default function ChatPage() {
   const detailFailed = conversationId !== null && conversation.isError && conversation.data === undefined
   if (listFailed || detailFailed) {
     const failed = listFailed ? conversations.error : conversation.error
-    const error = failed instanceof ApiError ? failed : networkError()
+    const error = asApiError(failed)
     body = (
       <ErrorState error={error} onRetry={() => void (listFailed ? conversations.refetch() : conversation.refetch())} />
     )

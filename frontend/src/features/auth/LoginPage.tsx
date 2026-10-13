@@ -12,8 +12,8 @@ import { AuthNeededState } from '../../components/states/AuthNeededState'
 import { TextField } from '../../components/TextField'
 import { Title } from '../../components/Title'
 import '../../styles/components/login.css'
-import { errorsOf, otherErrors, useFocusFirstInvalid } from '../onboarding/fieldErrors'
-import { FormError } from '../onboarding/FormError'
+import { errorsOf, otherErrors, useFocusFirstInvalid } from '../../lib/formErrors'
+import { FormError } from '../../components/FormError'
 
 type Mode = 'login' | 'register'
 

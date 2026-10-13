@@ -1,4 +1,4 @@
-import type { EventOut } from '../../api/types'
+import type { EventOut } from '../types'
 
 /** 最后一条解除建议是谁提出的：助手（agent）或你本人（user）；没有时为 null */
 export function proposerOf(events: EventOut[]): 'agent' | 'user' | null {

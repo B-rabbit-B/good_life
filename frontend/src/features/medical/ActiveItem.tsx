@@ -4,10 +4,10 @@ import { PENDING_REVIEW_NOTE } from '../../lib/contract'
 import { CATEGORY_LABELS } from '../../lib/labels'
 import '../../styles/components/medical-item.css'
 import '../../styles/components/medical.css'
-import { shortDue } from './dueReason'
+import { shortDue } from '../../api/itemContext/dueReason'
 import { itemActionsFor, type ItemActionKind } from './itemActions'
 import { ProposalBlock } from './ProposalBlock'
-import { useItemContext } from './useItemContext'
+import { useItemContext } from '../../api/itemContext/useItemContext'
 
 /**
  * 生效中的一条（07a）：类别、状态（待复核写赭色“待复核，到期原因”，否则“生效中”）、内容（黑体 500，左侧圆头竖线，

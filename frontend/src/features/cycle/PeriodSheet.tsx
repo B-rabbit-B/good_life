@@ -13,7 +13,7 @@ import { Sheet } from '../../components/Sheet'
 import { useToast } from '../../components/Toast'
 import { todayISO } from '../../lib/dates'
 import { useSingleFlight } from '../../lib/singleFlight'
-import { errorsOf, FORM_ERROR } from '../onboarding/fieldErrors'
+import { errorsOf, FORM_ERROR } from '../../lib/formErrors'
 
 export type PeriodMode = 'start' | 'end'
 

@@ -93,3 +93,6 @@ export const RISK_PHONES: Record<RiskCategory, ('120' | '12356')[]> = {
   medication: ['120'],
   extreme_diet: ['120', '12356'],
 }
+
+/** 档案“健康状况”一项下面的提示（引导到医嘱页；录入向导与编辑档案共用） */
+export const HEALTH_HINT = '只用于生成建议。医生的要求请到医嘱页录入，才会按约束执行。'

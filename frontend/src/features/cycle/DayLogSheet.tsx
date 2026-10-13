@@ -3,7 +3,8 @@
 // 保存中按钮不能再按，取消与 Esc 都不关面板；失败（含断网）之后恢复可操作、可关闭；说明与错误码原样显示。
 // 日期与填写的内容在敏感区里（与医嘱面板一样，按钮在外面）。
 import { useRef, useState } from 'react'
-import { ApiError, networkError } from '../../api/client'
+import { ApiError } from '../../api/client'
+import { asApiError } from '../../api/errors'
 import { useDayLogs, usePutDayLog } from '../../api/hooks/cycle'
 import type { DayLogOut } from '../../api/types'
 import { Button } from '../../components/Button'
@@ -19,7 +20,7 @@ import { formatMonthDay, todayISO } from '../../lib/dates'
 import { FLOW_LABELS, MOOD_LABELS } from '../../lib/cycleLabels'
 import type { Flow, Mood } from '../../lib/labels'
 import { useSingleFlight } from '../../lib/singleFlight'
-import { errorsOf, FORM_ERROR } from '../onboarding/fieldErrors'
+import { errorsOf, FORM_ERROR } from '../../lib/formErrors'
 
 // app/cycle/schemas.py 的 DayLogIn.note：最多 500 个字
 const FLOW_OPTIONS = (Object.keys(FLOW_LABELS) as Flow[]).map((value) => ({ value, label: FLOW_LABELS[value] }))
@@ -106,7 +107,7 @@ function DayLogBody({ initialDate, onClose, onBusyChange }: {
   const [date, setDate] = useState(initialDate)
   const [busy, setBusy] = useState(false)
   const logs = useDayLogs(date, date)
-  const failed = logs.error instanceof ApiError ? logs.error : networkError()
+  const failed = asApiError(logs.error)
   return (
     <>
       <Sensitive area="content">

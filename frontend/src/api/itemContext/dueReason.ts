@@ -1,6 +1,6 @@
 // 待复核的原因：后端在 review_due 事件的 detail.reason 里写明（四句原文之一，见 contract.ts 的 DUE_REASONS）。
 // 界面原样显示原文，只用映射找出触发复核的是复查日期还是预计结束。
-import type { EventOut } from '../../api/types'
+import type { EventOut } from '../types'
 import { DUE_REASONS } from '../../lib/contract'
 
 /** 最后一条 review_due 事件的原因原文；没有时为 null */

@@ -2,8 +2,7 @@
 // 周期刻度与预测同在一块面板（数据不足或已暂停时换成“数据不足”，正文是后端的说明）；月历；最后是“记录经期开始”
 // （最近一次经期还没结束时是“记录经期结束”）与“记录今天”。全页只用海军蓝、灰与钴蓝，文案中性。
 // 这个文件连同月历（React Aria Calendar）由健康页按需加载，只在经期这一段出现。
-import { networkError } from '../../api/client'
-import { ApiError } from '../../api/errors'
+import { asApiError } from '../../api/errors'
 import { useCycleStats, usePeriods, usePhase, usePrediction, useTips } from '../../api/hooks/cycle'
 import type { CycleStatsOut, PeriodOut, PredictionOut } from '../../api/types'
 import { Button } from '../../components/Button'
@@ -18,7 +17,7 @@ import { Title } from '../../components/Title'
 import { formatMonthDay, todayISO } from '../../lib/dates'
 import { PHASE_TITLE_KEYS } from '../../lib/cycleLabels'
 import '../../styles/components/cycle.css'
-import { useSheetHost } from '../medical/useSheetHost'
+import { useSheetHost } from '../../components/useSheetHost'
 import { CycleCalendar } from './CycleCalendar'
 import { cycleTicksModel, predictedPeriodDays, type CycleTicksModel } from './cyclePanel'
 import { DayLogSheet } from './DayLogSheet'
@@ -117,7 +116,7 @@ export function CycleView() {
     body = (
       <div className="plate">
         <ErrorState
-          error={failed instanceof ApiError ? failed : networkError()}
+          error={asApiError(failed)}
           onRetry={() => queries.forEach((q) => void q.refetch())}
         />
       </div>

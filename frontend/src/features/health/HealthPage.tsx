@@ -13,9 +13,10 @@ import { PATHS } from '../../app/paths'
 import { PageHeader } from '../../components/PageHeader'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { LoadingState } from '../../components/states/LoadingState'
-import { MedicalTabs, MedicalView } from '../medical/MedicalView'
+import { loadCycleView } from '../cycle'
+import { MedicalTabs, MedicalView } from '../medical'
 
-const CycleView = lazy(() => import('../cycle/CycleView'))
+const CycleView = lazy(loadCycleView)
 
 export default function HealthPage() {
   const { pathname } = useLocation()

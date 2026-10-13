@@ -10,11 +10,11 @@ import { useToast } from '../../components/Toast'
 import { formatMonthDay, todayISO } from '../../lib/dates'
 import { CATEGORY_LABELS } from '../../lib/labels'
 import '../../styles/components/medical-item.css'
-import { shortDue } from '../medical/dueReason'
-import { useItemContext } from '../medical/useItemContext'
+import { shortDue } from '../../api/itemContext/dueReason'
+import { useItemContext } from '../../api/itemContext/useItemContext'
 
 // 继续遵守面板只在点了“继续遵守”后才加载
-const ContinueSheet = lazy(() => import('../medical/ContinueSheet'))
+const ContinueSheet = lazy(() => import('../medical').then((medical) => ({ default: medical.ContinueSheet })))
 
 /** 页头里待处理条的展开按钮（开场卡片收起后焦点落在这里） */
 export const STRIP_TOGGLE_ID = 'pending-strip-toggle'

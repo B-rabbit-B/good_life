@@ -3,7 +3,7 @@
 // 任何一步失败都原样显示后端的说明与错误码；已经建好的医嘱不会重复提交，重试只上传还没传完的证据。
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { ApiError } from '../../api/errors'
+import { ApiError, asApiError } from '../../api/errors'
 import { useCreateOrder, useUploadEvidence } from '../../api/hooks/medicalPage'
 import { useObjectUrl } from '../../api/hooks/photos'
 import type { OrderOut } from '../../api/types'
@@ -22,7 +22,7 @@ import { todayISO } from '../../lib/dates'
 import { fmtBytes } from '../../lib/format'
 import { useSingleFlight } from '../../lib/singleFlight'
 import '../../styles/components/medical.css'
-import { errorsOf, FORM_ERROR } from '../onboarding/fieldErrors'
+import { errorsOf, FORM_ERROR } from '../../lib/formErrors'
 
 // app/medical/schemas.py 的 OrderCreate.text 与 app/medical/orders.py 的证据上限、类型：界面只先提示，以后端结果为准
 const EVIDENCE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
@@ -35,8 +35,6 @@ interface Picked {
 
 type Failure = { error: ApiError; file?: string }
 
-const toApiError = (caught: unknown) =>
-  caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught))
 
 function Thumb({ file }: { file: File }) {
   const ref = useObjectUrl(file)
@@ -97,7 +95,7 @@ export default function MedicalNewPage() {
         try {
           current = await createOrder.mutateAsync({ text, order_date: date })
         } catch (caught) {
-          setFailure({ error: toApiError(caught) })
+          setFailure({ error: asApiError(caught) })
           return
         }
         created.current = current
@@ -108,7 +106,7 @@ export default function MedicalNewPage() {
         try {
           await upload.mutateAsync({ orderId: current.id, file: picked.file })
         } catch (caught) {
-          setFailure({ error: toApiError(caught), file: picked.file.name })
+          setFailure({ error: asApiError(caught), file: picked.file.name })
           return
         }
         uploaded.current.add(picked.key)

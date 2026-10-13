@@ -1,8 +1,7 @@
 // 训练（设计稿 08，记录页的“训练”段）：顶部的运动限制（医嘱内容，在敏感区里）、本周训练面板、“搜索动作”胶囊
 // （点按进入记一次训练）、动作趋势与近 30 天的训练列表。页头右上的“记一次训练”在记录页的页头里。
 import { Link } from 'react-router'
-import { networkError } from '../../api/client'
-import { ApiError } from '../../api/errors'
+import { asApiError } from '../../api/errors'
 import { useWeekSummary, useWorkouts } from '../../api/hooks/fitness'
 import { PATHS } from '../../app/paths'
 import { Icon } from '../../components/Icon'
@@ -48,7 +47,7 @@ export function TrainingView() {
     body = (
       <div className="plate">
         <ErrorState
-          error={failed instanceof ApiError ? failed : networkError()}
+          error={asApiError(failed)}
           onRetry={() => queries.forEach((q) => void q.refetch())}
         />
       </div>

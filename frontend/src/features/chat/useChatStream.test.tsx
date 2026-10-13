@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { gate, renderChat, sendText } from '../../test/chat'
 import { assistantText, SEVERE_REPLY } from '../../test/fixtures/agent'
 import { setMediaMatches } from '../../test/setup'
+import { qk } from '../../api/keys'
 import { THINKING_TEXT } from './AssistantMessage'
 
 const ANSWER = '今晚可以换成清蒸鱼或鸡胸肉，配一碗杂粮粥，蛋白质够，也清淡。'
@@ -117,5 +118,29 @@ describe('chat stream', () => {
     expect(screen.queryByRole('group', { name: '快捷操作' })).not.toBeInTheDocument()
     // 存好之后（下次打开页面时）它就只是 note
     await waitFor(() => expect(chat.conversations[0]?.messages).toHaveLength(2))
+  })
+
+  it('invalidates the queries of the domains a turn wrote to', async () => {
+    const user = userEvent.setup()
+    const { queryClient, chat } = renderChat({ reply: () => ({ text: assistantText(ANSWER), tools_used: ['nutrition_search_foods', 'nutrition_log_meal'] }) })
+    const summary = qk.summary('2026-10-13')
+    queryClient.setQueryData(summary, { seeded: true })
+    queryClient.setQueryData(qk.weekSummary, { seeded: true })
+    await sendText(user, '中午吃了一碗牛肉面')
+    await screen.findByText(ANSWER)
+    await waitFor(() => expect(queryClient.getQueryState(summary)?.isInvalidated).toBe(true))
+    expect(queryClient.getQueryState(qk.weekSummary)?.isInvalidated).toBe(false)
+    await waitFor(() => expect(chat.conversations[0]?.messages).toHaveLength(2))
+  })
+
+  it('leaves the domain queries alone after a read only turn', async () => {
+    const user = userEvent.setup()
+    const { queryClient, chat } = renderChat({ reply: () => ({ text: assistantText(ANSWER), tools_used: ['nutrition_search_foods'] }) })
+    const summary = qk.summary('2026-10-13')
+    queryClient.setQueryData(summary, { seeded: true })
+    await sendText(user, '牛肉面热量高吗')
+    await screen.findByText(ANSWER)
+    await waitFor(() => expect(chat.conversations[0]?.messages).toHaveLength(2))
+    expect(queryClient.getQueryState(summary)?.isInvalidated).toBe(false)
   })
 })

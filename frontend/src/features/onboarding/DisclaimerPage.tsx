@@ -3,7 +3,7 @@
 // 显示它的说明、重新读取正文，并要求重新勾选。
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { ApiError } from '../../api/errors'
+import { ApiError, asApiError } from '../../api/errors'
 import { useAcceptDisclaimer, useDisclaimer } from '../../api/hooks/disclaimer'
 import { PATHS } from '../../app/paths'
 import { Button } from '../../components/Button'
@@ -13,8 +13,8 @@ import { PageHeader } from '../../components/PageHeader'
 import { ErrorState } from '../../components/states/ErrorState'
 import { LoadingState } from '../../components/states/LoadingState'
 import '../../styles/components/onboarding.css'
-import { errorsOf } from './fieldErrors'
-import { FormError } from './FormError'
+import { errorsOf } from '../../lib/formErrors'
+import { FormError } from '../../components/FormError'
 
 const OUTDATED = 'disclaimer_outdated'
 
@@ -32,7 +32,7 @@ export default function DisclaimerPage() {
       <>
         <PageHeader titleKey="disclaimer" variant="big" />
         {disclaimer.isError
-          ? <ErrorState error={disclaimer.error as ApiError} onRetry={() => void disclaimer.refetch()} />
+          ? <ErrorState error={asApiError(disclaimer.error)} onRetry={() => void disclaimer.refetch()} />
           : <LoadingState variant="page" text="正在读取免责声明" />}
       </>
     )

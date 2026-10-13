@@ -9,8 +9,8 @@ import { Ruler } from '../../components/Ruler'
 import { SelectField } from '../../components/SelectField'
 import { Title } from '../../components/Title'
 import { GENDER_LABELS, type Gender } from '../../lib/labels'
-import { errorsOf, otherErrors, PROFILE_FIELD_LABELS } from './fieldErrors'
-import { FormError } from './FormError'
+import { errorsOf, otherErrors, PROFILE_FIELD_LABELS } from '../../lib/formErrors'
+import { FormError } from '../../components/FormError'
 import { STEP_TITLE_ID } from './stepTitle'
 
 const YEARS = 100
