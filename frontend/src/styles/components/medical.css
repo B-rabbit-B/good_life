@@ -89,6 +89,9 @@
 .mn-pick{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 0 -8px}
 .mn-status{margin:12px 0 0;color:var(--ink-2)}
 .mn-after{margin:8px 0 0}
+/* 医嘱建好之后原文只读；上传中不能移除文件 */
+.mn .area[readonly]{color:var(--ink-2)}
+.mn-files .ibtn[disabled]{color:var(--ink-3);cursor:not-allowed}
 
 @media (forced-colors:active){
   .prop{border:1px solid CanvasText}

@@ -120,6 +120,16 @@ describe('continue sheet', () => {
     expect(screen.getByRole('dialog', { name: '继续遵守这条医嘱' })).toBeInTheDocument()
   })
 
+  it('continues once on a double press', async () => {
+    const user = userEvent.setup({ delay: null })
+    const { medical, onDone } = renderSheet(dueItem(), REVIEW_REASON)
+    const sheet = await dialog()
+    await user.dblClick(within(sheet).getByRole('button', { name: '继续遵守' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(medical.continues).toHaveLength(1)
+    expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
   it('moves focus to the title and closes after success', async () => {
     const user = userEvent.setup()
     const { onDone } = renderSheet(dueItem(), REVIEW_REASON)

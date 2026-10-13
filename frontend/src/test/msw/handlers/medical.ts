@@ -30,6 +30,10 @@ export interface MedicalOptions {
   errors?: Partial<Record<Action, MedicalError>>
   /** 上传这些文件名的证据时失败一次 */
   uploadErrors?: Record<string, MedicalError>
+  /** 这些动作的请求先等这个 Promise 兑现再处理（测试“请求进行中”的状态） */
+  hold?: Partial<Record<Action | 'upload', Promise<void>>>
+  /** 取证据文件时的错误（每次都返回） */
+  evidenceError?: MedicalError
   /** 录入医嘱时提取出的条目 */
   extract?: (body: OrderCreate) => Partial<MedicalItemOut>[]
 }
@@ -111,6 +115,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
     http.post('/api/medical/orders', async ({ request }) => {
       const body = await request.json() as OrderCreate
       record.createdOrders.push(body)
+      await opts.hold?.createOrder
       const error = take('createOrder')
       if (error) return errorResponse(error)
       const id = nextId('00000000')
@@ -140,6 +145,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
       // 测试环境的 fetch（undici）把 jsdom 的 File 的文件名写成 blob（浏览器不会）：测试文件的内容就是文件名，按内容认
       const name = file.name === 'blob' ? await file.text() : file.name
       record.uploads.push({ orderId, name, size: file.size })
+      await opts.hold?.upload
       const error = uploadErrors[name]
       if (error) {
         delete uploadErrors[name]
@@ -157,6 +163,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
     http.get('/api/medical/evidence/:id', ({ params }) => {
       const id = String(params.id)
       record.evidenceRequests.push(id)
+      if (opts.evidenceError) return errorResponse(opts.evidenceError)
       const stored = evidenceBytes[id] ?? { bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer, type: 'image/jpeg' }
       return new HttpResponse(stored.bytes, { headers: { 'Content-Type': stored.type } })
     }),
@@ -164,6 +171,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
       const orderId = String(params.id)
       const body = await request.json() as ManualItemCreate
       record.added.push({ orderId, body })
+      await opts.hold?.addItem
       const error = take('addItem')
       if (error) return errorResponse(error)
       const target = orders.find((o) => o.id === orderId)
@@ -184,6 +192,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
       const id = String(params.id)
       const body = await request.json() as ItemUpdate
       record.updates.push({ id, body })
+      await opts.hold?.update
       const error = take('update')
       if (error) return errorResponse(error)
       const item = find(id)
@@ -196,6 +205,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
     http.post('/api/medical/items/:id/confirm', async ({ params, request }) => {
       const id = String(params.id)
       record.confirms.push({ id, body: await request.text() })
+      await opts.hold?.confirm
       const error = take('confirm')
       if (error) return errorResponse(error)
       const item = find(id)
@@ -211,6 +221,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
       const id = String(params.id)
       const body = await readJson(request)
       record.voids.push({ id, body })
+      await opts.hold?.void
       const error = take('void')
       if (error) return errorResponse(error)
       const item = find(id)
@@ -223,6 +234,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
     http.post('/api/medical/items/:id/resolve', async ({ params, request }) => {
       const id = String(params.id)
       record.resolves.push({ id, body: await request.text() })
+      await opts.hold?.resolve
       const error = take('resolve')
       if (error) return errorResponse(error)
       const item = find(id)
@@ -238,6 +250,7 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
       const id = String(params.id)
       const body = await request.json() as { review_date: string | null; end_date: string | null }
       record.continues.push({ id, body })
+      await opts.hold?.continue
       const error = take('continue')
       if (error) return errorResponse(error)
       const item = find(id)
@@ -249,9 +262,10 @@ export function medicalHandlers(opts: MedicalOptions = {}) {
       addEvent(next, 'continued', item.status, 'user', body)
       return HttpResponse.json(next)
     }),
-    http.post('/api/medical/items/:id/cancel-proposal', ({ params }) => {
+    http.post('/api/medical/items/:id/cancel-proposal', async ({ params }) => {
       const id = String(params.id)
       record.cancels.push(id)
+      await opts.hold?.cancel
       const error = take('cancel')
       if (error) return errorResponse(error)
       const item = find(id)

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ApiError } from '../../api/errors'
 import { useContinueItem } from '../../api/hooks/medical'
 import type { MedicalItemOut } from '../../api/types'
@@ -11,6 +11,7 @@ import { useToast } from '../../components/Toast'
 import { WillList, type WillItem } from '../../components/WillList'
 import { INVALID_DATE_REASONS } from '../../lib/contract'
 import { addMonths, todayISO } from '../../lib/dates'
+import { useSingleFlight } from '../../lib/singleFlight'
 import { CATEGORY_LABELS } from '../../lib/labels'
 import '../../styles/components/continue.css'
 import '../../styles/components/field-input.css'
@@ -108,18 +109,26 @@ function ContinueBody({ item, dueReason, onClose, onDone, area = 'content' }: Om
     { text: '记一条审计：时间、由你本人确认、两个新日期。' },
   ]
 
-  const submit = async () => {
-    setError(null)
-    try {
-      // 两个键永远都带上：后端会同时覆盖复查日期与预计结束，没提交的那项会被清空
-      await continueItem.mutateAsync({ id: item.id, review_date: review, end_date: end })
-    } catch (caught) {
-      setError(caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught)))
-      return
-    }
-    onClose()
-    toast.show('已继续遵守')
-    onDone?.()
+  // 同一帧连按两次时 isPending 还没渲染出来：用单飞锁守住，只发一次；成功后面板关上的这段时间也不再提交
+  const flight = useSingleFlight()
+  const done = useRef(false)
+  const submit = () => {
+    if (done.current) return
+    const run = flight(async () => {
+      setError(null)
+      try {
+        // 两个键永远都带上：后端会同时覆盖复查日期与预计结束，没提交的那项会被清空
+        await continueItem.mutateAsync({ id: item.id, review_date: review, end_date: end })
+      } catch (caught) {
+        setError(caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught)))
+        return
+      }
+      done.current = true
+      onClose()
+      toast.show('已继续遵守')
+      onDone?.()
+    })
+    void run
   }
 
   const place = error ? errorPlace(error, trigger) : null
@@ -172,7 +181,7 @@ function ContinueBody({ item, dueReason, onClose, onDone, area = 'content' }: Om
       <div className="cs-will"><WillList items={will} /></div>
       {error && place === 'form' && <ErrorLine error={error} />}
       <div className="sheet-foot">
-        <Button variant="primary" block isPending={continueItem.isPending} onPress={() => void submit()}>继续遵守</Button>
+        <Button variant="primary" block isPending={continueItem.isPending} onPress={submit}>继续遵守</Button>
         <Button variant="quiet" block onPress={onClose}>取消</Button>
       </div>
     </>

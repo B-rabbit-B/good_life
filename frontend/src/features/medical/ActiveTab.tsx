@@ -56,6 +56,9 @@ export function ActiveTab() {
   }
 
   const { sheet } = host
+  // 关的是这一次打开的面板（换过面板之后，旧面板迟到的关闭不算）
+  const opened = host.nonce
+  const closeSheet = () => host.close(opened)
   return (
     <>
       <Sensitive area="content" className="plate">
@@ -72,14 +75,14 @@ export function ActiveTab() {
       </Sensitive>
       {sheet?.kind === 'resolve' && (
         <ResolveSheet
-          key={host.nonce} item={sheet.item} isOpen={host.open} onClose={host.close}
+          key={host.nonce} item={sheet.item} isOpen={host.open} onClose={closeSheet}
           onContinue={() => host.show({ kind: 'continue', item: sheet.item, dueReason: sheet.dueReason })}
         />
       )}
       {sheet?.kind === 'continue' && (
-        <ContinueSheet key={host.nonce} item={sheet.item} dueReason={sheet.dueReason} isOpen={host.open} onClose={host.close} />
+        <ContinueSheet key={host.nonce} item={sheet.item} dueReason={sheet.dueReason} isOpen={host.open} onClose={closeSheet} />
       )}
-      {sheet?.kind === 'edit' && <ItemEditSheet key={host.nonce} item={sheet.item} isOpen={host.open} onClose={host.close} />}
+      {sheet?.kind === 'edit' && <ItemEditSheet key={host.nonce} item={sheet.item} isOpen={host.open} onClose={closeSheet} />}
     </>
   )
 }

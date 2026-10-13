@@ -3,9 +3,11 @@ import { useEvidenceBlob } from '../../api/hooks/medicalPage'
 import { useObjectUrl } from '../../api/hooks/photos'
 import type { EvidenceOut, OrderOut } from '../../api/types'
 import { Button } from '../../components/Button'
+import { Icon } from '../../components/Icon'
 import { Sensitive } from '../../components/Sensitive'
 import { Sheet } from '../../components/Sheet'
 import { fmtBytes } from '../../lib/format'
+import '../../styles/components/field-input.css'
 import '../../styles/components/medical.css'
 
 function EvidenceImage({ blob, alt }: { blob: Blob; alt: string }) {
@@ -13,8 +15,8 @@ function EvidenceImage({ blob, alt }: { blob: Blob; alt: string }) {
   return <img ref={ref} alt={alt} />
 }
 
-/** PDF：生成 object URL 写到链接上，在新标签页打开（卸载时释放） */
-function EvidenceLink({ blob, name }: { blob: Blob; name: string }) {
+/** PDF：生成 object URL 写到链接上，在新标签页打开（不强制下载；卸载时释放） */
+function EvidenceLink({ blob }: { blob: Blob }) {
   const ref = useRef<HTMLAnchorElement>(null)
   useEffect(() => {
     const link = ref.current
@@ -26,19 +28,24 @@ function EvidenceLink({ blob, name }: { blob: Blob; name: string }) {
       URL.revokeObjectURL(url)
     }
   }, [blob])
-  return <a ref={ref} className="btn btn-qt btn-sm" data-hit44="" target="_blank" rel="noopener noreferrer" download={name}>打开文件</a>
+  return <a ref={ref} className="btn btn-qt btn-sm" data-hit44="" target="_blank" rel="noopener">打开文件</a>
 }
 
 function EvidenceFile({ file }: { file: EvidenceOut }) {
-  const { blob, failed } = useEvidenceBlob(file.id)
+  const { blob, error } = useEvidenceBlob(file.id)
   const image = file.content_type.startsWith('image/')
   return (
     <li className="ev-file">
       <span>{file.filename}</span>
       <span className="t-cap">{fmtBytes(file.size_bytes)}，加密保存</span>
-      {failed && <span className="t-cap">读取失败，请稍后再试</span>}
-      {!failed && !blob && <span className="t-cap">正在读取</span>}
-      {blob && (image ? <EvidenceImage blob={blob} alt={file.filename} /> : <EvidenceLink blob={blob} name={file.filename} />)}
+      {error && (
+        <div className="err" role="alert">
+          <Icon name="alert" size={18} />
+          <span>{error.message}<small>错误码 {error.code}</small></span>
+        </div>
+      )}
+      {!error && !blob && <span className="t-cap">正在读取</span>}
+      {blob && (image ? <EvidenceImage blob={blob} alt={file.filename} /> : <EvidenceLink blob={blob} />)}
     </li>
   )
 }

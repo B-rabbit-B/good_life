@@ -11,11 +11,13 @@ const lost = (el: Element | null) => el === null || el === document.body || !el.
  * nonce 用作面板的 key：每次打开都是新的面板状态（勾选、错误都清空）。
  * 焦点：React Aria 关面板时把焦点还给打开它时的元素；换过面板时那个元素已经不在了，所以记下第一次打开时的触发按钮，
  * 面板关上后焦点落空就回到它；它也随条目消失了（确认、作废、解除之后），就落到当前子标签上。
+ * close(nonce) 只关打开时拿到这个 nonce 的那一次面板：迟到的关闭（例如解除结果播报 1.2 秒后）不会关掉用户已经换上的面板。
  */
 export function useSheetHost<S>() {
   const [sheet, setSheet] = useState<S | null>(null)
   const [open, setOpen] = useState(false)
   const [nonce, setNonce] = useState(0)
+  const current = useRef(0)
   const opened = useRef(false)
   const origin = useRef<HTMLElement | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -29,12 +31,14 @@ export function useSheetHost<S>() {
       origin.current = active instanceof HTMLElement && !lost(active) ? active : null
     }
     opened.current = true
+    current.current += 1
     setSheet(next)
-    setNonce((n) => n + 1)
+    setNonce(current.current)
     setOpen(true)
   }, [])
 
-  const close = useCallback(() => {
+  const close = useCallback((forNonce: number) => {
+    if (forNonce !== current.current) return
     opened.current = false
     setOpen(false)
     if (timer.current) clearTimeout(timer.current)

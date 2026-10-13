@@ -166,4 +166,20 @@ describe('pending tab', { timeout: 15_000 }, () => {
     expect(within(sheet).getByText('出院小结.jpg')).toBeInTheDocument()
     await waitFor(() => expect(medical.evidenceRequests).toEqual([evidence().id]))
   })
+
+  it('shows the backend error when the evidence cannot be read', async () => {
+    const user = userEvent.setup()
+    const message = '没有找到这个文件'
+    renderPending({
+      items: [pendingItem()], orders: [order({ evidence: [evidence()] })],
+      evidenceError: { status: 404, code: 'not_found', message },
+    })
+    const group = await screen.findByRole('region', { name: '出院小结.jpg' })
+    await user.click(within(group).getByRole('button', { name: '查看' }))
+    const sheet = await screen.findByRole('dialog', { name: '原文与证据' })
+    const alert = await within(sheet).findByRole('alert')
+    expect(alert).toHaveTextContent(message)
+    expect(alert).toHaveTextContent('错误码 not_found')
+    expect(within(sheet).queryByRole('img')).not.toBeInTheDocument()
+  })
 })

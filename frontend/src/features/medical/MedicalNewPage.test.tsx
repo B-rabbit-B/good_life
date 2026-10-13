@@ -5,6 +5,7 @@ import { sensitiveAreaMismatch } from '../../app/sensitiveAreas'
 import { todayISO } from '../../lib/dates'
 import { medicalHandlers, type MedicalOptions } from '../../test/msw/handlers/medical'
 import { server } from '../../test/msw/server'
+import { gate } from '../../test/chat'
 import { renderRoute } from '../../test/render'
 
 const TEXT = '头孢呋辛酯片 0.25g，每日两次，连服 7 天。服药期间及停药后 7 天内禁止饮酒。一周后门诊复查。'
@@ -61,6 +62,21 @@ describe('medical new page', { timeout: 15_000 }, () => {
     await waitFor(() => expect(medical.uploads.map((upload) => upload.name)).toEqual(['出院小结.jpg']))
   })
 
+  it('keeps the files while they upload', async () => {
+    const user = userEvent.setup()
+    const held = gate()
+    const { medical } = renderNew({ hold: { upload: held.promise } })
+    await fill(user, [jpg('出院小结.jpg')])
+    await user.click(screen.getByRole('button', { name: '提取条目' }))
+    await waitFor(() => expect(medical.uploads).toHaveLength(1))
+    const remove = screen.getByRole('button', { name: '移除出院小结.jpg' })
+    expect(remove).toBeDisabled()
+    await user.click(remove)
+    expect(screen.getByText('出院小结.jpg')).toBeInTheDocument()
+    held.open()
+    await waitFor(() => expect(screen.queryByLabelText('医嘱原文')).not.toBeInTheDocument())
+  })
+
   it('goes to the pending tab after extraction', async () => {
     const user = userEvent.setup()
     const { router } = renderNew()
@@ -85,6 +101,9 @@ describe('medical new page', { timeout: 15_000 }, () => {
     expect(router.state.location.pathname).toBe('/health/medical/new')
     expect(medical.uploads.map((upload) => upload.name)).toEqual(['出院小结.jpg', '复诊单.pdf'])
 
+    // 医嘱已经建好：原文与日期只读
+    expect(screen.getByLabelText('医嘱原文')).toHaveAttribute('readonly')
+    expect(screen.getByLabelText('开具日期')).toHaveAttribute('readonly')
     await user.click(screen.getByRole('button', { name: '重试上传证据' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/health/medical'))
     expect(medical.createdOrders).toHaveLength(1)

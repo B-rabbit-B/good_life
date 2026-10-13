@@ -60,9 +60,11 @@ describe('active tab', { timeout: 15_000 }, () => {
       events: { [byAgent.id]: [proposedEvent('agent')], [byUser.id]: [proposedEvent('user')] },
     })
     const day = formatMonthDay(todayISO(new Date(byAgent.resolution_proposed_at ?? '')))
-    const agentBlock = (await within(await rowOf(byAgent.content)).findByText('助手提出了一条解除建议')).closest('.prop') as HTMLElement
+    const agentBlock = (await within(await rowOf(byAgent.content)).findByText(`助手在 ${day} 提出了一条解除建议`)).closest('.prop') as HTMLElement
     expect(within(agentBlock).getByText('仅供参考')).toBeInTheDocument()
-    expect(within(agentBlock).getByText(`依据是你在 ${day} 的对话里说：`)).toBeInTheDocument()
+    // 理由是助手写的：写“助手给出的理由：”，不当作你的原话
+    expect(within(agentBlock).getByText('助手给出的理由：')).toBeInTheDocument()
+    expect(within(agentBlock).queryByText(/依据是你在/)).not.toBeInTheDocument()
     expect(within(agentBlock).getByText('用户转述医生说已经好了')).toBeInTheDocument()
     expect(within(agentBlock).getByText('建议不会改变约束，只有你在这里确认后才会解除。')).toBeInTheDocument()
     expect(within(agentBlock).getAllByRole('button').map((button) => button.textContent)).toEqual(['不解除', '确认解除'])
@@ -73,6 +75,7 @@ describe('active tab', { timeout: 15_000 }, () => {
 
     const userBlock = (await within(await rowOf('一周内忌食辛辣')).findByText('你提出了一条解除建议')).closest('.prop') as HTMLElement
     expect(within(userBlock).getByText('理由：')).toBeInTheDocument()
+    expect(within(userBlock).queryByText('助手给出的理由：')).not.toBeInTheDocument()
     expect(within(userBlock).getByText('医生说可以恢复了')).toBeInTheDocument()
     expect(within(userBlock).getByText('仅供参考')).toBeInTheDocument()
   })

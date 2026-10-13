@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { order, pendingItem } from '../../test/fixtures/medical'
 import { medicalHandlers, type MedicalOptions } from '../../test/msw/handlers/medical'
 import { server } from '../../test/msw/server'
+import { gate } from '../../test/chat'
 import { renderRoute } from '../../test/render'
 
 function renderPending(opts: MedicalOptions = { items: [pendingItem()], orders: [order()] }) {
@@ -75,6 +76,25 @@ describe('confirm effect sheet', { timeout: 15_000 }, () => {
     const { medical } = renderPending()
     const sheet = await openConfirm(user)
     await user.dblClick(within(sheet).getByRole('button', { name: '确认生效' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(medical.confirms).toHaveLength(1)
+  })
+
+  it('blocks returning to editing and closing while confirming', async () => {
+    const user = userEvent.setup()
+    const held = gate()
+    const { medical } = renderPending({ items: [pendingItem()], orders: [order()], hold: { confirm: held.promise } })
+    const sheet = await openConfirm(user)
+    await user.click(within(sheet).getByRole('button', { name: '确认生效' }))
+    await waitFor(() => expect(medical.confirms).toHaveLength(1))
+    const back = within(sheet).getByRole('button', { name: '返回修改' })
+    expect(back).toBeDisabled()
+    await user.click(back)
+    await user.click(within(sheet).getByRole('button', { name: '确认生效' }))
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog', { name: '确认这条医嘱生效' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '修改这条医嘱' })).not.toBeInTheDocument()
+    held.open()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(medical.confirms).toHaveLength(1)
   })

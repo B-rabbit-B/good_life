@@ -3,18 +3,20 @@ import '../styles/components/button.css'
 import { Icon, type IconName } from './Icon'
 
 /** 图标按钮：44 点按区（.ibtn）；返回键加 .back，是 44 点按区里一颗 36 的瓷扣。 */
-export function IconButton({ icon, label, onPress, back = false, pressed }: {
+export function IconButton({ icon, label, onPress, back = false, pressed, isDisabled }: {
   icon: IconName
   label: string
   onPress?: () => void
   back?: boolean
   pressed?: boolean
+  isDisabled?: boolean
 }) {
   return (
     <AriaButton
       className={back ? 'ibtn back' : 'ibtn'}
       aria-label={label}
       aria-pressed={pressed}
+      isDisabled={isDisabled}
       onPress={onPress}
     >
       <Icon name={icon} />

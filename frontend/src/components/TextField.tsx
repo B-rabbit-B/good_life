@@ -19,15 +19,17 @@ export interface TextFieldProps {
   isInvalid?: boolean
   /** 写在框内右侧的单位（例如“厘米”）；数字输入用表格数字 */
   suffix?: string
+  /** 只读：仍可选中、复制、读屏，但不能改 */
+  isReadOnly?: boolean
 }
 
 /** 填充式圆角输入框（52 高），聚焦 2 像素钴蓝内描边；多行时是 .area。说明在下，错误用朱色写在框下（React Aria TextField）。 */
-export function TextField({ label, value, onChange, hint, error, type = 'text', inputMode, autoComplete, maxLength, multiline = false, rows, isInvalid = false, suffix }: TextFieldProps) {
+export function TextField({ label, value, onChange, hint, error, type = 'text', inputMode, autoComplete, maxLength, multiline = false, rows, isInvalid = false, suffix, isReadOnly }: TextFieldProps) {
   const invalid = isInvalid || Boolean(error)
   return (
     <AriaTextField
       className="fld" value={value} onChange={onChange} isInvalid={invalid}
-      type={type} inputMode={inputMode} autoComplete={autoComplete} maxLength={maxLength}
+      type={type} inputMode={inputMode} autoComplete={autoComplete} maxLength={maxLength} isReadOnly={isReadOnly}
     >
       <Label className="fld-l">{label}</Label>
       {multiline

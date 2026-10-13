@@ -1,7 +1,7 @@
 // 只有医嘱页（健康页的医嘱与录入医嘱）用的接口：医嘱单、证据、手动补充、修改、确认生效、作废、确认解除、审计与约束。
 // 对话页也用的待处理列表、条目、事件、继续遵守与不解除在 medical.ts（放在一起会让这些代码进对话页的首屏）。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, handleErrorResponse, networkError } from '../client'
+import { api, ApiError, handleErrorResponse, networkError } from '../client'
 import { qk } from '../keys'
 import { getToken } from '../token'
 import type {
@@ -83,9 +83,9 @@ async function fetchEvidence(id: string, signal: AbortSignal): Promise<Blob> {
 
 /**
  * 证据文件（加密保存的图片或 PDF）：只在查看时请求，不留在缓存里（gcTime 0）。
- * 键不在 ['medical'] 下，刷新医嘱时不会重新下载。
+ * 键不在 ['medical'] 下，刷新医嘱时不会重新下载。取不到时返回后端的错误（界面原样显示说明与错误码）。
  */
-export function useEvidenceBlob(evidenceId: string | null): { blob: Blob | null; failed: boolean } {
+export function useEvidenceBlob(evidenceId: string | null): { blob: Blob | null; error: ApiError | null } {
   const evidence = useQuery({
     queryKey: ['medical-evidence', evidenceId ?? ''],
     queryFn: ({ signal }) => fetchEvidence(evidenceId ?? '', signal),
@@ -93,8 +93,9 @@ export function useEvidenceBlob(evidenceId: string | null): { blob: Blob | null;
     gcTime: 0,
     staleTime: Infinity,
   })
-  if (evidenceId === null) return { blob: null, failed: false }
-  return { blob: evidence.data ?? null, failed: evidence.isError && evidence.data === undefined }
+  if (evidenceId === null || evidence.data !== undefined || !evidence.isError) return { blob: evidence.data ?? null, error: null }
+  const caught = evidence.error
+  return { blob: null, error: caught instanceof ApiError ? caught : new ApiError(0, 'unknown_error', String(caught)) }
 }
 
 /** 给一份医嘱手动补充一条（同样先进入待核对） */

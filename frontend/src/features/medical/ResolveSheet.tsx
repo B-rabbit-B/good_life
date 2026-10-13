@@ -4,6 +4,7 @@ import { useCancelProposal } from '../../api/hooks/medical'
 import { useOrders, useResolveItem } from '../../api/hooks/medicalPage'
 import type { MedicalItemOut } from '../../api/types'
 import { ConfirmSheet } from '../../components/ConfirmSheet'
+import { useCover } from '../../components/cover'
 import { Sensitive } from '../../components/Sensitive'
 import { useToast } from '../../components/Toast'
 import type { WillItem } from '../../components/WillList'
@@ -20,6 +21,8 @@ import { sourceName } from './OrderSource'
 // 结果播报之后多久关上面板（读屏读完“已解除：……”）
 const RESULT_MS = 1200
 export const RESOLVE_ACK = '我知道解除后不能撤销，需要重新录入才能恢复这条约束'
+// 遮盖时播报不带内容的一句（结果写在面板的 aria-live 里，不在敏感区）
+const RESOLVED_COVERED = '已解除这条医嘱。审计已记录。'
 
 const wait = (ms: number) => new Promise<void>((resolve) => {
   setTimeout(resolve, ms)
@@ -45,6 +48,8 @@ export function ResolveSheet({ item, isOpen, onClose, onContinue }: {
   const flight = useSingleFlight()
   const [error, setError] = useState<ApiError | null>(null)
   const [result, setResult] = useState<string | undefined>(undefined)
+  const [cancelling, setCancelling] = useState(false)
+  const { covered } = useCover()
   const resolved = useRef(false) // 已解除、正在播报结果：次按钮只关闭
   const order = orders.data?.find((o) => o.id === item.order_id)
   const secondary = resolveSecondaryFor(item)
@@ -80,11 +85,16 @@ export function ResolveSheet({ item, isOpen, onClose, onContinue }: {
       onContinue()
       return
     }
-    const run = flight(() => cancel.mutateAsync(item.id))
+    const run = flight(() => {
+      setCancelling(true)
+      setError(null)
+      return cancel.mutateAsync(item.id)
+    })
     run?.then(() => {
       onClose()
       toast.show('已撤销解除建议')
     }).catch((caught: unknown) => setError(toApiError(caught)))
+      .finally(() => setCancelling(false))
   }
 
   return (
@@ -101,11 +111,11 @@ export function ResolveSheet({ item, isOpen, onClose, onContinue }: {
       ack={RESOLVE_ACK}
       confirmLabel="确认解除"
       confirmVariant="danger"
-      secondary={{ label: secondary.label, onPress: onSecondary }}
+      secondary={{ label: secondary.label, onPress: onSecondary, isPending: cancelling }}
       note={ONLY_HERE_NOTE}
       onConfirm={onConfirm}
       error={error}
-      resultText={result}
+      resultText={result && (covered ? RESOLVED_COVERED : result)}
     />
   )
 }

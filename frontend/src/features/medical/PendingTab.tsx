@@ -58,22 +58,25 @@ export function PendingTab() {
   }
   const groups = orders.data.filter((order) => order.items.some(isPending) || order.items.length === 0)
   const { sheet } = host
+  // 关的是这一次打开的面板（换过面板之后，旧面板迟到的关闭不算）
+  const opened = host.nonce
+  const closeSheet = () => host.close(opened)
   return (
     <>
       <p className="t-cap sec-cap">提取出来的条目要逐条核对，确认前不参与任何建议。</p>
       {groups.length === 0
         ? <div className="plate"><p className="mo-empty">没有待核对的条目。录入医嘱后，提取出的条目会出现在这里。</p></div>
         : groups.map((order) => <OrderGroup key={order.id} order={order} onSheet={host.show} />)}
-      {sheet?.kind === 'void' && <VoidSheet key={host.nonce} item={sheet.item} isOpen={host.open} onClose={host.close} />}
-      {sheet?.kind === 'edit' && <ItemEditSheet key={host.nonce} item={sheet.item} isOpen={host.open} onClose={host.close} />}
+      {sheet?.kind === 'void' && <VoidSheet key={host.nonce} item={sheet.item} isOpen={host.open} onClose={closeSheet} />}
+      {sheet?.kind === 'edit' && <ItemEditSheet key={host.nonce} item={sheet.item} isOpen={host.open} onClose={closeSheet} />}
       {sheet?.kind === 'confirm' && (
         <ConfirmEffectSheet
-          key={host.nonce} item={sheet.item} order={sheet.order} isOpen={host.open} onClose={host.close}
+          key={host.nonce} item={sheet.item} order={sheet.order} isOpen={host.open} onClose={closeSheet}
           onEdit={() => host.show({ kind: 'edit', item: sheet.item, order: sheet.order })}
         />
       )}
-      {sheet?.kind === 'manual' && <ManualItemSheet key={host.nonce} order={sheet.order} isOpen={host.open} onClose={host.close} />}
-      {sheet?.kind === 'evidence' && <EvidenceViewer key={host.nonce} order={sheet.order} isOpen={host.open} onClose={host.close} />}
+      {sheet?.kind === 'manual' && <ManualItemSheet key={host.nonce} order={sheet.order} isOpen={host.open} onClose={closeSheet} />}
+      {sheet?.kind === 'evidence' && <EvidenceViewer key={host.nonce} order={sheet.order} isOpen={host.open} onClose={closeSheet} />}
     </>
   )
 }

@@ -124,11 +124,14 @@ export default function MedicalNewPage() {
       <PageHeader titleKey="medicalNew" variant="sub" back={PATHS.medical} />
       <p className="t-small ink2 pad mn-lead">照你拿到的原文粘贴或拍照，不用改写。提取出的条目需要你逐条核对后才会生效。</p>
       <Sensitive area="content" className="plate mn">
+        {/* 医嘱建好之后原文与日期只读：重试只上传证据，改了也不会再提交 */}
         <TextField
           label="医嘱原文" value={text} onChange={setText} multiline rows={5} maxLength={MAX_TEXT}
-          hint={`${text.length} / ${MAX_TEXT}`} error={fieldErrors.text}
+          hint={`${text.length} / ${MAX_TEXT}`} error={fieldErrors.text} isReadOnly={order !== null}
         />
-        <DateField label="开具日期" value={date} onChange={setDate} max={today} error={fieldErrors.order_date} />
+        <DateField
+          label="开具日期" value={date} onChange={setDate} max={today} error={fieldErrors.order_date} readOnly={order !== null}
+        />
         <p className="fld-l mn-ev-l">证据（可选）</p>
         {files.length > 0 && (
           <ul className="mn-files" aria-label="证据">
@@ -144,7 +147,10 @@ export default function MedicalNewPage() {
                     <div className="t-cap">{fmtBytes(file.size)}，加密保存</div>
                     {warning && <span className="mn-warn">{warning}</span>}
                   </div>
-                  <IconButton icon="x" label={`移除${file.name}`} onPress={() => setFiles((list) => list.filter((p) => p.key !== key))} />
+                  <IconButton
+                    icon="x" label={`移除${file.name}`} isDisabled={pending}
+                    onPress={() => setFiles((list) => list.filter((p) => p.key !== key))}
+                  />
                 </li>
               )
             })}
