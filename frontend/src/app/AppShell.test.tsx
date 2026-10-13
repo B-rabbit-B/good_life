@@ -1,7 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import { setToken } from '../api/token'
+import { qk } from '../api/keys'
+import { setToken, TOKEN_KEY } from '../api/token'
+import { peekPendingPhoto, setPendingPhoto } from '../lib/photoHandoff'
 import { Dock } from '../components/Dock'
 import { Sensitive } from '../components/Sensitive'
 import { TEST_TOKEN } from '../test/fixtures/core'
@@ -134,5 +136,44 @@ describe('app shell', () => {
     const nav = await screen.findByRole('navigation', { name: '主导航' })
     expect(screen.getAllByRole('button', { name: '遮盖敏感内容' })).toEqual([within(nav).getByRole('button', { name: '遮盖敏感内容' })])
   })
-})
 
+  it('goes to login with the expired notice when another tab clears the token', async () => {
+    const { router, queryClient } = renderRoute('/records')
+    expect(await screen.findByRole('navigation', { name: '主导航' })).toBeInTheDocument()
+    setPendingPhoto(new File(['x'], 'meal.jpg', { type: 'image/jpeg' }))
+    window.localStorage.removeItem(TOKEN_KEY)
+    window.dispatchEvent(new StorageEvent('storage', { key: TOKEN_KEY, oldValue: TEST_TOKEN, newValue: null }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(router.state.location.state).toMatchObject({ expired: true })
+    expect(await screen.findByText('请重新登录，记录不会丢失。')).toBeInTheDocument()
+    expect(peekPendingPhoto()).toBeNull()
+    expect(queryClient.getQueryData(qk.profile)).toBeUndefined()
+  })
+
+  it('drops the cached data when another tab signs in as someone else', async () => {
+    const { router, queryClient } = renderRoute('/records')
+    expect(await screen.findByRole('navigation', { name: '主导航' })).toBeInTheDocument()
+    expect(queryClient.getQueryData(qk.profile)).toBeDefined()
+    setPendingPhoto(new File(['x'], 'meal.jpg', { type: 'image/jpeg' }))
+    const seen: unknown[] = []
+    const unsubscribe = router.subscribe((state) => seen.push({ path: state.location.pathname, state: state.location.state as unknown }))
+    window.localStorage.setItem(TOKEN_KEY, 'other-token')
+    window.dispatchEvent(new StorageEvent('storage', { key: TOKEN_KEY, oldValue: TEST_TOKEN, newValue: 'other-token' }))
+    await waitFor(() => expect(seen).toContainEqual({ path: '/login', state: { expired: false } }))
+    unsubscribe()
+    expect(peekPendingPhoto()).toBeNull()
+  })
+
+  it('ignores storage events for other keys and stops listening once unmounted', async () => {
+    const { router, unmount } = renderRoute('/records')
+    expect(await screen.findByRole('navigation', { name: '主导航' })).toBeInTheDocument()
+    window.dispatchEvent(new StorageEvent('storage', { key: 'goodlife.glass', oldValue: null, newValue: 'off' }))
+    window.dispatchEvent(new StorageEvent('storage', { key: TOKEN_KEY, oldValue: TEST_TOKEN, newValue: TEST_TOKEN }))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(router.state.location.pathname).toBe('/records')
+    unmount()
+    window.dispatchEvent(new StorageEvent('storage', { key: TOKEN_KEY, oldValue: TEST_TOKEN, newValue: null }))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(router.state.location.pathname).toBe('/records')
+  })
+})

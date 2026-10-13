@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { ApiError } from '../../api/errors'
 import type { Capabilities, MessageOut } from '../../api/types'
 import { Button } from '../../components/Button'
@@ -45,6 +45,13 @@ export function MessageList({ messages, anchorCount, slot, live, caps, toolsByMe
   onRetry: () => void
   tail?: ReactNode
 }) {
+  // 刚流完的这一条回答：消息对象只在这一轮变化时重建，回答（memo）不随列表的每次重绘而重绘
+  const doneTurn = live?.phase === 'done' ? live.turn : undefined
+  const doneText = live?.text ?? ''
+  const liveMessage = useMemo(
+    () => (doneTurn ? { id: doneTurn.message_id, text: doneText, evidence: doneTurn.evidence, flags: doneTurn.flags } : null),
+    [doneTurn, doneText],
+  )
   // 后端先存用户消息再回答：流式这一轮还没结束时会话若被重新取过，末尾那条就是正在显示的这句话，不重复画
   const last = messages[messages.length - 1]
   const list = live && last?.role === 'user' && last.text === live.userText ? messages.slice(0, -1) : messages
@@ -91,10 +98,9 @@ export function MessageList({ messages, anchorCount, slot, live, caps, toolsByMe
     rows.push(<UserMessage key={live.key} text={live.userText} />)
     if (live.phase === 'waiting' || live.phase === 'streaming') {
       rows.push(<PendingAnswer key="live-answer" text={live.phase === 'streaming' ? live.text : ''} />)
-    } else if (live.phase === 'done' && live.turn) {
-      const { message_id: id, evidence, flags, tools_used: toolsUsed } = live.turn
+    } else if (live.phase === 'done' && live.turn && liveMessage) {
       rows.push(
-        <AssistantMessage key={id} message={{ id, text: live.text, evidence, flags }} caps={caps} live toolsUsed={toolsUsed} />,
+        <AssistantMessage key={liveMessage.id} message={liveMessage} caps={caps} live toolsUsed={live.turn.tools_used} />,
       )
     } else if (live.error && live.error.code !== AGENT_MODEL_NOT_CONFIGURED) {
       rows.push(<SendError key="live-error" error={live.error} onRetry={onRetry} />)

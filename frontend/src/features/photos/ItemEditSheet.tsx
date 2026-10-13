@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { ApiError } from '../../api/errors'
 import type { PhotoItemOut } from '../../api/types'
 import { Button } from '../../components/Button'
+import { Sensitive } from '../../components/Sensitive'
 import { Sheet } from '../../components/Sheet'
 import { TextField } from '../../components/TextField'
 import { MAX_NAME_LENGTH } from '../../lib/contract'
@@ -60,12 +61,15 @@ function EditForm({ item, onClose, onSave }: {
 
   return (
     <>
-      <TextField label="菜名" value={name} onChange={setName} error={errors.name} maxLength={MAX_NAME_LENGTH} />
-      <TextField
-        label="份量说法" value={portion} onChange={setPortion} error={errors.portion_text} maxLength={MAX_NAME_LENGTH}
-        hint="例如 一碗、半条、一小碟"
-      />
-      <TextField label="克数" value={grams} onChange={setGrams} error={errors.grams} inputMode="decimal" suffix="克" />
+      {/* 菜名与份量：遮盖时一起盖住（按钮在外面，盖住时仍能关上面板） */}
+      <Sensitive area="dishes">
+        <TextField label="菜名" value={name} onChange={setName} error={errors.name} maxLength={MAX_NAME_LENGTH} />
+        <TextField
+          label="份量说法" value={portion} onChange={setPortion} error={errors.portion_text} maxLength={MAX_NAME_LENGTH}
+          hint="例如 一碗、半条、一小碟"
+        />
+        <TextField label="克数" value={grams} onChange={setGrams} error={errors.grams} inputMode="decimal" suffix="克" />
+      </Sensitive>
       <FormError messages={otherErrors(errors, ['name', 'portion_text', 'grams'], FIELD_LABELS)} />
       {error instanceof ApiError && errors[FORM_ERROR] && <p className="t-cap">错误码 {error.code}</p>}
       <div className="sheet-foot">

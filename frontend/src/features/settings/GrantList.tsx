@@ -1,27 +1,30 @@
-import { useId, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { ApiError, asApiError } from '../../api/errors'
 import { useGrants, useRevokeGrant } from '../../api/hooks/grants'
 import type { GrantOut } from '../../api/types'
 import { Button } from '../../components/Button'
 import { ConfirmSheet } from '../../components/ConfirmSheet'
 import { Sensitive } from '../../components/Sensitive'
+import { ErrorState } from '../../components/states/ErrorState'
 import { useToast } from '../../components/Toast'
 import { Title } from '../../components/Title'
+import { useSheetHost } from '../../components/useSheetHost'
 import { formatStamp, todayISO } from '../../lib/dates'
 import { ACCESS_LABELS, GRANT_STATUS_LABELS } from '../../lib/settingsLabels'
 
 
 /**
  * 外部授权（敏感区 grants）：每个授权的名称、权限、状态、到期与最近使用；有效的可以吊销（确认面板里显式按“吊销”）。
- * 轻提示只写“已吊销”，不带授权名称。
+ * 轻提示只写“已吊销”，不带授权名称。吊销后那一行的按钮不在了：焦点落到这一节上（useSheetHost 兜底）。
  */
 export function GrantList() {
   const id = useId()
   const grants = useGrants()
   const revoke = useRevokeGrant()
   const toast = useToast()
-  const [target, setTarget] = useState<GrantOut | null>(null)
-  const [open, setOpen] = useState(false)
+  const section = useRef<HTMLElement>(null)
+  const host = useSheetHost<GrantOut>(useCallback(() => section.current, []))
+  const target = host.sheet
   const [error, setError] = useState<ApiError | null>(null)
 
   const onConfirm = async () => {
@@ -33,15 +36,17 @@ export function GrantList() {
       setError(asApiError(caught))
       throw caught
     }
-    setOpen(false)
+    host.close(host.nonce)
     toast.show('已吊销')
   }
 
   return (
-    <section aria-labelledby={id}>
+    <section ref={section} aria-labelledby={id} tabIndex={-1}>
       <div className="sec-h"><Title k="grants" level="h" id={id} /></div>
       <Sensitive area="grants" className="plate">
-        {grants.isError && <p className="pv-empty">{grants.error.message}</p>}
+        {grants.isError && grants.data === undefined && (
+          <ErrorState error={asApiError(grants.error)} onRetry={() => void grants.refetch()} />
+        )}
         {grants.data?.length === 0 && <p className="pv-empty">还没有外部授权。</p>}
         {grants.data && grants.data.length > 0 && (
           <ul className="grants" aria-label="外部授权">
@@ -56,9 +61,8 @@ export function GrantList() {
                 </span>
                 {grant.status === 'active' && (
                   <Button variant="danger-outline" size="sm" onPress={() => {
-                    setTarget(grant)
                     setError(null)
-                    setOpen(true)
+                    host.show(grant)
                   }}
                   >
                     吊销
@@ -70,7 +74,7 @@ export function GrantList() {
         )}
       </Sensitive>
       <ConfirmSheet
-        isOpen={open} onClose={() => setOpen(false)} title="吊销这个授权"
+        isOpen={host.open} onClose={() => host.close(host.nonce)} title="吊销这个授权"
         quote={target ? <Sensitive area="grants"><b>{target.name}</b></Sensitive> : undefined}
         will={[
           { text: '用这个授权的外部客户端立即不能再读写你的数据。' },

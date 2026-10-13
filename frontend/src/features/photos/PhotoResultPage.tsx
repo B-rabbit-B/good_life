@@ -43,7 +43,8 @@ const BACK_TO_ITEMS = new Set([PHOTO_ITEMS_NEED_CONFIRMATION, PHOTO_GRAMS_OUT_OF
 
 // 另一个修正还没回来时跳过这一次（不提示错误）
 const SKIPPED = new Error('上一个修正还没完成')
-const DELETE_TITLE = '删除这条识别（连同照片）'
+// 删除的标题：保留了照片时说明照片一起删
+const deleteTitle = (imageKept: boolean) => (imageKept ? '删除这条识别（连同照片）' : '删除这条识别')
 
 /** 第一个需要处理的项：待确认的，其次克数不在常见范围的，再次任何建议核对的，最后第一项 */
 function firstToHandle(items: PhotoItemOut[]): PhotoItemOut | undefined {
@@ -235,10 +236,10 @@ function ResultBody({ record }: { record: RecognitionOut }) {
         </div>
       )}
       <div className="ph-discard">
-        <Button variant="text" ink onPress={() => setRemoveOpen(true)}>{DELETE_TITLE}</Button>
+        <Button variant="text" ink onPress={() => setRemoveOpen(true)}>{deleteTitle(record.image_kept)}</Button>
       </div>
       <ConfirmSheet
-        isOpen={removeOpen} onClose={() => setRemoveOpen(false)} title={DELETE_TITLE}
+        isOpen={removeOpen} onClose={() => setRemoveOpen(false)} title={deleteTitle(record.image_kept)}
         will={[
           { text: record.image_kept ? '这条识别记录与保留的照片一起删除' : '这条识别记录被删除（这次没有保留照片）' },
           { text: '已经写入饮食记录的条目不受影响，需要时到饮食记录里修改' },

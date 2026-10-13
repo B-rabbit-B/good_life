@@ -60,7 +60,8 @@ export default function MedicalNewPage() {
   const upload = useUploadEvidence()
   const flight = useSingleFlight()
   const created = useRef<OrderOut | null>(null) // 已建好的医嘱：重试时不再提交
-  const uploaded = useRef(new Set<number>()) // 已上传的证据
+  const uploaded = useRef(new Set<number>()) // 已上传的证据（提交时按它跳过）
+  const [uploadedKeys, setUploadedKeys] = useState<ReadonlySet<number>>(() => new Set()) // 同上，供界面停用“移除”
   const nextKey = useRef(0)
   const camera = useRef<HTMLInputElement>(null)
   const album = useRef<HTMLInputElement>(null)
@@ -110,6 +111,7 @@ export default function MedicalNewPage() {
           return
         }
         uploaded.current.add(picked.key)
+        setUploadedKeys(new Set(uploaded.current))
       }
       await navigate(PENDING_TAB)
     })
@@ -145,7 +147,7 @@ export default function MedicalNewPage() {
                     {warning && <span className="mn-warn">{warning}</span>}
                   </div>
                   <IconButton
-                    icon="x" label={`移除${file.name}`} isDisabled={pending}
+                    icon="x" label={`移除${file.name}`} isDisabled={pending || uploadedKeys.has(key)}
                     onPress={() => setFiles((list) => list.filter((p) => p.key !== key))}
                   />
                 </li>
@@ -154,8 +156,8 @@ export default function MedicalNewPage() {
           </ul>
         )}
         <div className="mn-pick">
-          <Button variant="text" icon="camera" onPress={() => camera.current?.click()}>拍照</Button>
-          <Button variant="text" icon="image" onPress={() => album.current?.click()}>从相册选</Button>
+          <Button variant="text" icon="camera" isDisabled={pending} onPress={() => camera.current?.click()}>拍照</Button>
+          <Button variant="text" icon="image" isDisabled={pending} onPress={() => album.current?.click()}>从相册选</Button>
         </div>
         {order && (
           <p className="t-small mn-status" role="status">

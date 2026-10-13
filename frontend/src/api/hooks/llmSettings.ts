@@ -54,6 +54,7 @@ export function useUpdateProvider() {
   })
 }
 
+// 暂无界面调用：删除模型服务的入口并入步骤 12 的数据删除，钩子先保留
 export function useDeleteProvider() {
   const queryClient = useQueryClient()
   return useMutation({

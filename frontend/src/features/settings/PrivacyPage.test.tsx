@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { sensitiveAreaMismatch } from '../../app/sensitiveAreas'
 import { formatStamp, todayISO } from '../../lib/dates'
@@ -129,5 +130,51 @@ describe('privacy page', { timeout: 15_000 }, () => {
     await screen.findByRole('list', { name: '外部授权' })
     await screen.findByText(SAVED_AREA.name)
     expect(sensitiveAreaMismatch(container)).toEqual({ page: 'privacy', missing: [], unexpected: [] })
+  })
+
+  it('shows each failed block with its error code and a retry', async () => {
+    const user = userEvent.setup()
+    const failure = { error: { code: 'internal_error', message: '服务器内部错误' } }
+    renderPrivacy()
+    let fail = true
+    server.use(
+      http.get('/api/restaurants/settings', () => HttpResponse.json(failure, { status: 500 })),
+      http.get('/api/agent-grants', () => (fail ? HttpResponse.json(failure, { status: 500 }) : HttpResponse.json([]))),
+      http.get('/api/agent-grants/audit', () => HttpResponse.json(failure, { status: 500 })),
+    )
+    for (const title of ['已保存的大致区域', '外部授权', '调用记录']) {
+      const section = (await screen.findByRole('heading', { name: title })).closest('section') as HTMLElement
+      const alert = await within(section).findByRole('alert')
+      expect(alert, title).toHaveTextContent('服务器内部错误')
+      expect(alert, title).toHaveTextContent('错误码 internal_error')
+      expect(alert.closest('.plate'), title).not.toBeNull()
+      expect(within(alert).getByRole('button', { name: '重试' }), title).toBeInTheDocument()
+    }
+    fail = false
+    const grants = (await screen.findByRole('heading', { name: '外部授权' })).closest('section') as HTMLElement
+    await user.click(within(within(grants).getByRole('alert')).getByRole('button', { name: '重试' }))
+    expect(await within(grants).findByText('还没有外部授权。')).toBeInTheDocument()
+  })
+
+  it('moves focus to the section after revoking the last control in it', async () => {
+    const user = userEvent.setup()
+    renderPrivacy()
+    await screen.findByRole('list', { name: '外部授权' })
+    await user.click(within(grantRow('我的笔记应用')).getByRole('button', { name: '吊销' }))
+    const dialog = await screen.findByRole('dialog', { name: '吊销这个授权' })
+    await user.click(within(dialog).getByRole('button', { name: '吊销' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('region', { name: '外部授权' })).toHaveFocus())
+  })
+
+  it('moves focus to the section after clearing the saved area', async () => {
+    const user = userEvent.setup()
+    renderPrivacy()
+    const section = (await screen.findByRole('heading', { name: '已保存的大致区域' })).closest('section') as HTMLElement
+    await user.click(await within(section).findByRole('button', { name: '清除' }))
+    const dialog = await screen.findByRole('dialog', { name: '清除大致区域' })
+    await user.click(within(dialog).getByRole('button', { name: '清除' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(section).toHaveFocus())
   })
 })

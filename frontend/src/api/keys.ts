@@ -49,5 +49,6 @@ export const qk = {
   assignments: ['llm', 'assignments'] as const,
 
   grants: ['agent-grants', 'grants'] as const,
-  audits: (clientName?: string) => ['agent-grants', 'audits', clientName ?? 'all'] as const,
+  // 不按客户端筛选时用 null（不能用某个字符串：客户端名可能恰好就是它）
+  audits: (clientName?: string) => ['agent-grants', 'audits', clientName ?? null] as const,
 }

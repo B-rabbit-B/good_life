@@ -144,7 +144,7 @@ export default function ChatPage() {
       {body}
       <ChatDock
         caps={caps} onSend={onSend} busy={live?.phase === 'waiting' || live?.phase === 'streaming'}
-        ready={conversations.data !== undefined}
+        ready={conversations.data !== undefined && !detailFailed}
         hideQuickActions={lastIsRisk(messages, live?.phase === 'done' ? live.turn?.flags : undefined)}
       />
     </>

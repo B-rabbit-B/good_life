@@ -9,6 +9,11 @@ const URL_PATH = '/api/photos/recognitions'
 // 压缩失败时原样上传的文件保留自己的名字；压缩后的是 JPEG
 const COMPRESSED_NAME = 'photo.jpg'
 
+/** 上传加识别的整体时限：超过就放弃并按网络失败处理（请求挂住时不让页面一直停在识别中） */
+export const UPLOAD_TIMEOUT_MS = 120_000
+// 这些状态码的响应不能带响应体（new Response 带了会抛错）
+const NULL_BODY_STATUS = new Set([204, 205, 304])
+
 const abortError = () => new DOMException('识别已取消', 'AbortError')
 
 export function uploadRecognition(
@@ -28,6 +33,7 @@ export function uploadRecognition(
 
     xhr.open('POST', URL_PATH)
     xhr.responseType = 'text'
+    xhr.timeout = UPLOAD_TIMEOUT_MS
     const token = getToken()
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
     xhr.upload.onprogress = (event) => {
@@ -43,9 +49,14 @@ export function uploadRecognition(
           // 2xx 却不是 JSON：与 api() 一样当作 http_error（handleErrorResponse 读不出错误体时就是它）
         }
       }
-      handleErrorResponse(new Response(xhr.responseText, { status: xhr.status })).catch(reject)
+      const body = NULL_BODY_STATUS.has(xhr.status) ? null : xhr.responseText
+      handleErrorResponse(new Response(body, { status: xhr.status })).catch(reject)
     }
     xhr.onerror = () => {
+      done()
+      reject(networkError())
+    }
+    xhr.ontimeout = () => {
       done()
       reject(networkError())
     }

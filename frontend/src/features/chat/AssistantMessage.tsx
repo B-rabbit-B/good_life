@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { memo, useLayoutEffect, useRef } from 'react'
 import type { Capabilities } from '../../api/types'
 import { CareBlock } from '../../components/CareBlock'
 import { EvidenceFold } from '../../components/EvidenceFold'
@@ -28,7 +28,7 @@ export interface AssistantMessageData {
  * 固定的安全回答在气泡下注明不是模型生成的；有医嘱解除线索时只给一个“去医嘱页处理”的跳转；
  * toolsUsed（只有本次流式回答才有）给对应的“去看看”跳转。live 时依据、附注与“仅供参考”淡入上移 4 像素。
  */
-export function AssistantMessage({ message, caps, live = false, streamed = live, toolsUsed = [] }: {
+export const AssistantMessage = memo(function AssistantMessage({ message, caps, live = false, streamed = live, toolsUsed = [] }: {
   message: AssistantMessageData
   caps: Capabilities
   live?: boolean
@@ -71,7 +71,7 @@ export function AssistantMessage({ message, caps, live = false, streamed = live,
       {jumps.map((jump) => <JumpCard key={jump.to} to={jump.to} label={jump.label} />)}
     </>
   )
-}
+})
 
 /**
  * 流入中的文字：按帧把新到的可见部分作为新的文本节点追加在光标前（不重排已显示的文字）；

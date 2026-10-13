@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { onUnauthorized } from './client'
 import { ApiError } from './errors'
 import { getToken, setToken } from './token'
-import { uploadRecognition } from './upload'
+import { UPLOAD_TIMEOUT_MS, uploadRecognition } from './upload'
 import { recognition } from '../test/fixtures/photos'
 
 /** 假的 XMLHttpRequest：记下请求，测试再手动触发进度、完成与取消 */
@@ -22,6 +22,8 @@ class FakeXhr {
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
   onabort: (() => void) | null = null
+  ontimeout: (() => void) | null = null
+  timeout = 0
 
   constructor() {
     FakeXhr.last = this
@@ -163,5 +165,26 @@ describe('upload recognition', () => {
     controller.abort()
     await expect(uploadRecognition(photo(), false, () => {}, controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
     expect(() => xhr()).toThrow('没有发出请求')
+  })
+
+  it('turns a null body status into an http error instead of throwing', async () => {
+    const xhr = useFakeXhr()
+    for (const status of [204, 205, 304]) {
+      const pending = uploadRecognition(photo(), false, () => {})
+      const request = xhr()
+      request.status = status
+      request.responseText = ''
+      request.onload?.()
+      await expect(pending, String(status)).rejects.toMatchObject({ status, code: 'http_error' })
+    }
+  })
+
+  it('gives up after the upload timeout with a network error', async () => {
+    const xhr = useFakeXhr()
+    const pending = uploadRecognition(photo(), false, () => {})
+    expect(xhr().timeout).toBe(UPLOAD_TIMEOUT_MS)
+    expect(UPLOAD_TIMEOUT_MS).toBe(120_000)
+    xhr().ontimeout?.()
+    await expect(pending).rejects.toMatchObject({ status: 0, code: 'network_error' })
   })
 })

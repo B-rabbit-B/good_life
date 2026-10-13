@@ -116,9 +116,9 @@ test('takes a photo picked in the chat dock, recognises it and deletes the recog
   await expect(page.locator('.item-n>span', { hasText: '麻婆豆腐' })).toBeVisible()
   await expectPageRules(page)
 
-  // 删除这条识别：面板写清后果，删除后回到拍照页，列表里没有它
-  await page.getByRole('button', { name: '删除这条识别（连同照片）' }).click()
-  const sheet = page.getByRole('dialog', { name: '删除这条识别（连同照片）' })
+  // 删除这条识别（没有保留照片，标题不提照片）：面板写清后果，删除后回到拍照页，列表里没有它
+  await page.getByRole('button', { name: '删除这条识别', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '删除这条识别', exact: true })
   await expect(sheet).toContainText('已经写入饮食记录的条目不受影响')
   await waitForSheet(page)
   await expectBlurBudget(page, { allowNone: true })

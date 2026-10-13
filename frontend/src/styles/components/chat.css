@@ -69,6 +69,7 @@ body:has(.slab) .toast-region{bottom:calc(var(--float-bottom) + 170px)}
   .msg-u>span{border:1px solid CanvasText}
   .open::before{forced-color-adjust:none;background:CanvasText}
   .qa a,.send{border:1px solid ButtonText}
+  .send:disabled{border-color:GrayText;color:GrayText}
   .cmp-in{border:1px solid CanvasText}
   /* 强制颜色下 box-shadow 不画：透明描边会变成系统色，聚焦时看得见 */
   .cmp-in:focus{outline-color:Highlight}

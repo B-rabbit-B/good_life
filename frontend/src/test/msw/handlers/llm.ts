@@ -25,7 +25,7 @@ export interface LlmOptions {
   assignErrors?: Partial<Record<'chat' | 'vision', LlmError>>
   /** 改能力标注时附带的提醒 */
   warnings?: string[]
-  hold?: { create?: Promise<void>; test?: Promise<void> }
+  hold?: { create?: Promise<void>; test?: Promise<void>; assign?: Promise<void>; override?: Promise<void> }
 }
 
 const errorResponse = ({ status, code, message }: LlmError) => HttpResponse.json({ error: { code, message } }, { status })
@@ -134,6 +134,7 @@ export function llmHandlers(opts: LlmOptions = {}) {
       const pk = String(params.pk)
       const body = await request.json() as Partial<Record<'vision' | 'tools' | 'chat', boolean | null>>
       record.overrides.push({ pk, body })
+      await opts.hold?.override
       const current = allModels().find((m) => m.id === pk)
       if (!current) return errorResponse({ status: 404, code: 'not_found', message: '没有找到' })
       const overrides = { ...current.overrides, ...body }
@@ -149,6 +150,7 @@ export function llmHandlers(opts: LlmOptions = {}) {
       const purpose = String(params.purpose) as 'chat' | 'vision'
       const body = await request.json() as { model_id: string }
       record.assigns.push({ purpose, body })
+      await opts.hold?.assign
       const error = opts.assignErrors?.[purpose]
       if (error) return errorResponse(error)
       const target = allModels().find((m) => m.id === body.model_id)

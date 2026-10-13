@@ -260,6 +260,18 @@ describe('chat page', () => {
     expect(chat.conversations).toHaveLength(1)
   })
 
+  it('does not send while the conversation itself failed to load', async () => {
+    const user = userEvent.setup()
+    const { chat } = renderChat({ conversations: [conversation([userMessage('昨天的话')])] })
+    server.use(http.get('/api/agent/conversations/:id', () =>
+      HttpResponse.json({ error: { code: 'internal_error', message: '服务器内部错误' } }, { status: 500 })))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('服务器内部错误')
+    await sendText(user, '晚饭吃什么')
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    expect(chat.posts).toEqual([])
+  })
+
   it('shows the history while the opening is still loading', async () => {
     const slow = gate()
     const due = dueItem()

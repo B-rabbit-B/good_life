@@ -71,6 +71,9 @@ describe('medical new page', { timeout: 15_000 }, () => {
     await waitFor(() => expect(medical.uploads).toHaveLength(1))
     const remove = screen.getByRole('button', { name: '移除出院小结.jpg' })
     expect(remove).toBeDisabled()
+    // 上传中不能再选文件
+    expect(screen.getByRole('button', { name: '拍照' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '从相册选' })).toBeDisabled()
     await user.click(remove)
     expect(screen.getByText('出院小结.jpg')).toBeInTheDocument()
     held.open()
@@ -101,6 +104,10 @@ describe('medical new page', { timeout: 15_000 }, () => {
     expect(router.state.location.pathname).toBe('/health/medical/new')
     expect(medical.uploads.map((upload) => upload.name)).toEqual(['出院小结.jpg', '复诊单.pdf'])
 
+    // 已经传上去的证据不能再移除，没传的还可以
+    expect(screen.getByRole('button', { name: '移除出院小结.jpg' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '移除化验单.jpg' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '拍照' })).toBeEnabled()
     // 医嘱已经建好：原文与日期只读
     expect(screen.getByLabelText('医嘱原文')).toHaveAttribute('readonly')
     expect(screen.getByLabelText('开具日期')).toHaveAttribute('readonly')

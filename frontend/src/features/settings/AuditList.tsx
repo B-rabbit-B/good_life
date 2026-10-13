@@ -1,7 +1,9 @@
 import { useId, useState } from 'react'
+import { asApiError } from '../../api/errors'
 import { useAudits } from '../../api/hooks/grants'
 import type { AuditOut } from '../../api/types'
 import { Sensitive } from '../../components/Sensitive'
+import { ErrorState } from '../../components/states/ErrorState'
 import { Title } from '../../components/Title'
 import { formatStamp } from '../../lib/dates'
 import type { AuditOutcome } from '../../lib/labels'
@@ -53,7 +55,9 @@ export function AuditList() {
           {clients.map((name) => chip(name, clientLabel(name)))}
         </div>
         <div className="plate">
-          {shown.isError && <p className="pv-empty">{shown.error.message}</p>}
+          {shown.isError && shown.data === undefined && (
+            <ErrorState error={asApiError(shown.error)} onRetry={() => void shown.refetch()} />
+          )}
           {shown.data?.length === 0 && <p className="pv-empty">还没有调用记录。</p>}
           {!shown.data && !shown.isError && <p className="pv-empty" role="status">正在读取调用记录</p>}
           {shown.data && shown.data.length > 0 && <AuditRows rows={shown.data} />}

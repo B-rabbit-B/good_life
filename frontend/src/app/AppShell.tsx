@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
 import { onUnauthorized } from '../api/client'
 import { qk } from '../api/keys'
+import { TOKEN_KEY } from '../api/token'
 import { useCapabilities } from '../api/hooks/profile'
 import { BottomNav } from '../components/BottomNav'
 import { Field } from '../components/Field'
@@ -69,6 +70,22 @@ export function AppShell() {
       queryClient.clear()
     })()
   }), [queryClient, navigate])
+
+  // 另一个标签页退出或换了账号（令牌被清掉或换掉）：这里的缓存与交来的照片属于原来的登录，全部丢掉并回登录页
+  // （清掉时显示“登录已过期”；换了账号时登录页会直接转到新账号的首页）。顺序同上：先取消查询、换页，再清缓存
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== TOKEN_KEY || event.oldValue === event.newValue) return
+      clearPendingPhoto()
+      void (async () => {
+        await queryClient.cancelQueries()
+        await navigate(PATHS.login, { replace: true, state: { expired: event.newValue === null } satisfies LoginState })
+        queryClient.clear()
+      })()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [queryClient, navigate])
 
   // 免责声明换了版本：任何变更（建档、开关、保存）收到 403 disclaimer_not_accepted 时，
   // 与守卫一样作废免责状态并去免责页（确认后回到原来的页面）

@@ -282,6 +282,19 @@ describe('photo result page', () => {
     expect(within(sheet).getByLabelText('份量说法')).toHaveAttribute('maxlength', '30')
   })
 
+  it('keeps the edit form fields under the cover', async () => {
+    const user = userEvent.setup()
+    renderResult()
+    await loaded()
+    await user.click(within(itemOf('卤猪肝')).getByRole('button', { name: '修改' }))
+    const sheet = await screen.findByRole('dialog', { name: '修改这一项' })
+    for (const label of ['菜名', '份量说法', '克数']) {
+      expect(within(sheet).getByLabelText(label).closest('[data-sensitive-area="dishes"]'), label).not.toBeNull()
+    }
+    // 保存与取消在遮盖区外面：盖住时仍能关上面板
+    expect(within(sheet).getByRole('button', { name: '取消' }).closest('[data-sensitive-area]')).toBeNull()
+  })
+
   it('refreshes the other drafts but not the kept photos after confirming', async () => {
     const user = userEvent.setup()
     const { queryClient } = renderResult({ records: [recognition({ items: [rice(), fish()] })] })
@@ -320,8 +333,10 @@ describe('photo result page', () => {
       deleteError: { status: 500, code: 'internal_error', message: '服务出了点问题，请稍后再试' },
     })
     await loaded()
-    await user.click(screen.getByRole('button', { name: '删除这条识别（连同照片）' }))
-    const sheet = await screen.findByRole('dialog', { name: '删除这条识别（连同照片）' })
+    // 没有保留照片：标题不提照片
+    expect(screen.queryByRole('button', { name: '删除这条识别（连同照片）' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '删除这条识别' }))
+    const sheet = await screen.findByRole('dialog', { name: '删除这条识别' })
     expect(sheet).toHaveTextContent('这条识别记录被删除（这次没有保留照片）')
     await user.click(within(sheet).getByRole('button', { name: '删除' }))
     const alert = await within(sheet).findByRole('alert')

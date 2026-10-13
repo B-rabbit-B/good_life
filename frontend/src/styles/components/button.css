@@ -32,4 +32,6 @@
   /* 全局 button{border:0} 会让按钮在强制颜色下变成一行字，所以加真边框 */
   .btn{border:1px solid ButtonText}
   .btn[disabled],.btn[aria-disabled="true"]{border-color:GrayText;color:GrayText}
+  /* 按下状态（例如遮盖开着）只靠颜色区分，强制颜色下看不出：加描边 */
+  .ibtn[aria-pressed="true"]{outline:2px solid Highlight}
 }

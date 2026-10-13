@@ -22,9 +22,9 @@
 .rv1[aria-expanded="true"]{border-radius:var(--r-3) var(--r-3) 0 0;box-shadow:0 0 0 1px rgba(14,27,51,.08)}
 .rv1[aria-expanded="true"] .ic{transform:rotate(180deg)}
 .rvx{padding:0 14px 4px;background:#fff;border-radius:0 0 var(--r-3) var(--r-3);box-shadow:0 0 0 1px rgba(14,27,51,.08),0 10px 24px -16px rgba(14,27,51,.4);border-top:1px solid var(--line)}
-/* 展开的列表最多到对话底座上沿（视口 − 页头里条子以上的 98 − 底座 − 下沿 − 12 的缝），多了在列表里滚动：
+/* 展开的列表最多到对话底座上沿（视口 − 页头里条子以上的 98 − 底座 − 38：与滚动容器给底座的留白相同），多了在列表里滚动：
    它是不透明白瓷，滚动的内容不用模糊；每一条的动作都在视口里、不被底座挡住 */
-.rvx{max-height:calc(100vh - env(safe-area-inset-top) - 98px - var(--dock-h, 158px) - var(--float-bottom) - 12px);max-height:calc(100dvh - env(safe-area-inset-top) - 98px - var(--dock-h, 158px) - var(--float-bottom) - 12px);overflow-y:auto;overscroll-behavior:contain}
+.rvx{max-height:calc(100vh - env(safe-area-inset-top) - 98px - var(--dock-h, 158px) - 38px);max-height:calc(100dvh - env(safe-area-inset-top) - 98px - var(--dock-h, 158px) - 38px);overflow-y:auto;overscroll-behavior:contain}
 /* 条子展开时，页头的玻璃层只铺到收起时的高度（标题行 52 + 条子 52 + 4）：展开的列表是白瓷，不算进模糊面积 */
 .top:has(.rv1[aria-expanded="true"])::before{bottom:auto;height:calc(env(safe-area-inset-top) + 108px)}
 .rvx-i{padding:10px 0 6px;border-bottom:1px solid var(--line)}

@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
+import { gate } from '../../test/chat'
 import { DISCLAIMER_VERSION, disclaimerStatus } from '../../test/fixtures/core'
 import { disclaimerText, emptyProfile } from '../../test/fixtures/profile'
 import { profileStore } from '../../test/msw/handlers/auth'
@@ -96,12 +97,16 @@ describe('disclaimer page', () => {
   it('keeps confirm disabled while the new text loads', async () => {
     const user = userEvent.setup()
     renderRoute('/disclaimer', { accepted: false })
-    let release: () => void = () => {}
+    const held = gate()
+    let heldStarted = false
     let outdated = false
     const accepts: unknown[] = []
     server.use(
       http.get('/api/disclaimer', async () => {
-        if (outdated) await new Promise<void>((resolve) => { release = resolve })
+        if (outdated) {
+          heldStarted = true
+          await held.promise
+        }
         return HttpResponse.json(disclaimerText({ version: outdated ? '2026-12-01' : DISCLAIMER_VERSION }))
       }),
       http.post('/api/disclaimer/accept', async ({ request }) => {
@@ -121,7 +126,9 @@ describe('disclaimer page', () => {
     // 新正文还没到：重新勾选也不能确认（否则会再交一次旧版本）
     await user.click(checkbox())
     expect(confirmButton()).toBeDisabled()
-    release()
+    // 先确认扣住的那次重新读取已经发出，再放行（否则放行时它还没开始，之后仍会一直等）
+    await waitFor(() => expect(heldStarted).toBe(true))
+    held.open()
     expect(await screen.findByText('版本 2026-12-01')).toBeInTheDocument()
     await waitFor(() => expect(confirmButton()).toBeEnabled())
     expect(accepts).toEqual([{ version: DISCLAIMER_VERSION }])

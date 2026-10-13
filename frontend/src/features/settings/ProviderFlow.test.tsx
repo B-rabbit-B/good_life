@@ -3,8 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
   ASSIGN_WARNING, BAD_KEY, BAD_URL_MESSAGE, GOOD_KEY, INVALID_KEY_MESSAGE, LACKS_VISION_MESSAGE, LISTING_MESSAGE, NEW_KEY,
-  TIMEOUT_MESSAGE, timeoutReport,
+  okReport, TIMEOUT_MESSAGE, timeoutReport,
 } from '../../test/fixtures/llm'
+import { gate } from '../../test/chat'
 import { llmHandlers, type LlmOptions } from '../../test/msw/handlers/llm'
 import { server } from '../../test/msw/server'
 import { renderRoute } from '../../test/render'
@@ -138,6 +139,31 @@ describe('provider flow', { timeout: 15_000 }, () => {
     expect(within(step(3)).getByLabelText('测试用的模型')).toHaveValue('my-model')
   })
 
+  it('offers adding a model id when the fetch finds no models', async () => {
+    const user = userEvent.setup()
+    const { llm } = renderFlow({ fetched: () => [] })
+    await fillStepOne(user, GOOD_KEY)
+    expect(await within(step(2)).findByText('其中 0 个能看图，0 个能调用工具。')).toBeInTheDocument()
+    await user.type(within(step(2)).getByLabelText('模型编号'), 'my-model')
+    await user.click(within(step(2)).getByRole('button', { name: '添加' }))
+    await waitFor(() => expect(within(step(3)).getByLabelText('测试用的模型')).toHaveValue('my-model'))
+    expect(llm.record.manual).toEqual([{ model_id: 'my-model' }])
+    expect(within(step(2)).queryByLabelText('模型编号')).not.toBeInTheDocument()
+  })
+
+  it('shows the report message in step three when the listing is unsupported', async () => {
+    const user = userEvent.setup()
+    const message = '模型 qwen-plus 对话成功，但该服务不支持拉取模型列表，请手动添加模型编号。'
+    renderFlow({ testReports: [{
+      ...okReport('qwen-plus'), conclusion: 'ok_listing_unsupported', message,
+      listing: { ok: false, code: 'llm_listing_unsupported_or_bad_url', message: LISTING_MESSAGE },
+    }] })
+    await fillStepOne(user, GOOD_KEY)
+    await user.click(await within(step(3)).findByRole('button', { name: '测试连通' }))
+    expect(await within(step(3)).findByText(message)).toBeInTheDocument()
+    expect(within(step(3)).queryByText('模型 qwen-plus 对话成功')).not.toBeInTheDocument()
+  })
+
   it('tests a model and shows the backend message', async () => {
     const user = userEvent.setup()
     const { llm } = renderFlow()
@@ -203,5 +229,29 @@ describe('provider flow', { timeout: 15_000 }, () => {
     expect(within(group).getByText('错误码 llm_model_lacks_vision')).toBeInTheDocument()
     expect(llm.record.assigns.map((a) => a.purpose)).toEqual(['chat', 'vision'])
     expect(screen.getByRole('button', { name: '保存用途' })).toBeInTheDocument()
+  })
+
+  it('locks saving and the manual marks while either request is pending', async () => {
+    const user = userEvent.setup()
+    const assign = gate()
+    const override = gate()
+    const { llm } = renderFlow({ hold: { assign: assign.promise, override: override.promise } })
+    const save = await toStepFour(user)
+    const group = screen.getByRole('group', { name: '看图识别用的模型' })
+    const mark = () => within(group).getByRole('checkbox', { name: '能看图（手动标注）' })
+
+    await user.click(mark())
+    await waitFor(() => expect(llm.record.overrides).toHaveLength(1))
+    expect(mark()).toBeDisabled()
+    expect(screen.getByRole('button', { name: '保存用途' })).toBeDisabled()
+    override.open()
+    await waitFor(() => expect(mark()).toBeEnabled())
+
+    await user.click(save)
+    await waitFor(() => expect(llm.record.assigns).toHaveLength(1))
+    expect(mark()).toBeDisabled()
+    expect(within(screen.getByRole('group', { name: '日常对话用的模型' })).getByRole('checkbox')).toBeDisabled()
+    assign.open()
+    await waitFor(() => expect(llm.record.assigns).toHaveLength(2))
   })
 })

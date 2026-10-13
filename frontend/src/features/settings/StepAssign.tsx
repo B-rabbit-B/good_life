@@ -31,14 +31,15 @@ function Caps({ model }: { model: ModelOut }) {
   )
 }
 
-function PurposeBlock({ purpose, models, value, onChange, error, onOverride, overriding }: {
+function PurposeBlock({ purpose, models, value, onChange, error, onOverride, locked }: {
   purpose: Purpose
   models: ModelOut[]
   value: string
   onChange: (modelId: string) => void
   error: ApiError | undefined
   onOverride: (model: ModelOut, cap: ShownCap, on: boolean) => void
-  overriding: boolean
+  /** 保存用途或改标注的请求进行中：勾选框停用 */
+  locked: boolean
 }) {
   const model = models.find((m) => m.model_id === value)
   const label = PURPOSE_LABELS[purpose]
@@ -51,7 +52,7 @@ function PurposeBlock({ purpose, models, value, onChange, error, onOverride, ove
       {model && <Caps model={model} />}
       {model && (
         <Checkbox
-          isSelected={model.overrides[NEEDS[purpose]] === true} isDisabled={overriding}
+          isSelected={model.overrides[NEEDS[purpose]] === true} isDisabled={locked}
           onChange={(on) => onOverride(model, NEEDS[purpose], on)}
         >
           {MANUAL[NEEDS[purpose]]}
@@ -78,26 +79,29 @@ export function StepAssign({ models, tested, onDone }: { models: ModelOut[]; tes
   const [errors, setErrors] = useState<Partial<Record<Purpose, ApiError>>>({})
   const [warnings, setWarnings] = useState<string[]>([])
   const [overrideError, setOverrideError] = useState<ApiError | null>(null)
-  const [saving, setSaving] = useState(false)
+  // 保存用途与改标注共用一把锁：任何一个请求进行中，“保存用途”与勾选框都停用（改标注会改变分配的校验结果）
+  const [busy, setBusy] = useState<'save' | 'override' | null>(null)
   const overrides = useUpdateModelOverrides()
   const assign = useSetAssignment()
-  const saveFlight = useSingleFlight()
-  const overrideFlight = useSingleFlight()
+  const flight = useSingleFlight()
 
   const override = (model: ModelOut, cap: ShownCap, on: boolean) => {
-    void overrideFlight(async () => {
+    void flight(async () => {
+      setBusy('override')
       setOverrideError(null)
       try {
         const updated = await overrides.mutateAsync({ pk: model.id, overrides: { [cap]: on ? true : null } })
         setWarnings(updated.assignment_warnings)
       } catch (caught) {
         setOverrideError(asApiError(caught))
+      } finally {
+        setBusy(null)
       }
     })
   }
 
-  const save = () => saveFlight(async () => {
-    setSaving(true)
+  const save = () => flight(async () => {
+    setBusy('save')
     const failed: Partial<Record<Purpose, ApiError>> = {}
     for (const [purpose, modelId] of [['chat', chat], ['vision', vision]] as const) {
       const model = models.find((m) => m.model_id === modelId)
@@ -109,14 +113,14 @@ export function StepAssign({ models, tested, onDone }: { models: ModelOut[]; tes
       }
     }
     setErrors(failed)
-    setSaving(false)
+    setBusy(null)
     if (Object.keys(failed).length === 0) onDone()
   })
 
   const block = (purpose: Purpose, value: string, onChange: (id: string) => void) => (
     <PurposeBlock
       purpose={purpose} models={models} value={value} onChange={onChange} error={errors[purpose]}
-      onOverride={override} overriding={overrides.isPending}
+      onOverride={override} locked={busy !== null}
     />
   )
   return (
@@ -131,7 +135,10 @@ export function StepAssign({ models, tested, onDone }: { models: ModelOut[]; tes
         </div>
       )}
       <div className="fs-go">
-        <Button variant="primary" block isPending={saving} isDisabled={chat === '' && vision === ''} onPress={() => void save()}>
+        <Button
+          variant="primary" block isPending={busy === 'save'} isDisabled={busy === 'override' || (chat === '' && vision === '')}
+          onPress={() => void save()}
+        >
           保存用途
         </Button>
       </div>

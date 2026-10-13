@@ -53,7 +53,7 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
   const [form, setForm] = useState<CredentialsForm>({ type: 'kind:openai_compatible', name: '', baseUrl: '', apiKey: '' })
   const [saved, setSaved] = useState<ProviderOut | null>(null)
   const [running, setRunning] = useState<'save' | 'fetch' | 'add' | 'test' | null>(null)
-  const [fetchSummary, setFetchSummary] = useState<{ small: string; body: string } | null>(null)
+  const [fetchSummary, setFetchSummary] = useState<{ small: string; body: string; count: number } | null>(null)
   const [testModel, setTestModel] = useState('')
   const [testResult, setTestResult] = useState<{ small: string; body: string } | null>(null)
   const [addError, setAddError] = useState<ApiError | null>(null)
@@ -90,7 +90,7 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
       const result = await fetchModels.mutateAsync(providerId)
       const vision = result.models.filter((m) => m.capabilities.vision === true).length
       const tools = result.models.filter((m) => m.capabilities.tools === true).length
-      setFetchSummary({ small: `${result.total} 个`, body: `其中 ${vision} 个能看图，${tools} 个能调用工具。` })
+      setFetchSummary({ small: `${result.total} 个`, body: `其中 ${vision} 个能看图，${tools} 个能调用工具。`, count: result.total })
       setTestModel(defaultTestModel(result.models))
       dispatch({ type: 'fetched' })
     } catch (caught) {
@@ -147,7 +147,7 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
     setAddError(null)
     try {
       await addModel.mutateAsync(modelId)
-      setFetchSummary({ small: '1 个', body: `已手动添加 ${modelId}。` })
+      setFetchSummary({ small: '1 个', body: `已手动添加 ${modelId}。`, count: 1 })
       setTestModel(modelId)
       dispatch({ type: 'fetched' })
     } catch (caught) {
@@ -164,7 +164,9 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
       const report = await test.mutateAsync(testModel)
       const seconds = (performance.now() - started) / 1000
       if (report.ok) {
-        setTestResult({ small: seconds < 0.1 ? '用时不到 0.1 秒' : `用时 ${fmtNum(seconds, 1)} 秒`, body: report.chat?.message ?? report.message })
+        // 列不出模型但对话成功（ok_listing_unsupported）：后端的总结里说了要手动添加模型编号，写它而不是只写对话成功
+        const body = report.conclusion === 'ok_listing_unsupported' ? report.message : (report.chat?.message ?? report.message)
+        setTestResult({ small: seconds < 0.1 ? '用时不到 0.1 秒' : `用时 ${fmtNum(seconds, 1)} 秒`, body })
         dispatch({ type: 'tested' })
       } else {
         const code = report.chat?.code ?? report.listing.code ?? report.conclusion
@@ -192,7 +194,7 @@ export function ProviderFlow({ onDone }: { onDone: () => void }) {
       </Step>
       <Step n={2} status={steps[2]} running={running === 'fetch' || running === 'add'} small={shortFor(steps[2], fetchSummary?.small)}>
         <StepFetch
-          status={steps[2]} running={running === 'fetch'} summary={fetchSummary?.body ?? null}
+          status={steps[2]} running={running === 'fetch'} summary={fetchSummary?.body ?? null} empty={fetchSummary?.count === 0}
           onEditUrl={() => {
             dispatch({ type: 'editUrl' })
             setFocusUrl((n) => n + 1)

@@ -54,6 +54,16 @@ describe('training view', { timeout: 15_000 }, () => {
     expect(document.body.textContent).not.toContain('删除')
   })
 
+  it('says when the exercise limits cannot be read, under the cover', async () => {
+    renderTraining()
+    server.use(http.get('/api/medical/constraints', () =>
+      HttpResponse.json({ error: { code: 'internal_error', message: '服务器内部错误' } }, { status: 500 })))
+    const line = await screen.findByText(/没能读取今天的运动限制/)
+    expect(line).toHaveTextContent('服务器内部错误')
+    expect(line.closest('.lim')).toHaveTextContent('错误码 internal_error')
+    expect(line.closest('[data-sensitive]')).toHaveAttribute('data-sensitive-area', 'constraints')
+  })
+
   it('leaves out the end date when the limit has none', async () => {
     renderTraining()
     server.use(http.get('/api/medical/constraints', () => HttpResponse.json(limits(null))))

@@ -157,16 +157,21 @@ describe('resolve sheet', { timeout: 15_000 }, () => {
     await user.click(within(sheet).getByRole('checkbox'))
     await user.click(within(sheet).getByRole('button', { name: '确认解除' }))
     // 切到后台再回来时默认遮盖（面板开着时用户点不到遮盖按钮）
-    act(() => {
-      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
-      document.dispatchEvent(new Event('visibilitychange'))
-      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
-      document.dispatchEvent(new Event('visibilitychange'))
-    })
-    held.open()
-    const live = sheet.querySelector('[aria-live="assertive"]') as HTMLElement
-    await waitFor(() => expect(live).toHaveTextContent('已解除这条医嘱。审计已记录。'))
-    expect(live).not.toHaveTextContent(item.content)
+    try {
+      act(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+        document.dispatchEvent(new Event('visibilitychange'))
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      held.open()
+      const live = sheet.querySelector('[aria-live="assertive"]') as HTMLElement
+      await waitFor(() => expect(live).toHaveTextContent('已解除这条医嘱。审计已记录。'))
+      expect(live).not.toHaveTextContent(item.content)
+    } finally {
+      // 去掉盖在 document 上的属性，恢复 jsdom 原来的 visibilityState（后面的用例不受影响）
+      Reflect.deleteProperty(document, 'visibilityState')
+    }
   })
 
   it('announces the result and moves the item to history', async () => {
