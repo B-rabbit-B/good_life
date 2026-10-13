@@ -18,6 +18,8 @@ FRONTEND_REF = re.compile(r"(frontend/(?:src|e2e)/[\w./-]+?\.(?:test\.tsx?|spec\
 REAL_DEVICE = "需用户真机核对"
 AUTOMATED = "已通过自动化验证"
 CRITERION_6_RESULT = "已通过两种模拟设备的自动化验证；需用户真机核对（见《手机端适配说明与测试设备清单》的真机核对清单）"
+USER_OK = "通过（代验，见“代为验收记录”）"
+USER_6 = "模拟设备代验通过，真机待用户补测"
 # 界面按错误码处理（或原样显示）的其余错误码：模型配置的三个保存类错误码另由 LLM_SAVE_CODES 列出
 OTHER_CODES = ("agent_model_not_configured", "agent_model_error", "still_due", "subjects_required",
                "disclaimer_outdated", "username_taken", "invalid_credentials", "invalid_token", "not_authenticated",
@@ -59,17 +61,20 @@ def test_delivery_docs_exist_and_contain_no_code():
 # ---------- 验收记录 ----------
 
 
-def test_acceptance_record_has_nine_rows_and_an_empty_user_column():
+def test_acceptance_record_has_nine_rows_with_delegated_user_acceptance():
     rows = _acceptance_rows()
     assert [row[0] for row in rows] == [str(n) for n in range(1, 10)]
     for row in rows:
         assert len(row) == 6, row[0]
         assert all(row[:5]), row[0]
-        assert row[5] == "", row[0]
+        assert row[5], row[0]
+        assert row[5] == (USER_6 if row[0] == "6" else USER_OK), row[0]
     record = _read("验收记录.md")
     for heading in ("## 自动化验证记录", "## 已知限制与需要用户决定的设计取舍", "## 代为验收记录"):
         assert heading in record, heading
-    assert "待代验" in record.split("## 代为验收记录")[1]
+    delegated = record.split("## 代为验收记录")[1]
+    assert "验收人：Claude" in delegated and "待代验" not in delegated
+    assert "真机待用户补测" in delegated
 
 
 def test_criterion_6_waits_for_the_users_real_devices():
@@ -164,4 +169,5 @@ def test_readme_and_overview_record_step_11():
     assert "pnpm dev:lan" in section and "pnpm e2e" in section
     assert "步骤 11" in readme.split("定位声明")[0]
     overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8")
-    assert "| 11 | 前端 H5 | 11-前端H5.md | 08 至 10 | 待验收 |" in overview
+    assert "| 11 | 前端 H5 | 11-前端H5.md | 08 至 10 | 有条件通过（" in overview
+    assert "第 6 条两种模拟设备代验通过" in overview and "待用户补测" in overview
