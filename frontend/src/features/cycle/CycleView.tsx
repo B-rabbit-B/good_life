@@ -7,6 +7,7 @@ import { ApiError } from '../../api/errors'
 import { useCycleStats, usePeriods, usePhase, usePrediction, useTips } from '../../api/hooks/cycle'
 import type { CycleStatsOut, PeriodOut, PredictionOut } from '../../api/types'
 import { Button } from '../../components/Button'
+import { useCover } from '../../components/cover'
 import { CycleTicks } from '../../components/CycleTicks'
 import { RefTag } from '../../components/RefTag'
 import { Sensitive } from '../../components/Sensitive'
@@ -71,6 +72,8 @@ export function CycleView() {
   const latest = periods.data?.reduce<PeriodOut | undefined>((a, b) => (!a || b.start_date > a.start_date ? b : a), undefined)
   const periodMode: PeriodMode = latest && latest.end_date === null ? 'end' : 'start'
   const periodLabel = periodMode === 'end' ? '记录经期结束' : '记录经期开始'
+  // 遮盖时两个按钮露在斜纹外面：文字不能透露“正在经期中”，一律写“记录经期”（打开的面板标题再分开始与结束）
+  const { covered } = useCover()
   const openPeriod = () => host.show({ kind: 'period', mode: periodMode, period: periodMode === 'end' ? latest : undefined })
   const close = () => host.close(host.nonce)
 
@@ -129,7 +132,7 @@ export function CycleView() {
       {body}
       {periods.data && (
         <div className="pad cyc-acts">
-          <Button variant="quiet" onPress={openPeriod}>{periodLabel}</Button>
+          <Button variant="quiet" onPress={openPeriod}>{covered ? '记录经期' : periodLabel}</Button>
           <Button variant="primary" onPress={() => host.show({ kind: 'day', date: today })}>记录今天</Button>
         </div>
       )}

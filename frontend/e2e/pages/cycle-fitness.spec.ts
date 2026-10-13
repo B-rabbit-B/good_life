@@ -69,7 +69,7 @@ test('lays out the cycle page at the deck sizes and covers all but the two butto
   await expectSensitiveAreas(page)
   await expectCoverWorks(page)
   await page.getByRole('button', { name: '遮盖敏感内容', exact: true }).first().click()
-  await expect.poll(() => clickableInContent(page)).toEqual(['记录经期开始', '记录今天'])
+  await expect.poll(() => clickableInContent(page)).toEqual(['记录经期', '记录今天'])
   await page.getByRole('button', { name: '已遮盖，点按恢复显示', exact: true }).first().click()
 })
 
@@ -100,6 +100,38 @@ test('draws the calendar marks with system colours in forced colours', async ({ 
   expect(colours.recorded).toBe(colours.canvasText)
   expect(colours.todayShadow).toContain(colours.highlight)
   expect(colours.todayShadow).toContain('2px')
+})
+
+test('shows the focus ring on a predicted day reached by keyboard', async ({ page, request }) => {
+  const token = await cycleUser(request)
+  await openAs(page, token, '/health/cycle')
+  const today = page.locator('.cal-g .d.today')
+  await expect(today).toBeVisible()
+  await today.focus()
+  // 用方向键一天一天往后移，直到焦点落在预计经期的格子上（可能翻到下个月）
+  for (let i = 0; i < 45; i += 1) {
+    if (await page.evaluate(() => document.activeElement?.classList.contains('prd') === true)) break
+    await page.keyboard.press('ArrowRight')
+  }
+  const ring = await page.evaluate(() => {
+    const cell = document.activeElement as HTMLElement
+    const style = getComputedStyle(cell.querySelector('span') as HTMLElement)
+    return { predicted: cell.classList.contains('prd'), visible: cell.hasAttribute('data-focus-visible'),
+      width: style.outlineWidth, style: style.outlineStyle, color: style.outlineColor }
+  })
+  expect(ring).toEqual({ predicted: true, visible: true, width: '2px', style: 'solid', color: 'rgb(31, 88, 168)' })
+  await page.emulateMedia({ forcedColors: 'active' })
+  const forced = await page.evaluate(() => {
+    const probe = document.createElement('div')
+    probe.style.color = 'Highlight'
+    document.body.appendChild(probe)
+    const highlight = getComputedStyle(probe).color
+    probe.remove()
+    const style = getComputedStyle((document.activeElement as HTMLElement).querySelector('span') as HTMLElement)
+    return { highlight, color: style.outlineColor, width: style.outlineWidth, style: style.outlineStyle }
+  })
+  await page.emulateMedia({ forcedColors: 'none' })
+  expect(forced).toEqual({ highlight: forced.highlight, color: forced.highlight, width: '2px', style: 'solid' })
 })
 
 test('opens the period and day log sheets within the blur budget', async ({ page, request }) => {

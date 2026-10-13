@@ -19,6 +19,8 @@ export interface FitnessOptions {
   workouts?: WorkoutOut[]
   /** 按搜索词的结果；没给的词按后端的“未找到”回答 */
   search?: Record<string, ExerciseSearchOut>
+  /** 搜索动作的错误；每次都返回 */
+  searchError?: FitnessError
   /** 按动作编号的趋势；没给的按后端回答 404 */
   trends?: Record<string, ExerciseTrendOut>
   /** 记一次训练的错误；只对第一次请求生效 */
@@ -85,6 +87,7 @@ export function fitnessHandlers(opts: FitnessOptions = {}) {
     }),
     http.get('/api/fitness/exercises/search', ({ request }) => {
       const q = new URL(request.url).searchParams.get('q') ?? ''
+      if (opts.searchError) return errorResponse(opts.searchError)
       return HttpResponse.json(opts.search?.[q] ?? {
         query: q, found: false, exact: false, results: [], message: `未找到与“${q}”匹配的动作，可以新增自定义动作`,
       })

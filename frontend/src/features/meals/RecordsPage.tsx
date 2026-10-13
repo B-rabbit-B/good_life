@@ -35,6 +35,7 @@ export default function RecordsPage() {
   const refresh = () => {
     if (tab === 'training') {
       void queryClient.invalidateQueries({ queryKey: ['fitness'] })
+      void queryClient.invalidateQueries({ queryKey: qk.constraints('exercise_limit') })
       return
     }
     void queryClient.invalidateQueries({ queryKey: qk.summary(date) })

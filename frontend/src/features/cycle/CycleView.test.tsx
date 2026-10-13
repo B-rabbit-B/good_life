@@ -96,7 +96,7 @@ describe('cycle view', { timeout: 15_000 }, () => {
     await user.click(screen.getByRole('button', { name: '遮盖敏感内容' }))
     expect(region).toHaveAttribute('aria-hidden', 'true')
     expect(screen.queryByRole('heading', { name: '卵泡期' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '记录经期开始' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '记录经期' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '记录今天' })).toBeEnabled()
   })
 
@@ -113,6 +113,21 @@ describe('cycle view', { timeout: 15_000 }, () => {
     await waitFor(() => expect(cycle.record.updated).toEqual([{ id: periods[0]?.id, body: { end_date: today } }]))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(await screen.findByRole('button', { name: '记录经期开始' })).toBeInTheDocument()
+  })
+
+  it('keeps the period button neutral while covered', async () => {
+    const user = userEvent.setup()
+    renderCycle(deck({ periods: deckPeriods(today, { open: true }) }))
+    expect(await screen.findByRole('button', { name: '记录经期结束' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '遮盖敏感内容' }))
+    expect(screen.getByRole('button', { name: '记录经期' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '记录今天' })).toBeInTheDocument()
+    const covered = Array.from(document.querySelectorAll('button'))
+      .filter((button) => !button.closest('[data-sensitive]') && !button.closest('.top') && !button.closest('nav'))
+      .map((button) => button.textContent)
+    expect(covered).toEqual(['记录经期', '记录今天'])
+    await user.click(screen.getByRole('button', { name: '记录经期' }))
+    expect(await screen.findByRole('dialog', { name: '记录经期结束' })).toBeInTheDocument()
   })
 
   it('shows a period error verbatim and keeps the sheet open', async () => {

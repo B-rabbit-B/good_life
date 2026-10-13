@@ -211,7 +211,12 @@ export default function WorkoutNewPage() {
           </span>
         </AriaTextField>
         {searching && search.data?.message && <p className="wn-msg">{search.data.message}</p>}
-        {searching && search.isError && <p className="wn-msg">{search.error.message}</p>}
+        {searching && search.isError && (
+          <p className="wn-msg" role="alert">
+            {search.error.message}
+            {search.error instanceof ApiError && <small className="wn-code">错误码 {search.error.code}</small>}
+          </p>
+        )}
         {results.length > 0 && (
           <ul className="wn-res" aria-label="搜索结果">
             {results.map((result) => (

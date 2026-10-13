@@ -51,7 +51,8 @@ export function WorkoutRow({ workout }: { workout: WorkoutOut }) {
       </div>
       <div className="trw-d">
         <span>{formatMonthDay(workout.performed_on)} {formatWeekday(workout.performed_on)}</span>
-        {details(workout).map((text) => <span key={text}>{text}</span>)}
+        {/* 一次训练里同一个动作可能出现两次，写出来的字会重复：按位置作键 */}
+        {details(workout).map((text, i) => <span key={`${i}-${text}`}>{text}</span>)}
       </div>
       {workout.conflicts.length > 0 && (
         <Sensitive area="constraints" className="trw-xs">

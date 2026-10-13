@@ -109,6 +109,21 @@ describe('training view', { timeout: 15_000 }, () => {
     expect(fitness.record.trendRequests).toEqual(['ex:dumbbell_bench_press'])
   })
 
+  it('refreshes the exercise limits with the training queries', async () => {
+    const user = userEvent.setup()
+    let constraintRequests = 0
+    const { fitness } = renderTraining()
+    server.use(http.get('/api/medical/constraints', () => {
+      constraintRequests += 1
+      return HttpResponse.json(limits(null))
+    }))
+    await screen.findByText(`运动限制生效中：${KNEE_LIMIT}`)
+    const before = { constraints: constraintRequests, workouts: fitness.record.ranges.length }
+    await user.click(screen.getByRole('button', { name: '刷新' }))
+    await waitFor(() => expect(constraintRequests).toBeGreaterThan(before.constraints))
+    expect(fitness.record.ranges.length).toBeGreaterThan(before.workouts)
+  })
+
   it('goes to record a workout from the header and the search capsule', async () => {
     const user = userEvent.setup()
     const { router } = renderTraining()

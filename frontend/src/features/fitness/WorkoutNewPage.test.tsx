@@ -113,6 +113,15 @@ describe('workout new page', { timeout: 15_000 }, () => {
     expect(fitness.record.created).toHaveLength(1)
   })
 
+  it('shows a search error verbatim with its code', async () => {
+    const user = userEvent.setup()
+    renderWorkoutNew({ searchError: { status: 500, code: 'internal_error', message: '服务出了点问题，请稍后再试' } })
+    await user.type(await screen.findByRole('searchbox', { name: '搜索动作' }), '深蹲')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('服务出了点问题，请稍后再试')
+    expect(alert).toHaveTextContent('错误码 internal_error')
+  })
+
   it('shows a form error with its code', async () => {
     const user = userEvent.setup()
     renderWorkoutNew({ createError: { status: 422, code: 'workout_in_future', message: '不能记录未来日期的训练' } })
