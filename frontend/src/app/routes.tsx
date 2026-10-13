@@ -1,10 +1,11 @@
 // 路由表：页面全部按路由拆包（React Router 的 lazy）；守卫嵌套顺序 RequireAuth → RequireDisclaimer → RequireProfile → AppShell。
 // 每个页面的 handle 写明底部怎么画（tabs 底部导航、chat 对话底座、none 都没有）；是否有敏感内容不在这里写，
 // 由“本页有敏感区”登记表（sensitiveAreas.ts）推出，两处不会不一致。
+import { useIsMutating } from '@tanstack/react-query'
 import type { ComponentType } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
 import { ApiError } from '../api/errors'
-import { useCapabilities } from '../api/hooks/profile'
+import { PROFILE_UPDATE_KEY, useCapabilities } from '../api/hooks/profile'
 import type { NavItem } from '../components/BottomNav'
 import { Field } from '../components/Field'
 import { ErrorState } from '../components/states/ErrorState'
@@ -30,10 +31,15 @@ const handle = (key: PathKey, nav: RouteHandle['nav'], navKey?: NavItem['key']):
   return navKey ? { nav, navKey, sensitive } : { nav, sensitive }
 }
 
-/** /health 打开第一个开放的分段；经期与医嘱都不开放时回对话页 */
+/**
+ * /health 打开第一个开放的分段；经期与医嘱都不开放时回对话页。
+ * 档案正在保存或能力清单正在刷新（例如刚关掉“经期记录”就点“健康”）时等新的结果：
+ * 按旧清单跳到经期，新清单一到又会被送回对话页。
+ */
 function HealthRedirect() {
   const caps = useCapabilities()
-  if (!caps.data) return <BootSplash />
+  const savingProfile = useIsMutating({ mutationKey: PROFILE_UPDATE_KEY }) > 0
+  if (!caps.data || caps.isFetching || savingProfile) return <BootSplash />
   const [first] = healthSegments(caps.data)
   return <Navigate to={first === 'cycle' ? PATHS.cycle : first === 'medical' ? PATHS.medical : PATHS.chat} replace />
 }

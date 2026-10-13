@@ -1,6 +1,11 @@
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { delay, http, HttpResponse } from 'msw'
 import { createMemoryRouter, matchRoutes, type RouteObject } from 'react-router'
 import { describe, expect, it } from 'vitest'
+import { qk } from '../api/keys'
+import { capabilities, completeProfile } from '../test/fixtures/core'
+import { server } from '../test/msw/server'
 import { renderRoute, renderRouter } from '../test/render'
 import { PATHS, type PathKey } from './paths'
 import { RouteError, routes, type RouteHandle } from './routes'
@@ -87,6 +92,40 @@ describe('route table', () => {
 
     const neither = renderRoute('/health', { capabilities: { cycle: false, medical: false } })
     await expect.poll(() => neither.router.state.location.pathname).toBe('/chat')
+  })
+
+  it('waits for refreshed capabilities before opening health', async () => {
+    const { router, queryClient } = renderRoute('/me')
+    await screen.findByRole('heading', { name: '我的', level: 1 })
+    // 刚关掉经期记录：能力清单正在重新取（新结果晚一点到），这时点“健康”
+    server.use(http.get('/api/me/capabilities', async () => {
+      await delay(200)
+      return HttpResponse.json(capabilities({ cycle: false }))
+    }))
+    void queryClient.invalidateQueries({ queryKey: qk.capabilities })
+    void router.navigate('/health')
+    await expect.poll(() => router.state.location.pathname).toBe('/health/medical')
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(router.state.location.pathname).toBe('/health/medical')
+  })
+
+  it('waits for a profile save before opening health', async () => {
+    const { router } = renderRoute('/me')
+    let saved = false
+    server.use(
+      http.patch('/api/profile', async () => {
+        await delay(200)
+        saved = true
+        return HttpResponse.json(completeProfile({ cycle_tracking_opt_out: true }))
+      }),
+      http.get('/api/me/capabilities', () => HttpResponse.json(capabilities({ cycle: !saved }))),
+    )
+    // 关掉经期记录，保存还没回来就点“健康”
+    await userEvent.click(await screen.findByRole('switch', { name: /经期记录/ }))
+    void router.navigate('/health')
+    await expect.poll(() => router.state.location.pathname).toBe('/health/medical')
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(router.state.location.pathname).toBe('/health/medical')
   })
 
   it('sends unknown paths to chat', async () => {

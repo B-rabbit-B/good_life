@@ -119,6 +119,8 @@ test('the me page meets the layout rules and covers the profile', async ({ page,
   await expect(page.getByRole('heading', { level: 1, name: '我的' })).toBeVisible()
   await expect(page.getByRole('switch', { name: /经期记录/ })).toBeVisible()
   await expect(page.getByText('未设置')).toBeVisible()
+  // 两个开关各自等自己的接口（档案与助手设置），量之前等两行都出来
+  await expect(page.locator('.tg-row')).toHaveCount(2)
   await expectPageRules(page)
   expect(await heights(page, '.tg-row'), '开关整行 56').toEqual([56, 56])
   await expectSensitiveAreas(page)

@@ -20,6 +20,13 @@ test('a hidden control with a 44 label passes the touch target check', async ({ 
   await expectTouchTargets(page)
 })
 
+// WebKit 在 3 倍屏上把 1 像素的外层量成 1.0000013：外层稍大于 1 像素仍算隐藏，改量外面的标签
+test('a hidden control in a wrapper a hair over one pixel passes the touch target check', async ({ page }) => {
+  await page.setContent(`<body style="margin:0;font-size:16px">${
+    hiddenRadio('width:120px;min-height:44px').replace('height:1px', 'height:1.02px')}</body>`)
+  await expectTouchTargets(page)
+})
+
 test('a hidden control without a label fails the touch target check', async ({ page }) => {
   await page.setContent(`<body style="margin:0">
     <span style="position:absolute;width:1px;height:1px;overflow:hidden"><input type="checkbox" aria-label="同意"></span>

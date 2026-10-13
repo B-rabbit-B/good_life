@@ -26,11 +26,13 @@ export async function expectTouchTargets(page: Page): Promise<void> {
         const label = el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 20) ?? ''
         return `<${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}> ${label}`
       }
+      // 1 像素见方（WebKit 在 3 倍屏上量出 1.0000013 这样的浮点数，所以留半个像素的余量）
+      const tiny = (size: number) => size < 1.5
       // React Aria 把原生单选框、勾选框与开关放在一个 1 × 1、overflow:hidden 的隐藏外层里（控件本身仍是原生大小）
       const insideVisuallyHidden = (el: Element) => {
         for (let node = el.parentElement, depth = 0; node && depth < 3; node = node.parentElement, depth += 1) {
           const r = node.getBoundingClientRect()
-          if (r.width <= 1 && r.height <= 1 && getComputedStyle(node).overflow === 'hidden') return true
+          if (tiny(r.width) && tiny(r.height) && getComputedStyle(node).overflow === 'hidden') return true
         }
         return false
       }
@@ -43,7 +45,7 @@ export async function expectTouchTargets(page: Page): Promise<void> {
         if (style.display === 'none' || style.visibility === 'hidden') continue
         // 只给读屏用的隐藏控件（1 像素以内，或在 1 × 1 的隐藏外层里）本身不算触控目标：
         // 手指点的是包着它的可见标签（.opt、.chk、.tg-row），所以改为量这个标签
-        if (rect.width <= 1 || rect.height <= 1 || insideVisuallyHidden(el)) {
+        if (tiny(rect.width) || tiny(rect.height) || insideVisuallyHidden(el)) {
           // 只给读屏光标用、不进 Tab 顺序的隐藏按钮（React Aria 月历末尾的“下一页”）不是触控目标
           if (el instanceof HTMLButtonElement && el.getAttribute('aria-label') && el.tabIndex === -1) continue
           const label = el.closest('label')

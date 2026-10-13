@@ -16,10 +16,14 @@ export type ProfilePatch = Omit<ProfileUpdate, 'height_cm' | 'weight_kg'> & {
   weight_kg?: number | string | null
 }
 
+/** 修改档案这个变更的键：/health 的跳转在它进行中时等它（它可能改变开放的模块） */
+export const PROFILE_UPDATE_KEY = ['profile', 'update'] as const
+
 /** 修改档案；成功后写入新档案，并等能力清单重新取回（性别等字段决定开放哪些模块）后才算完成。 */
 export function useUpdateProfile() {
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: PROFILE_UPDATE_KEY,
     mutationFn: (body: ProfilePatch) => api<ProfileOut>('/api/profile', { method: 'PATCH', json: body }),
     onSuccess: async (profile) => {
       queryClient.setQueryData(qk.profile, profile)
