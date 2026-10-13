@@ -1,7 +1,7 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { api } from '../api/client'
 import { qk } from '../api/keys'
 import { getToken } from '../api/token'
@@ -13,6 +13,11 @@ type Router = ReturnType<typeof renderRoute>['router']
 async function landsOn(router: Router, pathname: string) {
   await waitFor(() => expect(router.state.location.pathname).toBe(pathname))
 }
+
+// 健康页（经期与医嘱）是按路由按需加载的大块：整套并行跑时第一次加载要好几秒，先在这里加载好
+beforeAll(async () => {
+  await import('../features/health/HealthPage')
+}, 60_000)
 
 describe('route guards', () => {
   it('sends a visitor without a token to login', async () => {

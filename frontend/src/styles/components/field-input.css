@@ -23,6 +23,8 @@
 .sel select{appearance:none;-webkit-appearance:none;flex:1;min-width:0;min-height:44px;margin:0 -10px 0 -14px;padding:0 36px 0 14px;border:0;background:none;outline:none;font-size:.9375rem;color:var(--ink);cursor:pointer}
 .sel>.ic{position:absolute;right:10px;top:50%;margin-top:-9px;pointer-events:none;color:var(--ink-3)}
 .sel input[type="date"]{position:absolute;top:0;left:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer;font-size:1rem}
+/* 出错的日期框：朱色内描边（聚焦时也保持） */
+.sel.bad,.sel.bad:focus-within{box-shadow:inset 0 0 0 2px var(--danger);background:#fff}
 
 /* 可移除标签：胶囊，删除键 44 */
 .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
@@ -37,6 +39,6 @@
 
 @media (forced-colors:active){
   .fld-i,.sel,.area{border:1px solid CanvasText}
-  .fld-i.bad,.area.bad{border:2px solid CanvasText}
+  .fld-i.bad,.area.bad,.sel.bad{border:2px solid CanvasText}
   .tag{border:1px solid ButtonText}
 }

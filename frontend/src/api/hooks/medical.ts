@@ -4,12 +4,16 @@ import { qk } from '../keys'
 import type { EventOut, MedicalItemOut } from '../types'
 import { useCapabilities } from './profile'
 
+// 对话页也用的部分（待处理列表、条目与事件、继续遵守、不解除）放在这里；只有医嘱页用的（医嘱单、证据、修改、确认、
+// 作废、解除、审计）在 medicalPage.ts，免得进对话页的首屏。
+export const base = '/api/medical'
+
 /** 需要本人处理的条目：待复核的，以及仍在生效但带着解除建议的（只在医嘱模块开放时请求） */
 export function useMedicalReviews() {
   const caps = useCapabilities()
   return useQuery({
     queryKey: qk.reviews,
-    queryFn: ({ signal }) => api<MedicalItemOut[]>('/api/medical/reviews', { signal }),
+    queryFn: ({ signal }) => api<MedicalItemOut[]>(`${base}/reviews`, { signal }),
     enabled: caps.data?.medical === true,
   })
 }
@@ -19,7 +23,7 @@ export function useMedicalItems() {
   const caps = useCapabilities()
   return useQuery({
     queryKey: qk.medicalItems,
-    queryFn: ({ signal }) => api<MedicalItemOut[]>('/api/medical/items', { signal }),
+    queryFn: ({ signal }) => api<MedicalItemOut[]>(`${base}/items`, { signal }),
     enabled: caps.data?.medical === true,
   })
 }
@@ -28,20 +32,24 @@ export function useMedicalItems() {
 export function useItemEvents(id: string, enabled: boolean) {
   return useQuery({
     queryKey: qk.itemEvents(id),
-    queryFn: ({ signal }) => api<EventOut[]>(`/api/medical/items/${id}/events`, { signal }),
+    queryFn: ({ signal }) => api<EventOut[]>(`${base}/items/${id}/events`, { signal }),
     enabled,
   })
 }
 
-/** 条目变了：待处理列表、条目列表、当前约束与这一条的事件都要重新取 */
-function useRefreshItem() {
+/**
+ * 条目或医嘱变了：待处理列表、条目（含各条目的事件，键在 ['medical', 'items'] 下）、医嘱、当前约束与审计都要重新取。
+ * 在变更的 onSuccess 里等它完成，mutateAsync 返回时列表已是新的。
+ */
+export function useRefreshMedical() {
   const queryClient = useQueryClient()
-  return async (id: string) => {
+  return async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: qk.reviews }),
       queryClient.invalidateQueries({ queryKey: qk.medicalItems }),
+      queryClient.invalidateQueries({ queryKey: qk.orders }),
       queryClient.invalidateQueries({ queryKey: ['medical', 'constraints'] }),
-      queryClient.invalidateQueries({ queryKey: qk.itemEvents(id) }),
+      queryClient.invalidateQueries({ queryKey: ['medical', 'events'] }),
     ])
   }
 }
@@ -54,19 +62,19 @@ export interface ContinueInput {
 
 /** 继续遵守：两个日期永远一起提交（后端会同时覆盖两项，没提交的那项会被清空） */
 export function useContinueItem() {
-  const refresh = useRefreshItem()
+  const refresh = useRefreshMedical()
   return useMutation({
     mutationFn: ({ id, review_date, end_date }: ContinueInput) =>
-      api<MedicalItemOut>(`/api/medical/items/${id}/continue`, { method: 'POST', json: { review_date, end_date } }),
-    onSuccess: (_item, { id }) => refresh(id),
+      api<MedicalItemOut>(`${base}/items/${id}/continue`, { method: 'POST', json: { review_date, end_date } }),
+    onSuccess: refresh,
   })
 }
 
 /** 不解除：撤销解除建议，条目照常生效 */
 export function useCancelProposal() {
-  const refresh = useRefreshItem()
+  const refresh = useRefreshMedical()
   return useMutation({
-    mutationFn: (id: string) => api<MedicalItemOut>(`/api/medical/items/${id}/cancel-proposal`, { method: 'POST' }),
-    onSuccess: (_item, id) => refresh(id),
+    mutationFn: (id: string) => api<MedicalItemOut>(`${base}/items/${id}/cancel-proposal`, { method: 'POST' }),
+    onSuccess: refresh,
   })
 }

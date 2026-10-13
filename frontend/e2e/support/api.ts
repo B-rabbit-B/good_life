@@ -100,6 +100,9 @@ export async function seedModelService(
   return provider
 }
 
+/** 设计稿 07f 的样例原文（头孢呋辛酯片）：提取出一条用药相关饮食注意，带预计结束、没有复查日期 */
+export const CEFUROXIME_ORDER = '头孢呋辛酯片 0.25g，每日两次，连服 7 天。服药期间及停药后 7 天内禁止饮酒。一周后门诊复查。'
+
 /** 录入一份医嘱，提取出的条目都处于待确认。 */
 export function seedPendingOrder(request: APIRequestContext, token: string, text: string): Promise<Schemas['OrderOut']> {
   return call<Schemas['OrderOut']>(request, 'POST', '/api/medical/orders', { token, data: { text } })
@@ -137,6 +140,39 @@ export function seedProposal(
   return call<MedicalItem>(request, 'POST', `/api/medical/items/${itemId}/propose-resolution`, {
     token, data: { reason },
   })
+}
+
+/** 给一份医嘱上传一个证据文件（name 是上传时的文件名） */
+export async function uploadEvidence(
+  request: APIRequestContext,
+  token: string,
+  orderId: string,
+  file: string,
+  name: string,
+): Promise<Schemas['EvidenceOut']> {
+  const response = await request.post(`/api/medical/orders/${orderId}/evidence`, {
+    headers: auth(token),
+    multipart: { file: { name, mimeType: 'image/jpeg', buffer: readFileSync(file) } },
+  })
+  expect(response.status(), `上传证据返回 ${response.status()}：${await response.text()}`).toBe(201)
+  return (await response.json()) as Schemas['EvidenceOut']
+}
+
+/** 确认解除一条生效条目（只有本人的接口能做） */
+export function resolveItem(request: APIRequestContext, token: string, itemId: string): Promise<MedicalItem> {
+  return call<MedicalItem>(request, 'POST', `/api/medical/items/${itemId}/resolve`, { token })
+}
+
+/** 手动补充一条待核对的条目后作废它（带原因） */
+export async function seedVoidedItem(
+  request: APIRequestContext,
+  token: string,
+  fields: Schemas['ManualItemCreate'],
+  reason: string,
+): Promise<MedicalItem> {
+  const order = await seedPendingOrder(request, token, MANUAL_ORDER_TEXT)
+  const item = await call<MedicalItem>(request, 'POST', `/api/medical/orders/${order.id}/items`, { token, data: fields })
+  return call<MedicalItem>(request, 'POST', `/api/medical/items/${item.id}/void`, { token, data: { reason } })
 }
 
 /** 发一句话（非流式），返回这一轮的回答；不给 conversationId 时新建一个对话。 */

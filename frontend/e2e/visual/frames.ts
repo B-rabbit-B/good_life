@@ -1,10 +1,12 @@
 import type { APIRequestContext, Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { components } from '../../src/api/schema'
 import {
-  addPendingDish, confirmRecognition, createUser, e2eInfo, logMeal, recognizePhoto, seedActiveItem, seedModelService,
-  seedProposal, seedReviewDueItem, sendMessage, TOKEN_KEY,
+  addPendingDish, CEFUROXIME_ORDER, confirmRecognition, createUser, e2eInfo, logMeal, recognizePhoto, resolveItem,
+  seedActiveItem, seedModelService, seedPendingOrder, seedProposal, seedReviewDueItem, seedVoidedItem, sendMessage, TOKEN_KEY,
+  uploadEvidence,
 } from '../support/api'
 
 const FIXTURES = join(fileURLToPath(new URL('.', import.meta.url)), '..', '.fixtures')
@@ -58,6 +60,34 @@ const SALT: ManualItem = { category: 'diet_require', content: '低盐饮食，�
 const KNEE: ManualItem = { category: 'exercise_limit', content: '膝关节术后六周内避免跑跳', subjects: ['跑跳'] }
 const SPICY: ManualItem = { category: 'diet_avoid', content: '两周内忌食辛辣', subjects: ['辛辣'] }
 const HISTORY = ['练完腿，晚饭吃什么好？', '鸡胸肉吃腻了，换成牛肉可以吗？', '午饭吃了番茄炒蛋和米饭，帮我记一下']
+
+const PURINE: ManualItem = { category: 'diet_avoid', content: '避免动物内脏与浓肉汤（高嘌呤）', subjects: ['动物内脏', '浓肉汤'] }
+
+/**
+ * 医嘱页的用户（设计稿 07）：一份头孢的医嘱（证据是“出院小结.jpg”）提取出一条待核对；生效中三条：到了复查日的低盐、
+ * 带解除建议的膝关节、没有建议的高嘌呤；history 时再有一条已解除、一条带原因作废的
+ */
+async function medicalUser(request: APIRequestContext, opts: { history?: boolean } = {}): Promise<string> {
+  const user = await createUser(request, { profile: 'complete' })
+  if (opts.history) {
+    await resolveItem(request, user.token, (await seedActiveItem(request, user.token, { ...SPICY, content: '术后两周内避免辛辣刺激食物' })).id)
+    await seedVoidedItem(request, user.token, { category: 'diet_require', content: '每日饮水不少于 1500 毫升', subjects: ['饮水'] }, '重复录入')
+  }
+  const knee = await seedActiveItem(request, user.token, KNEE)
+  await seedProposal(request, user.token, knee.id, '医生复查说膝盖恢复得不错，可以开始慢跑了。')
+  await seedActiveItem(request, user.token, PURINE)
+  await seedReviewDueItem(request, user.token, SALT)
+  const order = await seedPendingOrder(request, user.token, CEFUROXIME_ORDER)
+  await uploadEvidence(request, user.token, order.id, join(FIXTURES, 'meal.jpg'), '出院小结.jpg')
+  return user.token
+}
+
+/** 点开一个底部面板并等它停稳（滑入结束、磨砂淡入） */
+async function openSheet(page: Page, button: ReturnType<Page['getByRole']>, title: string): Promise<void> {
+  await button.click()
+  await page.getByRole('dialog', { name: title }).waitFor()
+  await page.waitForTimeout(700)
+}
 
 /** 对话页的用户：配好模拟模型、写入几轮历史；due 时有一条到了复查日的医嘱与一条带解除建议的；declined 时先把今天的开场都拒掉 */
 async function chatUser(request: APIRequestContext, opts: { history?: string[]; due?: boolean; spicy?: boolean; declined?: boolean } = {}) {
@@ -217,6 +247,32 @@ export const FRAMES: FrameSpec[] = [
     return signedIn(page, token, '/records')
   },
   after: (page) => page.waitForTimeout(700) }, // 刻度长出与计数结束
+  // 07 医嘱：07a 生效中；07b 待核对；07c 待核对条目的确认生效面板；07d 带解除建议的条目的确认解除面板；
+  // 07e 历史与审计（一条已解除、一条作废）；07f 录入医嘱（照设计稿填好原文、选一张证据）
+  { id: '07a', widths: [360, 390], prepare: async ({ request, page }) =>
+    signedIn(page, await medicalUser(request), '/health/medical?tab=active'),
+  after: (page) => page.getByText(/^待复核，/).waitFor() },
+  { id: '07b', widths: [360, 390], prepare: async ({ request, page }) =>
+    signedIn(page, await medicalUser(request), '/health/medical?tab=pending') },
+  { id: '07c', widths: [360, 390], prepare: async ({ request, page }) =>
+    signedIn(page, await medicalUser(request), '/health/medical?tab=pending'),
+  after: (page) => openSheet(page, page.locator('.mo').getByRole('button', { name: '确认生效' }), '确认这条医嘱生效') },
+  { id: '07d', widths: [360, 390], prepare: async ({ request, page }) =>
+    signedIn(page, await medicalUser(request), '/health/medical?tab=active'),
+  after: (page) => openSheet(page, page.locator('.prop').getByRole('button', { name: '确认解除' }), '确认解除这条医嘱') },
+  { id: '07e', widths: [360, 390], prepare: async ({ request, page }) =>
+    signedIn(page, await medicalUser(request, { history: true }), '/health/medical?tab=history'),
+  after: (page) => page.locator('.closed .t-cap').first().waitFor() },
+  { id: '07f', widths: [360, 390], prepare: async ({ request, page }) =>
+    signedIn(page, (await createUser(request, { profile: 'complete' })).token, '/health/medical/new'),
+  after: async (page) => {
+    await page.getByLabel('医嘱原文').fill(CEFUROXIME_ORDER)
+    await page.locator('input[type="file"]:not([capture])').setInputFiles({
+      name: '出院小结.jpg', mimeType: 'image/jpeg', buffer: readFileSync(join(FIXTURES, 'meal.jpg')),
+    })
+    await page.getByRole('list', { name: '证据' }).waitFor()
+    await page.waitForTimeout(300)
+  } },
   // 设计系统一节对样张页
   { id: 'ds', widths: [360, 390], prepare: galleryBlock('ds') },
   // 状态面板 st1 至 st12 对样张页的对应区块；st10 是“一键遮盖”，打开时就遮盖
