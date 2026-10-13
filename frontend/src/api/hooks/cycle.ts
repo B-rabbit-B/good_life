@@ -1,0 +1,70 @@
+// 经期的接口：经期记录、每日记录、预测、阶段、提示与统计。任何一次修改之后刷新全部经期查询（预测、阶段与统计都按经期重算）。
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { api } from '../client'
+import { qk } from '../keys'
+import type { CycleStatsOut, DayLogIn, DayLogOut, PeriodOut, PhaseOut, PredictionOut, TipsOut } from '../types'
+
+const base = '/api/cycle'
+
+function useRefreshCycle() {
+  const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries({ queryKey: ['cycle'] })
+}
+
+/** 全部经期记录，新的在前 */
+export function usePeriods() {
+  return useQuery({ queryKey: qk.periods, queryFn: ({ signal }) => api<PeriodOut[]>(`${base}/periods`, { signal }) })
+}
+
+/** 记录一次经期开始 */
+export function useCreatePeriod() {
+  const refresh = useRefreshCycle()
+  return useMutation({
+    mutationFn: (body: { start_date: string }) => api<PeriodOut>(`${base}/periods`, { method: 'POST', json: body }),
+    onSuccess: refresh,
+  })
+}
+
+/** 给一次经期填结束日期 */
+export function useUpdatePeriod() {
+  const refresh = useRefreshCycle()
+  return useMutation({
+    mutationFn: ({ id, end_date }: { id: string; end_date: string }) =>
+      api<PeriodOut>(`${base}/periods/${id}`, { method: 'PATCH', json: { end_date } }),
+    onSuccess: refresh,
+  })
+}
+
+/** 一段日期里的每日记录（含两端） */
+export function useDayLogs(start: string, end: string) {
+  return useQuery({
+    queryKey: qk.dayLogs(start, end),
+    queryFn: ({ signal }) => api<DayLogOut[]>(`${base}/day-logs`, { query: { start, end }, signal }),
+  })
+}
+
+/** 写某一天的记录（整条替换） */
+export function usePutDayLog() {
+  const refresh = useRefreshCycle()
+  return useMutation({
+    mutationFn: ({ date, body }: { date: string; body: DayLogIn }) =>
+      api<DayLogOut>(`${base}/day-logs/${date}`, { method: 'PUT', json: body }),
+    onSuccess: refresh,
+  })
+}
+
+export function usePrediction() {
+  return useQuery({ queryKey: qk.prediction, queryFn: ({ signal }) => api<PredictionOut>(`${base}/prediction`, { signal }) })
+}
+
+export function usePhase() {
+  return useQuery({ queryKey: qk.phase, queryFn: ({ signal }) => api<PhaseOut>(`${base}/phase`, { signal }) })
+}
+
+export function useTips() {
+  return useQuery({ queryKey: qk.tips, queryFn: ({ signal }) => api<TipsOut>(`${base}/tips`, { signal }) })
+}
+
+export function useCycleStats() {
+  return useQuery({ queryKey: qk.cycleStats, queryFn: ({ signal }) => api<CycleStatsOut>(`${base}/stats`, { signal }) })
+}

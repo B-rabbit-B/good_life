@@ -64,44 +64,8 @@ export const GOAL_LABELS: Record<Goal, string> = { lose_fat: '减脂', gain_musc
 
 export const GENDER_LABELS: Record<Gender, string> = { female: '女', male: '男', other: '其他' }
 
-export const FLOW_LABELS: Record<Flow, string> = { none: '无', spotting: '点滴', light: '少', medium: '中', heavy: '多' }
-
-export const MOOD_LABELS: Record<Mood, string> = { good: '好', normal: '一般', low: '低落', irritable: '烦躁', anxious: '焦虑' }
-
-/** 经期阶段的宋体标题键（lib/titles.json） */
-export const PHASE_TITLE_KEYS: Record<Phase, TitleKey> = {
-  menstrual: 'phaseMenstrual',
-  follicular: 'phaseFollicular',
-  ovulation: 'phaseOvulation',
-  luteal: 'phaseLuteal',
-  unknown: 'phaseUnknown',
-}
-
-export const MUSCLE_LABELS: Record<Muscle, string> = {
-  chest: '胸',
-  back: '背',
-  shoulders: '肩',
-  biceps: '肱二头肌',
-  triceps: '肱三头肌',
-  quads: '股四头肌',
-  hamstrings: '腘绳肌',
-  glutes: '臀',
-  calves: '小腿',
-  core: '核心',
-  full_body: '全身',
-}
-
-export const EQUIPMENT_LABELS: Record<Equipment, string> = {
-  barbell: '杠铃',
-  dumbbell: '哑铃',
-  machine: '器械',
-  cable: '绳索',
-  bodyweight: '徒手',
-  kettlebell: '壶铃',
-  band: '弹力带',
-  none: '无',
-  other: '其他',
-}
+// 经期的流量、心情与阶段标题在 cycleLabels.ts，训练的部位与器械在 fitnessLabels.ts（只有那两块页面用；
+// 这个文件在对话页首屏的块里，放在这里会让它们进首屏）
 
 export const ACCESS_LABELS: Record<GrantAccess, string> = { read: '只读', read_write: '读写' }
 

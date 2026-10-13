@@ -128,9 +128,10 @@ describe('diary view', () => {
     expect(await screen.findByRole('img', { name: /今日能量/ })).toBeInTheDocument()
   })
 
-  it('shows only the training placeholder on the training tab', async () => {
+  it('shows the training view on the training tab', async () => {
     renderDiary(undefined, '/records?tab=training')
     expect(await screen.findByRole('tab', { name: '训练', selected: true })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '本周训练' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '附近吃什么' })).not.toBeInTheDocument()
   })
 

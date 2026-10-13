@@ -1,0 +1,58 @@
+/* 经期（设计稿 06，第 567 至 598 行）：阶段大标题、周期刻度与预测、月历与图例、两个记录按钮。全页只用海军蓝、灰与钴蓝。
+   月历面板内边距是 12（不是 16）：360 视口下每格约 44.6 宽；格高 44，格内 36 圆角 12 的方块。 */
+.phase{padding:6px var(--gutter) 0;display:grid;grid-template-columns:1fr auto;gap:0 12px;align-items:end}
+.phase .ref{margin-bottom:8px}
+.phase p{margin:2px 0 0;font-size:var(--fs-14);line-height:1.65;color:var(--ink-2);grid-column:1/-1}
+.phase .tip-t{font-weight:600;color:var(--ink);margin-right:6px}
+.cyc-plate{padding-top:6px}
+.pred{margin:14px 0 0;padding:12px 0 14px;border-top:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:baseline}
+.pred>.ns{font-size:1.875rem;line-height:1.1;white-space:nowrap}
+.pred>.ns small{font-size:.9375rem;color:var(--ink-3);font-family:var(--font-sans);font-weight:400;margin:0 1px}
+.pred p{margin:0;font-size:.8125rem;color:var(--ink-2);line-height:1.6}
+.pred p .ref{margin-left:6px}
+.pred .pred-x{grid-column:1/-1;color:var(--ink-3);font-size:var(--fs-12);line-height:1.5}
+
+.cal{padding:4px 12px 14px}
+.cal-h{display:flex;justify-content:space-between;align-items:center;margin:4px 0}
+.cal-h .ibtn:first-child{margin-left:-12px}
+.cal-h .ibtn:last-child{margin-right:-12px}
+.cal-h .ibtn[data-disabled]{opacity:.35}
+.cal-h b{font-size:1.0625rem}
+.cal-g{width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed;text-align:center}
+.cal-g th{font-size:var(--fs-12);font-weight:400;line-height:1.5;color:var(--ink-3);height:24px;padding:0}
+.cal-g td{padding:1px 0 0}
+.cal-g .d{position:relative;height:44px;display:flex;align-items:center;justify-content:center;font-size:var(--fs-16);font-family:var(--font-num);font-variant-numeric:tabular-nums lining-nums;font-weight:500;color:var(--ink);cursor:pointer;outline:none}
+.cal-g .d[data-disabled],.cal-g .d[data-unavailable]{cursor:default}
+.cal-g .d span{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:12px}
+.cal-g .d[data-focus-visible] span{outline:2px solid var(--accent);outline-offset:2px}
+.cal-g .d.rec span{background:linear-gradient(180deg,#22314F,var(--ink));color:#fff}
+.cal-g .d.prd span{outline:1.5px dashed var(--ink-2);outline-offset:-1.5px}
+.cal-g .d.win::after{content:"";position:absolute;left:4px;right:4px;bottom:1px;height:3px;border-radius:var(--r-pill);background:repeating-linear-gradient(90deg,var(--ink-3) 0 3px,transparent 3px 6px)}
+.cal-g .d.today span{color:var(--accent);font-weight:600;box-shadow:inset 0 0 0 2px var(--accent)}
+.cal-g .d.rec.today span{color:#fff}
+.cal-g .d.log span::before{content:"";position:absolute;top:5px;right:calc(50% - 16px);width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+.cal-g .d.out{color:var(--ink-3);font-weight:400}
+.cal-g .d.out.rec span{background:var(--ink-2)}
+.cal-leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:12px 0 0;font-size:var(--fs-12);line-height:1.5;color:var(--ink-3)}
+.cal-leg span{display:inline-flex;align-items:center;gap:6px}
+.cal-leg i{display:inline-block;width:12px;height:12px;border-radius:4px}
+.cal-leg .l-rec{background:var(--ink)}
+.cal-leg .l-prd{outline:1.5px dashed var(--ink-2);outline-offset:-1.5px}
+.cal-leg .l-win{height:3px;background:repeating-linear-gradient(90deg,var(--ink-3) 0 3px,transparent 3px 6px)}
+.cal-leg .l-log{width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+
+.cyc-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.cyc-load{margin:8px var(--gutter) 0}
+
+@media (forced-colors:active){
+  .cal-g .d span,.cal-g .d.win::after,.cal-g .d.log span::before,.cal-leg i{forced-color-adjust:none}
+  .cal-g .d span{background:Canvas;color:CanvasText}
+  .cal-g .d.rec span{background:CanvasText;color:Canvas}
+  .cal-g .d.out.rec span{background:GrayText;color:Canvas}
+  .cal-g .d.prd span{outline-color:CanvasText}
+  .cal-g .d.today span{color:Highlight;box-shadow:inset 0 0 0 2px Highlight}
+  .cal-g .d.rec.today span{color:Canvas}
+  .cal-g .d.win::after{background:repeating-linear-gradient(90deg,CanvasText 0 3px,transparent 3px 6px)}
+  .cal-g .d.log span::before{background:CanvasText}
+  .cal-leg i{background:CanvasText !important;outline:0 !important}
+}

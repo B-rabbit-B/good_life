@@ -243,6 +243,62 @@ export function logMeal(
   return call(request, 'POST', '/api/nutrition/meals', { token, data: { eaten_on: localToday(), ...meal } })
 }
 
+/** 今天加 offset 天（本地日期，YYYY-MM-DD） */
+export function localDate(offset = 0): string {
+  const date = new Date()
+  date.setDate(date.getDate() + offset)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/** 记一次经期（end 为 null 时还没结束） */
+export function seedPeriod(
+  request: APIRequestContext, token: string, start: string, end: string | null,
+): Promise<Schemas['PeriodOut']> {
+  return call(request, 'POST', '/api/cycle/periods', { token, data: { start_date: start, end_date: end } })
+}
+
+/** 写某一天的经期记录 */
+export function seedDayLog(
+  request: APIRequestContext, token: string, date: string, body: Schemas['DayLogIn'],
+): Promise<Schemas['DayLogOut']> {
+  return call(request, 'PUT', `/api/cycle/day-logs/${date}`, { token, data: body })
+}
+
+/** 记一次训练 */
+export function seedWorkout(request: APIRequestContext, token: string, body: Schemas['WorkoutIn']): Promise<Schemas['WorkoutOut']> {
+  return call(request, 'POST', '/api/fitness/workouts', { token, data: body })
+}
+
+/** 设计稿 06 的经期：最近一次 13 天前开始、持续 5 天，之前三次相隔 29 到 30 天；今天与 3 天前有当天记录 */
+export async function seedDeckCycle(request: APIRequestContext, token: string): Promise<void> {
+  for (const offset of [-101, -71, -42, -13]) await seedPeriod(request, token, localDate(offset), localDate(offset + 4))
+  await seedDayLog(request, token, localDate(), { mood: 'good' })
+  await seedDayLog(request, token, localDate(-3), { mood: 'normal', note: '睡得晚' })
+}
+
+/** 设计稿 08 的运动限制 */
+export const KNEE_LIMIT = '膝关节术后六周内避免跑跳'
+
+/** 设计稿 08 的训练：一条运动限制（跳），近一周五次训练（开合跳与限制冲突、两次哑铃卧推、动感单车、快走） */
+export async function seedDeckTraining(request: APIRequestContext, token: string): Promise<void> {
+  await seedActiveItem(request, token, {
+    category: 'exercise_limit', content: KNEE_LIMIT, subjects: ['跳'], start_date: localDate(-20), end_date: localDate(20),
+  })
+  const sets = (n: number, weight_kg: number, reps: number) => Array.from({ length: n }, () => ({ weight_kg, reps }))
+  const workouts: Schemas['WorkoutIn'][] = [
+    { performed_on: localDate(-6), cardio: [{ exercise_id: 'ex:jumping_jacks', duration_minutes: 15 }], strength: [] },
+    { performed_on: localDate(-4), duration_minutes: 45, cardio: [], strength: [{ exercise_id: 'ex:dumbbell_bench_press', sets: sets(4, 10, 10) }] },
+    { performed_on: localDate(-2), cardio: [{ exercise_id: 'ex:spinning', duration_minutes: 38 }], strength: [] },
+    {
+      performed_on: localDate(-1), duration_minutes: 50, cardio: [],
+      strength: [{ exercise_id: 'ex:dumbbell_bench_press', sets: sets(4, 12, 10) }, { exercise_id: 'ex:leg_extension', sets: sets(3, 25, 12) }],
+    },
+    { performed_on: localDate(), cardio: [{ exercise_id: 'ex:brisk_walking', duration_minutes: 35 }], strength: [] },
+  ]
+  for (const workout of workouts) await seedWorkout(request, token, workout)
+}
+
 /** 以这个令牌登录的身份打开页面：先打开 / 写入令牌，再跳到目标路径。 */
 export async function openAs(page: Page, token: string, path: string): Promise<void> {
   await page.goto('/')

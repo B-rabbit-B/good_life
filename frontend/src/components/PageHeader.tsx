@@ -59,14 +59,16 @@ function useStuck(sentinel: RefObject<HTMLDivElement | null>): boolean {
  * onRefresh 时右侧放刷新按钮（代替下拉刷新）；cover 时右上角放遮盖按钮（没有底部导航的二级页）。
  * 不传 cover 时由外壳决定：敏感区登记表里的页面且没有底部导航时放。
  * 不传 titleKey 时页头一行只有返回键（建档：大标题写在进度条下面的正文里）。
+ * action 是右侧刷新键之前的一个页面动作（例如训练的“记一次训练”）。
  */
-export function PageHeader({ titleKey, variant, back, caption, cover: coverProp, onRefresh, children }: {
+export function PageHeader({ titleKey, variant, back, caption, cover: coverProp, onRefresh, action, children }: {
   titleKey?: TitleKey
   variant: 'big' | 'sub' | 'chat'
   back?: true | string
   caption?: string
   cover?: boolean
   onRefresh?: () => void
+  action?: ReactNode
   children?: ReactNode
 }) {
   const navigate = useNavigate()
@@ -88,9 +90,10 @@ export function PageHeader({ titleKey, variant, back, caption, cover: coverProp,
             {back && <IconButton icon="back" label="返回" back onPress={goBack} />}
             {titleKey && <Title k={titleKey} level={variant === 'big' ? 'display' : 'title'} as="h1" />}
           </div>
-          {(caption || onRefresh || cover) && (
+          {(caption || action || onRefresh || cover) && (
             <div className="hdr-r">
               {caption && <span className="t-cap hdr-cap">{caption}</span>}
+              {action}
               {onRefresh && <IconButton icon="refresh" label="刷新" onPress={onRefresh} />}
               {cover && <CoverButton />}
             </div>

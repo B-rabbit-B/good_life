@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url'
 import type { components } from '../../src/api/schema'
 import {
   addPendingDish, CEFUROXIME_ORDER, confirmRecognition, createUser, e2eInfo, logMeal, recognizePhoto, resolveItem,
-  seedActiveItem, seedModelService, seedPendingOrder, seedProposal, seedReviewDueItem, seedVoidedItem, sendMessage, TOKEN_KEY,
-  uploadEvidence,
+  seedActiveItem, seedDeckCycle, seedDeckTraining, seedModelService, seedPendingOrder, seedProposal, seedReviewDueItem,
+  seedVoidedItem, sendMessage, TOKEN_KEY, uploadEvidence,
 } from '../support/api'
 
 const FIXTURES = join(fileURLToPath(new URL('.', import.meta.url)), '..', '.fixtures')
@@ -247,6 +247,13 @@ export const FRAMES: FrameSpec[] = [
     return signedIn(page, token, '/records')
   },
   after: (page) => page.waitForTimeout(700) }, // 刻度长出与计数结束
+  // 06 经期：四次经期（最近一次 13 天前开始）与两天的当天记录
+  { id: '06', widths: [360, 390], prepare: async ({ request, page }) => {
+    const { token } = await createUser(request, { profile: 'complete' })
+    await seedDeckCycle(request, token)
+    return signedIn(page, token, '/health/cycle')
+  },
+  after: (page) => page.locator('.cal-g .d.today').waitFor() },
   // 07 医嘱：07a 生效中；07b 待核对；07c 待核对条目的确认生效面板；07d 带解除建议的条目的确认解除面板；
   // 07e 历史与审计（一条已解除、一条作废）；07f 录入医嘱（照设计稿填好原文、选一张证据）
   { id: '07a', widths: [360, 390], prepare: async ({ request, page }) =>
@@ -272,6 +279,16 @@ export const FRAMES: FrameSpec[] = [
     })
     await page.getByRole('list', { name: '证据' }).waitFor()
     await page.waitForTimeout(300)
+  } },
+  // 08 训练：一条运动限制与近一周五次训练（开合跳与限制冲突）
+  { id: '08', widths: [360, 390], prepare: async ({ request, page }) => {
+    const { token } = await createUser(request, { profile: 'complete' })
+    await seedDeckTraining(request, token)
+    return signedIn(page, token, '/records?tab=training')
+  },
+  after: async (page) => {
+    await page.locator('.trend circle.last').waitFor()
+    await page.waitForTimeout(700) // 数字数完
   } },
   // 设计系统一节对样张页
   { id: 'ds', widths: [360, 390], prepare: galleryBlock('ds') },

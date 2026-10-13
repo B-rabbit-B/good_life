@@ -2,6 +2,8 @@ import type { HttpHandler } from 'msw'
 import { agentHandlers, chatHandlers } from './agent'
 import { authHandlers } from './auth'
 import { coreHandlers } from './core'
+import { cycleHandlers } from './cycle'
+import { fitnessHandlers } from './fitness'
 import { llmHandlers } from './llm'
 import { medicalHandlers } from './medical'
 import { nutritionHandlers } from './nutrition'
@@ -13,4 +15,5 @@ import { photosHandlers } from './photos'
 export const handlers: HttpHandler[] = [
   ...coreHandlers(), ...authHandlers(), ...agentHandlers(), ...chatHandlers().handlers, ...llmHandlers(),
   ...medicalHandlers().handlers, ...nutritionHandlers().handlers, ...photosHandlers().handlers,
+  ...cycleHandlers().handlers, ...fitnessHandlers().handlers,
 ]

@@ -44,6 +44,8 @@ export async function expectTouchTargets(page: Page): Promise<void> {
         // 只给读屏用的隐藏控件（1 像素以内，或在 1 × 1 的隐藏外层里）本身不算触控目标：
         // 手指点的是包着它的可见标签（.opt、.chk、.tg-row），所以改为量这个标签
         if (rect.width <= 1 || rect.height <= 1 || insideVisuallyHidden(el)) {
+          // 只给读屏光标用、不进 Tab 顺序的隐藏按钮（React Aria 月历末尾的“下一页”）不是触控目标
+          if (el instanceof HTMLButtonElement && el.getAttribute('aria-label') && el.tabIndex === -1) continue
           const label = el.closest('label')
           if (!label) {
             out.push(`${describe(el)}：隐藏的控件没有可点的可见标签`)
