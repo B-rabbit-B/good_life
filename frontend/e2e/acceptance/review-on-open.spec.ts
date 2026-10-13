@@ -45,7 +45,9 @@ test('a due item is raised when the app opens and can be continued', async ({ pa
   const sheet = page.getByRole('dialog', { name: '继续遵守这条医嘱' })
   await expect(sheet).toBeVisible()
   // 两个日期都在：复查日期预填 1 个月后，预计结束原来没有设
-  await expect(sheet.getByLabel('复查日期', { exact: true })).not.toHaveValue('')
+  const review = sheet.getByLabel('复查日期', { exact: true })
+  await expect(review).toHaveValue(/^\d{4}-\d{2}-\d{2}$/)
+  const reviewDate = await review.inputValue()
   await expect(sheet.getByLabel('预计结束', { exact: true })).toBeAttached()
   await expect(sheet.getByText('原来没有设，表示长期有效')).toBeVisible()
   await snap(page, 'continue-sheet')
@@ -54,7 +56,9 @@ test('a due item is raised when the app opens and can be continued', async ({ pa
   await expect(page.getByText('已继续遵守')).toBeVisible()
   await expect(card).toHaveCount(0)
   await expect(page.getByRole('button', { name: /待复核/ })).toHaveCount(0)
-  expect((await itemOf(request, token, item.id)).status).toBe('active')
+  const saved = await itemOf(request, token, item.id)
+  expect(saved.status).toBe('active')
+  expect(saved.review_date, '服务器上的复查日期就是面板里填的那一天').toBe(reviewDate)
 })
 
 test('a due item can be resolved from the medical page', async ({ page, request }) => {
@@ -77,7 +81,7 @@ test('a due item can be resolved from the medical page', async ({ page, request 
 })
 
 test('later collapses the opening into the strip', async ({ page, request }) => {
-  const { token } = await dueUser(request)
+  const { token, item } = await dueUser(request)
   const card = await openApp(page, token)
   // 卡片显示时，这一条不再重复出现在待处理条里
   const strip = page.getByRole('button', { name: /待复核$/ })
@@ -88,4 +92,6 @@ test('later collapses the opening into the strip', async ({ page, request }) => 
   await strip.click()
   await expect(page.locator('.rvx')).toContainText(SALT.content)
   await expect(page.locator('.rvx').getByRole('button', { name: '继续遵守' })).toBeVisible()
+  // “稍后”只收起开场，条目仍待复核
+  expect((await itemOf(request, token, item.id)).status).toBe('pending_review')
 })

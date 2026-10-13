@@ -11,6 +11,7 @@ test.afterEach(({ blockedRequests }) => {
 })
 
 test('a new user completes the whole flow through the ui only', async ({ page, request }) => {
+  test.setTimeout(90_000)
   const info = await e2eInfo(request)
   const username = `a${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
 
@@ -88,8 +89,20 @@ test('a new user completes the whole flow through the ui only', async ({ page, r
   await expectRefTag(answer)
   await snap(page, 'chat-answer')
 
-  // 对话底座的相册：选 meal.jpg，识别出麻婆豆腐与米饭
-  await page.locator('.slab input[type="file"]:not([capture])').setInputFiles(MEAL_JPG)
+  // 对话底座的拍照与相册按钮：从相册选 meal.jpg，识别出麻婆豆腐与米饭
+  // “拍照”打开的文件选择带 capture（手机上直接调相机）；这里不选文件
+  const camera = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: '拍照' }).click()
+  const cameraChooser = await camera
+  expect(await cameraChooser.element().getAttribute('capture')).toBe('environment')
+  expect(cameraChooser.isMultiple()).toBe(false)
+  await expect(page).toHaveURL(/\/chat$/)
+  // “从相册选图”打开不带 capture 的文件选择，选 meal.jpg
+  const album = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: '从相册选图' }).click()
+  const albumChooser = await album
+  expect(await albumChooser.element().getAttribute('capture')).toBeNull()
+  await albumChooser.setFiles(MEAL_JPG)
   await expect(page).toHaveURL(/\/photos\/[0-9a-f-]{36}$/, { timeout: 30_000 })
   const names = page.locator('.item-n>span')
   await expect(names.filter({ hasText: '麻婆豆腐' })).toBeVisible()

@@ -14,11 +14,15 @@ test('a saved key is only ever shown as the backend mask', async ({ page, reques
   const { token } = await createUser(request)
   const bodies: Promise<string>[] = []
   const urls: string[] = []
+  const unreadable: string[] = []
   // 密钥只可能出现在接口的响应里；在打开目标页之后才开始记，免得读到上一个文档里被导航取消的请求（它的响应体永远读不到）
   const record = (response: Response) => {
     if (!new URL(response.url()).pathname.startsWith('/api/')) return
     urls.push(response.url())
-    bodies.push(response.text().catch(() => ''))
+    bodies.push(response.text().catch(() => {
+      unreadable.push(response.url())
+      return ''
+    }))
   }
 
   await openAs(page, token, '/settings/models/new')
@@ -49,6 +53,7 @@ test('a saved key is only ever shown as the backend mask', async ({ page, reques
 
   page.off('response', record)
   const texts = await Promise.all(bodies)
+  expect(unreadable, '有接口响应体没能读出来').toEqual([])
   // 至少记下了创建服务、获取模型、测试连通、分配用途与服务列表这些响应
   expect(urls.some((url) => url.endsWith('/api/llm/providers'))).toBe(true)
   expect(texts.length).toBeGreaterThan(4)

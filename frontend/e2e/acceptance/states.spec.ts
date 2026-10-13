@@ -62,7 +62,13 @@ test('insufficient cycle data says so', async ({ page, request }) => {
   await openAs(page, token, '/health/cycle')
   const state = page.getByRole('region', { name: '还不能预测下次经期' })
   await expect(state).toBeVisible()
-  await expect(state.locator('.st-p').first()).not.toBeEmpty()
+  // 说明是后端预测接口给的原文，逐条照写
+  const prediction = (await (await request.get('/api/cycle/prediction', {
+    headers: { Authorization: `Bearer ${token}` },
+  })).json()) as { status: string; notes: string[] }
+  expect(prediction.status).not.toBe('ok')
+  expect(prediction.notes.length).toBeGreaterThan(0)
+  await expect(state.locator('.st-p')).toHaveText(prediction.notes)
 })
 
 test('location needs consent once', async ({ page, request }) => {

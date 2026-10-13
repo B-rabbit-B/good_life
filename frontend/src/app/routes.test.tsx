@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { qk } from '../api/keys'
 import { capabilities, completeProfile } from '../test/fixtures/core'
 import { server } from '../test/msw/server'
+import { gate } from '../test/chat'
 import { renderRoute, renderRouter } from '../test/render'
 import { PATHS, type PathKey } from './paths'
 import { RouteError, routes, type RouteHandle } from './routes'
@@ -126,6 +127,27 @@ describe('route table', () => {
     await expect.poll(() => router.state.location.pathname).toBe('/health/medical')
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(router.state.location.pathname).toBe('/health/medical')
+  })
+
+  it('opens health right away when the capabilities are only stale', async () => {
+    const { router, queryClient } = renderRoute('/me')
+    await screen.findByRole('heading', { name: '我的', level: 1 })
+    // 清单只是过期（不是被作废）：打开 /health 会在后台重取，但不等它
+    const current = queryClient.getQueryData(qk.capabilities)
+    queryClient.setQueryData(qk.capabilities, current, { updatedAt: Date.now() - 60_000 })
+    const held = gate()
+    let requests = 0
+    server.use(http.get('/api/me/capabilities', async () => {
+      requests += 1
+      await held.promise
+      return HttpResponse.json(capabilities())
+    }))
+    void router.navigate('/health')
+    await expect.poll(() => router.state.location.pathname).toBe('/health/cycle')
+    // 跳转时重取还没回来，期间没有显示启动画面
+    expect(requests).toBe(1)
+    expect(screen.queryByText('正在加载')).not.toBeInTheDocument()
+    held.open()
   })
 
   it('sends unknown paths to chat', async () => {

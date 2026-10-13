@@ -1,11 +1,12 @@
 // 路由表：页面全部按路由拆包（React Router 的 lazy）；守卫嵌套顺序 RequireAuth → RequireDisclaimer → RequireProfile → AppShell。
 // 每个页面的 handle 写明底部怎么画（tabs 底部导航、chat 对话底座、none 都没有）；是否有敏感内容不在这里写，
 // 由“本页有敏感区”登记表（sensitiveAreas.ts）推出，两处不会不一致。
-import { useIsMutating } from '@tanstack/react-query'
+import { useIsMutating, useQueryClient } from '@tanstack/react-query'
 import type { ComponentType } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
 import { ApiError } from '../api/errors'
 import { PROFILE_UPDATE_KEY, useCapabilities } from '../api/hooks/profile'
+import { qk } from '../api/keys'
 import type { NavItem } from '../components/BottomNav'
 import { Field } from '../components/Field'
 import { ErrorState } from '../components/states/ErrorState'
@@ -33,13 +34,15 @@ const handle = (key: PathKey, nav: RouteHandle['nav'], navKey?: NavItem['key']):
 
 /**
  * /health 打开第一个开放的分段；经期与医嘱都不开放时回对话页。
- * 档案正在保存或能力清单正在刷新（例如刚关掉“经期记录”就点“健康”）时等新的结果：
- * 按旧清单跳到经期，新清单一到又会被送回对话页。
+ * 档案正在保存，或能力清单被作废后正在重取（例如刚关掉“经期记录”就点“健康”）时等新的结果：
+ * 按旧清单跳到经期，新清单一到又会被送回对话页。平时数据过期引起的后台重取不等，直接按手上的清单跳转。
  */
 function HealthRedirect() {
   const caps = useCapabilities()
+  const queryClient = useQueryClient()
   const savingProfile = useIsMutating({ mutationKey: PROFILE_UPDATE_KEY }) > 0
-  if (!caps.data || caps.isFetching || savingProfile) return <BootSplash />
+  const refreshing = caps.isFetching && queryClient.getQueryState(qk.capabilities)?.isInvalidated === true
+  if (!caps.data || refreshing || savingProfile) return <BootSplash />
   const [first] = healthSegments(caps.data)
   return <Navigate to={first === 'cycle' ? PATHS.cycle : first === 'medical' ? PATHS.medical : PATHS.chat} replace />
 }

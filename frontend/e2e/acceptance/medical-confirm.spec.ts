@@ -1,4 +1,5 @@
 // 验收标准 3：医嘱的确认与解除必须由界面点击并二次确认（面板里写清后果，解除还要勾选不可撤销的确认），聊天里无法直接完成。
+import type { APIRequestContext } from '@playwright/test'
 import type { components } from '../../src/api/schema'
 import {
   CEFUROXIME_ORDER, createUser, e2eInfo, openAs, seedActiveItem, seedModelService, seedPendingOrder,
@@ -14,13 +15,25 @@ const PURINE: ManualItem = { category: 'diet_avoid', content: '避免动物内�
 const KNEE: ManualItem = { category: 'exercise_limit', content: '膝关节术后六周内避免跑跳', subjects: ['跑跳'] }
 const ACK = '我知道解除后不能撤销，需要重新录入才能恢复这条约束'
 
+async function itemOf(request: APIRequestContext, token: string, id: string): Promise<MedicalItem> {
+  const response = await request.get(`/api/medical/items/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+  expect(response.ok()).toBe(true)
+  return (await response.json()) as MedicalItem
+}
+
 test.afterEach(({ blockedRequests }) => {
   expect(blockedRequests, '有请求发往本机以外').toEqual([])
 })
 
 test('confirming an order item needs a click and a second confirmation', async ({ page, request }) => {
   const { token } = await createUser(request)
-  await seedPendingOrder(request, token, CEFUROXIME_ORDER)
+  const order = await seedPendingOrder(request, token, CEFUROXIME_ORDER)
+  const pending = order.items.find((i) => i.content.includes(EXTRACTED))
+  if (!pending) throw new Error('提取结果里没有禁酒这一条')
+  const confirms: string[] = []
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && /\/api\/medical\/items\/[^/]+\/confirm$/.test(new URL(r.url()).pathname)) confirms.push(r.url())
+  })
   await openAs(page, token, '/health/medical?tab=pending')
   const item = page.locator('.mo', { has: page.locator('.fields dd', { hasText: EXTRACTED }) })
   await expect(item).toBeVisible()
@@ -29,13 +42,15 @@ test('confirming an order item needs a click and a second confirmation', async (
   await item.getByRole('button', { name: '确认生效' }).click()
   const sheet = page.getByRole('dialog', { name: '确认这条医嘱生效' })
   await expect(sheet).toBeVisible()
-  await expect(item).toBeAttached()
   // 面板列出确认后的后果
   const will = sheet.locator('.will li')
   await expect(will.first()).toHaveText('状态从“待核对”变为“生效中”。')
   await expect(will.filter({ hasText: '之后的对话、拍照评价和附近餐厅推荐都按它约束。' })).toBeVisible()
   await expect(will.filter({ hasText: '记一条审计' })).toBeVisible()
   await snap(page, 'confirm-sheet')
+  // 打开面板到第二次点击之间：没有发出确认请求，服务器上条目仍待核对
+  expect(confirms, '第一次点击就发出了确认请求').toEqual([])
+  expect((await itemOf(request, token, pending.id)).status).toBe('pending_confirmation')
 
   // 面板里的“确认生效”才让它生效
   await sheet.getByRole('button', { name: '确认生效' }).click()
@@ -43,6 +58,8 @@ test('confirming an order item needs a click and a second confirmation', async (
   await expect(page.locator('.fields dd', { hasText: EXTRACTED })).toHaveCount(0)
   await page.getByRole('tab', { name: /^生效中/ }).click()
   await expect(page.locator('.mo-c', { hasText: EXTRACTED })).toBeVisible()
+  expect(confirms).toHaveLength(1)
+  expect((await itemOf(request, token, pending.id)).status).toBe('active')
 })
 
 test('resolving needs the irreversible acknowledgement', async ({ page, request }) => {
@@ -83,14 +100,13 @@ test('chat cannot confirm or resolve', async ({ page, request }) => {
   await expect(jump).toHaveCount(1)
   await expect(jump.getByRole('link')).toHaveText('去医嘱页处理')
   await expect(page.getByRole('button', { name: '确认生效' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: '确认生效' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '确认解除' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: '确认解除' })).toHaveCount(0)
   await snap(page, 'chat-clue')
 
   // 条目仍在生效中（模型只能提出解除建议）
-  const response = await request.get(`/api/medical/items/${knee.id}`, { headers: { Authorization: `Bearer ${token}` } })
-  const item = (await response.json()) as MedicalItem
-  expect(item.status).toBe('active')
+  expect((await itemOf(request, token, knee.id)).status).toBe('active')
 
   await jump.getByRole('link', { name: '去医嘱页处理' }).click()
   await expect(page).toHaveURL(/\/health\/medical\?tab=active$/)
