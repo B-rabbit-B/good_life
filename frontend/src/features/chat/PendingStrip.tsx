@@ -14,7 +14,7 @@ import { shortDue } from '../../api/itemContext/dueReason'
 import { useItemContext } from '../../api/itemContext/useItemContext'
 
 // 继续遵守面板只在点了“继续遵守”后才加载
-const ContinueSheet = lazy(() => import('../medical').then((medical) => ({ default: medical.ContinueSheet })))
+const ContinueSheet = lazy(() => import('../medical/ContinueSheet'))
 
 /** 页头里待处理条的展开按钮（开场卡片收起后焦点落在这里） */
 export const STRIP_TOGGLE_ID = 'pending-strip-toggle'

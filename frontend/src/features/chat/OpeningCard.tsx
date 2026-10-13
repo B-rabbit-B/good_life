@@ -12,7 +12,7 @@ import { useItemContext } from '../../api/itemContext/useItemContext'
 import { openingActionsFor, type OpeningAction } from './openingActions'
 
 // 继续遵守面板只在点了“继续遵守”后才加载，不进对话页的首屏脚本
-const ContinueSheet = lazy(() => import('../medical').then((medical) => ({ default: medical.ContinueSheet })))
+const ContinueSheet = lazy(() => import('../medical/ContinueSheet'))
 
 const NO_CAPS = { cycle: false, medical: false, nutrition: false, fitness: false }
 

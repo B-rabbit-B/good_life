@@ -13,6 +13,10 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url)).replaceAll('\\', '/'
 const ALLOWED: Record<string, string> = {
   'lib/labels -> api/schema': '标签映射的枚举类型取自生成的接口类型（只有 import type，不进运行时）',
   'lib/formErrors -> api/errors': '表单错误归位要认 ApiError（errors.ts 只有错误类本身，不依赖任何模块）',
+  // 对话页按需加载继续遵守面板（只在 lazy(() => import(...)) 里）：经 features/medical/index 动态引入会把整个医嘱视图
+  // （连同标签输入、下拉等，gzip 后约 64 KB）一起下载，直接引入这个模块只下载面板本身
+  'features/chat/OpeningCard -> features/medical/ContinueSheet': '按需加载继续遵守面板',
+  'features/chat/PendingStrip -> features/medical/ContinueSheet': '按需加载继续遵守面板',
 }
 
 /** components 可以引用的 app 模块与原因 */
@@ -79,6 +83,14 @@ describe('module boundaries', () => {
       const viaIndex = to === `features/${target}` || to === `features/${target}/index`
       return feature(from) !== undefined && target !== undefined && feature(from) !== target && !viaIndex
     })).toEqual([])
+  })
+
+  it('loads the continue sheet into chat only lazily', () => {
+    for (const file of ['features/chat/OpeningCard.tsx', 'features/chat/PendingStrip.tsx']) {
+      const text = readFileSync(`${ROOT}/${file}`, 'utf-8')
+      expect(text, file).toContain("lazy(() => import('../medical/ContinueSheet'))")
+      expect(text, file).not.toMatch(/from '\.\.\/medical\/ContinueSheet'/)
+    }
   })
 
   it('lists only exceptions that are still used', () => {
