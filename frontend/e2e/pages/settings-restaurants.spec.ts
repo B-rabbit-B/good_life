@@ -1,10 +1,12 @@
 // 附近餐厅与设置：390 与 360 两个宽度下，附近餐厅（拒绝定位后手动输入模拟高德认得的地点）导航瓷扣 56×56、需求胶囊 36 高带 data-hit44，
-// 导航链接只断言 href（不真正打开）；允许定位时用浏览器给的坐标检索。每页都查触控目标、最小字号、横向滚动、敏感区与遮盖。
+// 导航链接只断言 href（不真正打开）；允许定位时用浏览器给的坐标检索。添加模型服务（本地模拟模型）四步走到选择用途，步骤号圈 28；
+// 密钥不对时密钥框是 2 像素朱色内描边。隐私与数据里切换“减少透明”后外壳的模糊随之关开。
+// 每页都查触控目标、最小字号、横向滚动，有敏感区的页面查敏感区与遮盖。
 import type { Page } from '@playwright/test'
 import {
-  expectCoverWorks, expectMinFontSize, expectNoHorizontalScroll, expectSensitiveAreas, expectTouchTargets,
+  expectCoverWorks, expectGlass, expectMinFontSize, expectNoHorizontalScroll, expectSensitiveAreas, expectTouchTargets,
 } from '../support/a11y'
-import { createUser, MOCK_CITY, MOCK_PLACE, openAs, setLocationConsent } from '../support/api'
+import { createUser, e2eInfo, MOCK_CITY, MOCK_PLACE, openAs, setLocationConsent } from '../support/api'
 import { expect, test } from '../support/test'
 
 async function expectPageRules(page: Page): Promise<void> {
@@ -72,4 +74,76 @@ test('asks once and searches with the browser location after consent', async ({ 
   await page.reload()
   await expect(page.getByRole('list', { name: '附近的店' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '用一次你的位置？' })).toHaveCount(0)
+})
+
+/** 第 1 步：自定义的 OpenAI 兼容格式、模拟模型的地址与给定的密钥，保存并获取模型 */
+async function fillProvider(page: Page, baseUrl: string, key: string): Promise<void> {
+  await page.getByLabel('类型').selectOption('kind:openai_compatible')
+  await page.getByLabel('名称').fill('本地模拟模型')
+  await page.getByLabel('服务地址').fill(baseUrl)
+  await page.getByLabel('密钥', { exact: true }).fill(key)
+  await page.getByRole('button', { name: '保存并获取模型' }).click()
+}
+
+test('walks the four model service steps and keeps the key out of the page', async ({ page, request }) => {
+  const info = await e2eInfo(request)
+  const { token } = await createUser(request)
+  await openAs(page, token, '/settings/models/new')
+  await expect(page.getByLabel('密钥', { exact: true })).toHaveAttribute('autocomplete', 'new-password')
+  await expectPageRules(page)
+  await fillProvider(page, info.model_base_url, info.model_key)
+  const step3 = page.locator('[data-step="3"]')
+  await step3.getByRole('button', { name: '测试连通' }).click()
+  await expect(page.locator('[data-step="4"]').getByRole('button', { name: '保存用途' })).toBeVisible()
+  for (const size of await box(page, '.fs-m')) expect(size).toEqual([28, 28])
+  expect(await page.content()).not.toContain(info.model_key)
+  const values = await page.locator('input, select, textarea').evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value))
+  expect(values).not.toContain(info.model_key)
+  const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }))
+  expect(stored).not.toContain(info.model_key)
+  await expectPageRules(page)
+
+  await page.getByRole('button', { name: '保存用途' }).click()
+  await expect(page).toHaveURL(/\/settings\/models$/)
+  await expect(page.getByRole('list', { name: '当前用途' })).toContainText(info.chat_model_id)
+  await expectPageRules(page)
+  await expectSensitiveAreas(page)
+  await expectCoverWorks(page)
+})
+
+test('outlines the key field in red when the key is refused', async ({ page, request }) => {
+  const info = await e2eInfo(request)
+  const { token } = await createUser(request)
+  await openAs(page, token, '/settings/models/new')
+  await fillProvider(page, info.model_base_url, info.bad_key)
+  const key = page.getByLabel('密钥', { exact: true })
+  await expect(key).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.getByText('错误码 llm_invalid_key')).toBeVisible()
+  const shadow = await page.locator('.fld-i.bad').evaluate((el) => getComputedStyle(el).boxShadow)
+  expect(shadow).toBe('rgb(179, 38, 30) 0px 0px 0px 2px inset')
+  await expect(page.locator('[data-step="1"] .fs-m')).toHaveClass(/bad/)
+  await expectPageRules(page)
+})
+
+test('switches reduce transparency from the privacy page', async ({ page, request }) => {
+  const { token } = await createUser(request)
+  await openAs(page, token, '/settings/privacy')
+  const group = page.getByRole('radiogroup', { name: '减少透明' })
+  await expect(group).toBeVisible()
+  await expectPageRules(page)
+  await expectSensitiveAreas(page)
+  await expectCoverWorks(page)
+
+  await group.getByText('开', { exact: true }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-glass', 'off')
+  await page.goto('/me')
+  await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible()
+  await expectGlass(page, false)
+
+  await page.goto('/settings/privacy')
+  await page.getByRole('radiogroup', { name: '减少透明' }).getByText('关', { exact: true }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-glass', 'on')
+  await page.goto('/me')
+  await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible()
+  await expectGlass(page, true)
 })

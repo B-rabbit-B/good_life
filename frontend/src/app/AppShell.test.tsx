@@ -124,8 +124,8 @@ describe('app shell', () => {
     first.unmount()
 
     // 不在登记表里的二级页没有遮盖按钮
-    const second = renderRoute('/settings/models')
-    expect(await screen.findByRole('heading', { name: '模型服务' })).toBeInTheDocument()
+    const second = renderRoute('/settings/models/new')
+    expect(await screen.findByRole('heading', { name: '添加模型服务' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '遮盖敏感内容' })).not.toBeInTheDocument()
     second.unmount()
 

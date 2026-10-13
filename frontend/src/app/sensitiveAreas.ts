@@ -24,6 +24,10 @@ export const SENSITIVE_AREAS = {
   profileEdit: ['profile'],
   /** 记一次训练：顶部的运动限制 */
   workoutNew: ['constraints'],
+  /** 模型服务：“其他设置”里已保存的大致区域名 */
+  models: ['savedArea'],
+  /** 隐私与数据：已保存的大致区域、外部授权列表、调用记录 */
+  privacy: ['savedArea', 'grants', 'audit'],
 } as const
 
 export type SensitivePage = keyof typeof SENSITIVE_AREAS

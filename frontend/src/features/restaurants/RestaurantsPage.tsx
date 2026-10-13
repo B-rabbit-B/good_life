@@ -103,7 +103,8 @@ export default function RestaurantsPage() {
     }
   }
 
-  const searchGps = () => flight(async () => {
+  /** 取一次定位并按坐标检索；坐标只在这个函数里，用完即弃 */
+  const locateAndSearch = async () => {
     setMode('gps')
     setBusy('locating')
     let coords: { lng: number; lat: number }
@@ -115,7 +116,9 @@ export default function RestaurantsPage() {
       return
     }
     await run({ location: { lng: coords.lng, lat: coords.lat, coord_type: 'gps' } }, 'gps')
-  })
+  }
+
+  const searchGps = () => flight(locateAndSearch)
 
   const searchPlace = () => flight(() => {
     const trimmed = city.trim()
@@ -132,13 +135,17 @@ export default function RestaurantsPage() {
     void searchGps()
   })
 
+  /** 记下选择（同一时间只记一次）；允许时接着取定位检索。失败时 consent.error 原样显示在按钮下面 */
   const choose = (choice: 'granted' | 'denied') => {
     autoTried.current = true
-    consent.mutate(choice, {
-      onSuccess: () => {
-        if (choice === 'granted') void searchGps()
-        else toPlace(null)
-      },
+    void flight(async () => {
+      try {
+        await consent.mutateAsync(choice)
+      } catch {
+        return
+      }
+      if (choice === 'granted') await locateAndSearch()
+      else toPlace(null)
     })
   }
 

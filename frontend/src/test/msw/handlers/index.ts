@@ -4,6 +4,7 @@ import { authHandlers } from './auth'
 import { coreHandlers } from './core'
 import { cycleHandlers } from './cycle'
 import { fitnessHandlers } from './fitness'
+import { grantHandlers } from './grants'
 import { llmHandlers } from './llm'
 import { medicalHandlers } from './medical'
 import { nutritionHandlers } from './nutrition'
@@ -14,7 +15,8 @@ import { restaurantHandlers } from './restaurants'
 // 默认的会话仓库（chatHandlers）在全部测试之间共用：会发消息的测试用 test/chat.ts 的 renderChat 装自己的一份。
 // 识别记录仓库同理：会改动记录的测试在 renderRoute 之后用 server.use 装自己的 photosHandlers。
 export const handlers: HttpHandler[] = [
-  ...coreHandlers(), ...authHandlers(), ...agentHandlers(), ...chatHandlers().handlers, ...llmHandlers(),
+  ...coreHandlers(), ...authHandlers(), ...agentHandlers(), ...chatHandlers().handlers, ...llmHandlers().handlers,
   ...medicalHandlers().handlers, ...nutritionHandlers().handlers, ...photosHandlers().handlers,
   ...cycleHandlers().handlers, ...fitnessHandlers().handlers, ...restaurantHandlers().handlers,
+  ...grantHandlers().handlers,
 ]

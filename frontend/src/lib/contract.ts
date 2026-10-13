@@ -77,3 +77,15 @@ export const INVALID_DATE_REASONS: Record<string, 'review' | 'end'> = {
   '预计结束日期不能早于生效日期': 'end',
   '复查日期不能早于生效日期': 'review',
 }
+
+/** app.llm.service.LLM_ERRORS 的接口错误码（调用模型服务出错时，按后端的顺序）；添加模型服务的四步按它们决定失败落在哪一步 */
+export const LLM_CALL_ERROR_CODES = ['llm_invalid_key', 'llm_bad_url', 'llm_listing_unsupported_or_bad_url', 'llm_model_unavailable', 'llm_quota_exceeded', 'llm_rate_limited', 'llm_timeout', 'llm_bad_request', 'llm_provider_error'] as const
+export type LlmCallErrorCode = (typeof LLM_CALL_ERROR_CODES)[number]
+
+/** 保存模型服务时落在第 1 步字段上的错误码：app.llm.service 的同名服务与改地址须重填密钥，app.llm.urls 的地址不合格 */
+export const LLM_PROVIDER_EXISTS = 'llm_provider_exists'
+export const LLM_KEY_REQUIRED_FOR_NEW_URL = 'llm_key_required_for_new_url'
+export const LLM_INVALID_URL = 'llm_invalid_url'
+
+/** app.sdk.client 写入审计的结果（成功 ok、失败 error） */
+export const AUDIT_OUTCOMES = ['ok', 'error'] as const

@@ -16,11 +16,14 @@ from app.agent.openings import OPENING_KINDS
 from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES
 from app.agent.schemas import MAX_MESSAGE_CHARS
 from app.errors import AppError
+from app.llm import service as llm_service
+from app.llm import urls as llm_urls
 from app.medical.items import _due_reason, validate_item_dates
 from app.nutrition.engine import PENDING_REVIEW_NOTE, SOURCE_NAMES
 from app.photos.matching import REVIEW_CONFIDENCE, REVIEW_REASONS
 from app.photos.service import MEAL_NOTE
 from app.restaurants.needs import MAX_NEEDS
+from app.sdk import client as sdk_client
 from app.sdk.tooling import agent_registry, tool_name
 
 CONTRACT = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "contract.ts"
@@ -112,6 +115,9 @@ def test_contract_copies_match_the_backend():
         "RISK_FLAG_PREFIX": _ts_string(RISK_FLAG_PREFIX),
         "FLAG_CLUE": _ts_string(FLAG_CLUE),
         "FLAG_FALLBACK": _ts_string(FLAG_FALLBACK),
+        "LLM_PROVIDER_EXISTS": _ts_string(llm_service._provider_exists().code),
+        "LLM_INVALID_URL": _ts_string(llm_urls._invalid("").code),
+        "LLM_KEY_REQUIRED_FOR_NEW_URL": _ts_string("llm_key_required_for_new_url"),
     }
     actual = {name: scalars.get(name) for name in expected_scalars}
     assert actual == expected_scalars, HINT
@@ -122,6 +128,11 @@ def test_contract_copies_match_the_backend():
     assert _string_list(text, "RISK_CATEGORIES") == list(RISK_CATEGORIES), HINT
     assert _string_list(text, "OPENING_KINDS") == list(OPENING_KINDS), HINT
     assert _object(text, "INVALID_DATE_REASONS", "review|end") == _invalid_date_reasons(), HINT
+    assert _string_list(text, "LLM_CALL_ERROR_CODES") == [code for _status, code in llm_service.LLM_ERRORS.values()], HINT
+    # 改地址须重填密钥的错误码写在 update_provider 里、审计结果写在 SDK 客户端里，都没有常量：按源码原文核对
+    assert 'AppError(422, "llm_key_required_for_new_url",' in Path(llm_service.__file__).read_text("utf-8"), HINT
+    assert _string_list(text, "AUDIT_OUTCOMES") == ["ok", "error"], HINT
+    assert 'outcome="ok" if succeeded else "error",' in Path(sdk_client.__file__).read_text("utf-8"), HINT
 
     # 跳转卡片认的工具名：每个都是站内智能体真有的工具，不重复
     jump_tools = _string_list(text, "JUMP_TOOLS")

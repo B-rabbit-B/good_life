@@ -2,7 +2,7 @@
 // 枚举尽量取自生成的接口类型，后端加了取值时这里跟着报错。
 import type { components } from '../api/schema'
 import type { TitleKey } from './titles'
-import type { ReviewReasonCode, RiskCategory } from './contract'
+import type { AUDIT_OUTCOMES, ReviewReasonCode, RiskCategory } from './contract'
 
 type S = components['schemas']
 type NonNull<T> = Exclude<T, null | undefined>
@@ -26,7 +26,7 @@ export type Muscle = S['ExerciseSummaryOut']['primary_muscles'][number]
 export type Equipment = S['ExerciseSummaryOut']['equipment']
 export type GrantAccess = S['GrantOut']['access']
 export type GrantStatus = S['GrantOut']['status']
-export type AuditOutcome = 'ok' | 'error'
+export type AuditOutcome = (typeof AUDIT_OUTCOMES)[number]
 export type Purpose = S['AssignmentOut']['purpose']
 export type ProviderKind = S['ProviderOut']['kind']
 export type ModelCapability = keyof S['CapabilitiesOut']
@@ -67,23 +67,7 @@ export const GENDER_LABELS: Record<Gender, string> = { female: '女', male: '男
 // 经期的流量、心情与阶段标题在 cycleLabels.ts，训练的部位与器械在 fitnessLabels.ts（只有那两块页面用；
 // 这个文件在对话页首屏的块里，放在这里会让它们进首屏）
 
-export const ACCESS_LABELS: Record<GrantAccess, string> = { read: '只读', read_write: '读写' }
-
-export const GRANT_STATUS_LABELS: Record<GrantStatus, string> = { active: '有效', expired: '已过期', revoked: '已吊销' }
-
-export const AUDIT_OUTCOME_LABELS: Record<AuditOutcome, string> = { ok: '成功', error: '失败' }
-
-/** 只有应用内助手有中文名，其他客户端名原样显示（用 clientLabel） */
-export const CLIENT_LABELS: Record<string, string> = { agent: '应用内助手' }
-export const clientLabel = (name: string) => CLIENT_LABELS[name] ?? name
-
-export const PURPOSE_LABELS: Record<Purpose, string> = { chat: '日常对话', vision: '看图识别' }
-
-export const PROVIDER_KIND_LABELS: Record<ProviderKind, string> = {
-  openai_compatible: 'OpenAI 兼容格式', anthropic: 'Anthropic', gemini: 'Gemini',
-}
-
-export const CAPABILITY_LABELS: Record<ModelCapability, string> = { vision: '看图', tools: '工具调用', chat: '对话' }
+// 外部授权、审计、模型服务的标签只有设置页用，在 settingsLabels.ts（这个文件在对话页首屏的块里）
 
 export const REVIEW_REASON_LABELS: Record<ReviewReasonCode, string> = {
   low_confidence: '把握较低，建议核对菜名',

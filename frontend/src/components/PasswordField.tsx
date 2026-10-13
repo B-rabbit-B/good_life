@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Input, Label, Text, TextField as AriaTextField } from 'react-aria-components'
 import '../styles/components/field-input.css'
 import { Icon } from './Icon'
@@ -10,7 +10,8 @@ export function PasswordField({ label, value, onChange, hint, error, autoComplet
   value: string
   onChange: (value: string) => void
   hint?: string
-  error?: string
+  /** 后端的说明原文（可以带错误码） */
+  error?: ReactNode
   autoComplete?: string
   /** 切换键的读屏名称，例如“显示密钥” */
   showLabel?: string

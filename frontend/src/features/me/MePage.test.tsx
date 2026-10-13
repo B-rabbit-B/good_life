@@ -82,17 +82,17 @@ describe('me page', () => {
     server.use(...llmHandlers({
       providers: [provider(), provider({ id: '00000000-0000-4000-8000-0000000000a2', name: '第二个' })],
       assignments: [chatAssignment()],
-    }))
+    }).handlers)
     expect(await screen.findByText('2 个，对话已设置')).toBeInTheDocument()
     first.unmount()
 
     const second = renderRoute('/me')
-    server.use(...llmHandlers({ providers: [provider()], assignments: [] }))
+    server.use(...llmHandlers({ providers: [provider()], assignments: [] }).handlers)
     expect(await screen.findByText('1 个，对话未设置')).toBeInTheDocument()
     second.unmount()
 
     renderRoute('/me')
-    server.use(...llmHandlers())
+    server.use(...llmHandlers().handlers)
     expect(await screen.findByText('未设置')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /模型服务/ })).toHaveAttribute('href', '/settings/models')
   })

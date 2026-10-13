@@ -151,6 +151,18 @@ async function bubblesUnderGlass(page: Page): Promise<void> {
   await page.waitForTimeout(300)
 }
 
+/** 模拟模型的地址与密钥（after 里只有 page：用页面的请求上下文取） */
+const e2eInfoFromPage = (page: Page) => e2eInfo(page.request)
+
+/** 添加模型服务的第 1 步：自定义的 OpenAI 兼容格式、模拟模型的地址与给定的密钥，保存并获取模型 */
+async function fillProviderForm(page: Page, baseUrl: string, key: string): Promise<void> {
+  await page.getByLabel('类型').selectOption('kind:openai_compatible')
+  await page.getByLabel('名称').fill('通义千问')
+  await page.getByLabel('服务地址').fill(baseUrl)
+  await page.getByLabel('密钥', { exact: true }).fill(key)
+  await page.getByRole('button', { name: '保存并获取模型' }).click()
+}
+
 // 每个界面任务往这里加自己的画面
 export const FRAMES: FrameSpec[] = [
   // 01 登录（设计稿画的是注册分段）；01b 新用户的免责页；02 建档第 1 步（性别与年份照设计稿填好）
@@ -305,6 +317,28 @@ export const FRAMES: FrameSpec[] = [
     await needs.getByRole('button', { name: '少油' }).click()
     await page.getByRole('button', { name: '查找附近的店' }).click()
     await page.getByRole('list', { name: '附近的店' }).waitFor()
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  } },
+  // 10a 添加模型服务走到第 4 步（本地模拟模型：获取、测试连通之后）；10b 用模拟模型不认的密钥，停在第 1 步的失败
+  { id: '10a', widths: [360, 390], prepare: async ({ request, page }) => {
+    const { token } = await createUser(request, { profile: 'complete' })
+    return signedIn(page, token, '/settings/models/new')
+  },
+  after: async (page) => {
+    const info = await e2eInfoFromPage(page)
+    await fillProviderForm(page, info.model_base_url, info.model_key)
+    await page.locator('[data-step="3"]').getByRole('button', { name: '测试连通' }).click()
+    await page.locator('[data-step="4"]').getByRole('button', { name: '保存用途' }).waitFor()
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  } },
+  { id: '10b', widths: [360, 390], prepare: async ({ request, page }) => {
+    const { token } = await createUser(request, { profile: 'complete' })
+    return signedIn(page, token, '/settings/models/new')
+  },
+  after: async (page) => {
+    const info = await e2eInfoFromPage(page)
+    await fillProviderForm(page, info.model_base_url, info.bad_key)
+    await page.getByText('错误码 llm_invalid_key').waitFor()
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   } },
   // 设计系统一节对样张页

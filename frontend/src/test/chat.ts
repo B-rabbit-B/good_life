@@ -19,7 +19,7 @@ export function renderChat(opts: ChatSetup = {}) {
   const result = renderRoute('/chat', { capabilities: opts.capabilities })
   const chat = chatHandlers(opts)
   const medical = medicalHandlers(opts)
-  server.use(...chat.handlers, ...medical.handlers, ...llmHandlers({ assignments: opts.assignments ?? [chatAssignment()] }))
+  server.use(...chat.handlers, ...medical.handlers, ...llmHandlers({ assignments: opts.assignments ?? [chatAssignment()] }).handlers)
   return { ...result, chat, medical }
 }
 

@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from 'react'
+import type { HTMLAttributes, ReactNode } from 'react'
 import { Input, Label, Text, TextArea, TextField as AriaTextField } from 'react-aria-components'
 import '../styles/components/field-input.css'
 import { Icon } from './Icon'
@@ -8,8 +8,8 @@ export interface TextFieldProps {
   value: string
   onChange: (value: string) => void
   hint?: string
-  /** 后端返回的字段说明，原样显示 */
-  error?: string
+  /** 后端返回的字段说明，原样显示（可以带错误码） */
+  error?: ReactNode
   type?: 'text' | 'email' | 'tel' | 'url' | 'search' | 'password'
   inputMode?: HTMLAttributes<HTMLInputElement>['inputMode']
   autoComplete?: string

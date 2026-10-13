@@ -82,6 +82,14 @@ describe('restaurants page', { timeout: 15_000 }, () => {
     expect(restaurants.record.searches).toEqual([])
   })
 
+  it('records the choice once on a double press', async () => {
+    const user = userEvent.setup({ delay: null })
+    const { restaurants } = renderRestaurants()
+    await user.dblClick(await screen.findByRole('button', { name: '输入地点' }))
+    expect(await screen.findByLabelText('地名或地标')).toBeInTheDocument()
+    expect(restaurants.record.consents).toEqual(['denied'])
+  })
+
   it('searches with gps coordinates after consent', async () => {
     const user = userEvent.setup()
     stubGeolocation(true)
