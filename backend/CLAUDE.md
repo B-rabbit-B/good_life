@@ -18,7 +18,7 @@
   - 底层：app/security/CLAUDE.md（密码、令牌、字段加密）、app/common/CLAUDE.md（归属、日期、年龄、上传上限）
   - 账号与门槛：app/auth/CLAUDE.md、app/disclaimer/CLAUDE.md、app/consents/CLAUDE.md（经期与医嘱的单独同意）、app/profile/CLAUDE.md（模块开放）
   - 业务模块：app/cycle/CLAUDE.md、app/medical/CLAUDE.md、app/fitness/CLAUDE.md、app/nutrition/CLAUDE.md、app/llm/CLAUDE.md、app/photos/CLAUDE.md、app/restaurants/CLAUDE.md、app/agent_grants/CLAUDE.md
-  - 上层：app/sdk/CLAUDE.md、app/mcp_server/CLAUDE.md、app/agent/CLAUDE.md、app/account/CLAUDE.md（撤回同意并清除模块数据）
+  - 上层：app/sdk/CLAUDE.md、app/mcp_server/CLAUDE.md、app/agent/CLAUDE.md、app/account/CLAUDE.md（撤回同意并清除模块数据、导出全部数据、删除账号）
   - tests/CLAUDE.md（测试、夹具与测试库）、migrations/CLAUDE.md（迁移）
 
 ## 禁区

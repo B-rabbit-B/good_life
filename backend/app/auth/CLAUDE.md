@@ -13,7 +13,7 @@
 
 ## 入口
 - 路由：/api/auth/register、/api/auth/login、/api/auth/logout、/api/auth/me（router.py），只要求登录，不要求免责声明（tests/test_route_guards.py 的放行前缀）。
-- 依赖：deps.get_current_user；服务：service.register_user、login、logout。
+- 依赖：deps.get_current_user；服务：service.register_user、login、logout、verify_user_password（导出与删除账号前复核本人密码，错了是 403 password_incorrect，由 account 调用；任务 8 再加限速）。
 - 测试：tests/test_auth.py、tests/test_minors.py（注册的年龄确认）、tests/test_route_guards.py。
 
 ## 禁区

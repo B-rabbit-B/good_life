@@ -1,6 +1,7 @@
 """经期与医嘱的单独同意：未同意前两个模块的接口与 SDK 一律拒绝，同意记录时间与文案版本，
 撤回即清除该模块的数据并关闭模块；站内智能体把未同意的模块当作未开放。"""
 
+import json
 import re
 import uuid
 from datetime import date, timedelta
@@ -17,7 +18,7 @@ from app.disclaimer.content import DISCLAIMER_TEXT
 from app.medical.samples import SAMPLE_ORDERS
 from app.sdk import GoodLife, SdkError, UserAccessToken
 from app.sdk.errors import CONSENT_HINT
-from tests.agent_fake import connect, say, scripted  # noqa: F401
+from tests.agent_fake import call, connect, say, scripted  # noqa: F401
 from tests.helpers import grant_consents, ready_user
 
 FEMALE = {"gender": "female"}
@@ -232,3 +233,51 @@ def test_agent_treats_missing_consent_as_a_closed_module(client, scripted):
     assert MEDICAL_NOT_CONSENTED in constraints and "暂时读不到" not in constraints
     flags = response.json()["flags"]
     assert FLAG_REWRITTEN not in flags and FLAG_FALLBACK not in flags
+
+
+OPENING_SENTENCE = "开场问候记录里可能含相关内容，撤回时同样不会自动删除，可在清空对话历史时一并清掉。"
+
+
+def test_consent_text_says_openings_are_cleared_with_the_conversation_history():
+    for kind, body in CONSENT_TEXTS.items():
+        assert OPENING_SENTENCE in body, kind
+    assert CONSENT_VERSION == "2026-10-14"
+
+
+def _turn(client, headers, cid: str, text_: str) -> dict:
+    response = client.post(f"/api/agent/conversations/{cid}/messages", json={"text": text_, "stream": False},
+                           headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _replayed(request) -> str:
+    """发给模型的对话消息（不含系统指令与工具声明）。"""
+    return json.dumps(request.messages, ensure_ascii=False)
+
+
+def test_withdrawn_module_tool_results_are_not_replayed_to_the_model(client, scripted):
+    canary = "金丝雀医嘱条目甲乙丙"
+    headers = ready_user(client, "alice", FEMALE)
+    connect(client, headers)
+    order = client.post("/api/medical/orders", json={"text": "饮食清淡。"}, headers=headers).json()
+    item = client.post(f"/api/medical/orders/{order['id']}/items", headers=headers,
+                       json={"category": "other", "content": canary})
+    assert item.status_code == 201, item.text
+    cid = client.post("/api/agent/conversations", json={}, headers=headers).json()["id"]
+    start = (date.today() - timedelta(days=30)).isoformat()
+    scripted.add(call("medical_list_items", {}), call("cycle_record_period", {"start_date": start}), say("都看过了。"))
+    assert _turn(client, headers, cid, "看看我的条目，再记一下经期")["tools_used"] == [
+        "medical_list_items", "cycle_record_period"]
+    assert canary in _replayed(scripted.requests[-1])  # 同一轮里模型确实拿到过这份工具结果
+
+    assert _withdraw(client, headers, "medical").status_code == 204
+    _turn(client, headers, cid, "今天吃什么好")
+    replay = scripted.requests[-1]
+    assert canary not in replay.text()
+    assert "medical_list_items" not in replay.text()
+    assert "cycle_record_period" in _replayed(replay)  # 仍然同意的模块照常回放
+
+    assert _withdraw(client, headers, "cycle").status_code == 204
+    _turn(client, headers, cid, "明天呢")
+    assert "cycle_record_period" not in scripted.requests[-1].text()

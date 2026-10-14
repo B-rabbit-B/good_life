@@ -12,6 +12,7 @@
   所以保存下来的历史总能原样回放。读历史时再兜底一次：窗口开头不是用户消息的部分、没有配齐结果的工具调用、
   孤立的工具结果都不放进上下文；保存时的模型与当前模型不同时，去掉 provider_state，并把调用编号重新编成全局唯一的
   h<组>_<序号>（Gemini 合成的编号与各家的编号规则不同，回放给 Claude 时不能重复）。
+  用户当前没有单独同意的模块（经期、医嘱），它们的工具调用连同同组结果都不回放（撤回同意后不再把副本发给模型服务）。
 - 工具结果超过 MAX_TOOL_RESULT_BYTES（按 UTF-8 计）时，保存与回放的都换成合法的摘要 JSON：
   {"truncated": true, "preview": 前 TOOL_RESULT_PREVIEW_CHARS 个字}。
 - 风险话题不回放原话：助手回答带 risk_ 标记的那一轮，用户那句换成 RISK_USER_PLACEHOLDER，助手那句换成该类的固定安全回复；
@@ -33,7 +34,7 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
@@ -55,6 +56,8 @@ from app.agent.guard import (
 )
 from app.agent.safety import HEALTH_DISCLAIMER, SAFE_REPLIES, classify_risk
 from app.common.age import is_minor
+from app.consents.content import CONSENT_KINDS
+from app.consents.service import has_consent
 from app.db import get_sessionmaker
 from app.errors import AppError
 from app.llm.adapters.base import ChatMessage, ChatResult, ToolCall, ToolSpec
@@ -125,6 +128,12 @@ def _user_is_minor(user_id: uuid.UUID, today: date) -> bool:
     return is_minor(birth_year, today)
 
 
+def _not_consented(user_id: uuid.UUID) -> tuple[str, ...]:
+    """用户当前没有单独同意（从未同意或已撤回）的模块；这些模块的已保存工具调用与结果不再回放给模型。"""
+    with get_sessionmaker()() as db:
+        return tuple(kind for kind in CONSENT_KINDS if not has_consent(db, user_id, kind))
+
+
 def _saved_history(user_id: uuid.UUID, conversation_id: uuid.UUID) -> list[tuple[str, dict[str, Any]]]:
     """最近 HISTORY_LIMIT 条历史加上刚保存的本条用户消息。"""
     with get_sessionmaker()() as db:
@@ -170,7 +179,8 @@ def _without_risky_text(saved: Sequence[tuple[str, dict[str, Any]]]) -> list[tup
     return items
 
 
-def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarget) -> list[ChatMessage]:
+def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarget,
+               not_consented: Collection[str] = ()) -> list[ChatMessage]:
     """把保存的消息变成可以原样发给模型的上下文。
 
     窗口开头直到第一条用户消息之前的部分丢掉；助手的工具调用只有在紧跟的工具结果与它的调用一一对应时才保留（连同结果），
@@ -178,7 +188,10 @@ def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarg
     不回放程序附上的医嘱提醒、依据段与健康提示，免得模型模仿着自己写依据。保存时的模型（服务类型与模型编号）与当前目标不同时，
     去掉助手消息与工具调用上的 provider_state。风险话题那一轮不回放原话（见 _without_risky_text）；
     过长的工具结果按 bound_tool_result 截断。
+    not_consented 里的模块（用户当前没有单独同意的 cycle、medical）：一组工具调用里只要有一个是该模块的工具
+    （工具名以“模块名_”开头），整组调用连同全部结果都不回放，撤回同意后不再把这些副本发给模型服务。
     """
+    blocked = tuple(f"{module}_" for module in not_consented)
     saved = _without_risky_text(saved)
     out: list[ChatMessage] = []
     group = 0
@@ -204,7 +217,9 @@ def replayable(saved: Sequence[tuple[str, dict[str, Any]]], target: ResolvedTarg
             result_ids = [result.get("tool_call_id") for result in results]
             paired = (None not in call_ids and len(set(call_ids)) == len(call_ids)
                       and sorted(call_ids) == sorted(result_ids) and all(result.get("tool_name") for result in results))
-            if paired:
+            withdrawn = bool(blocked) and (any(call.name.startswith(blocked) for call in calls) or any(
+                str(result.get("tool_name") or "").startswith(blocked) for result in results))
+            if paired and not withdrawn:
                 if same_model:
                     rename = {call_id: call_id for call_id in call_ids}
                 else:
@@ -428,7 +443,7 @@ def run_turn(user_id: uuid.UUID, conversation_id: uuid.UUID, user_text: str, *, 
     declared = {spec.name for spec in specs}
     saved = _saved_history(user_id, conversation_id)
     system = ChatMessage("system", build_system_prompt(ctx, resolution_clue=clue, after_risk=_last_reply_was_risky(saved)))
-    messages = [system, *replayable(saved, target)]
+    messages = [system, *replayable(saved, target, _not_consented(user_id))]
     flags: list[str] = [FLAG_CLUE] if clue else []
     tools_used: list[str] = []
 

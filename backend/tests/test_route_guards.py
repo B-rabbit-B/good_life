@@ -7,8 +7,8 @@ from app.disclaimer.deps import require_disclaimer_user
 from app.main import create_app
 
 # 不需要免责声明门槛的 /api 接口：健康检查、账号接口、免责声明本身。
-# /api/account/ 是用户处置自己数据的接口（撤回单独同意并清除模块数据），只要求登录：
-# 免责声明升版后、重新确认之前，用户也必须能撤回同意、清除自己的数据。
+# /api/account/ 是用户处置自己数据的接口（撤回单独同意并清除模块数据、导出、删除账号），只要求登录：
+# 免责声明升版后、重新确认之前，用户也必须能撤回同意、导出与删除自己的数据。
 ALLOWED_PREFIXES = ("/api/auth/", "/api/disclaimer/", "/api/account/")
 ALLOWED_PATHS = {"/api/health", "/api/disclaimer"}
 
@@ -54,7 +54,8 @@ def test_account_routes_need_only_login():
     from app.auth.deps import get_current_user
 
     routes = [ctx for ctx in _api_routes(create_app()) if ctx.path.startswith("/api/account/")]
-    assert [ctx.path for ctx in routes] == ["/api/account/consents/{kind}/withdraw"]
+    assert sorted(ctx.path for ctx in routes) == [
+        "/api/account/consents/{kind}/withdraw", "/api/account/delete", "/api/account/export"]
     assert all(get_current_user in _dependency_calls(ctx.dependant) for ctx in routes)
 
 

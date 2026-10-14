@@ -120,7 +120,7 @@ def test_acceptance_record_counts_match_the_code():
     assert "迁移版本到 0014" in record and "共二十六张表" in record
     for model in (AgentConversation, AgentMessage, AgentPreference, AgentOpening, AgentSettings):
         assert model.__tablename__ in record, model.__tablename__
-    assert f"新增 {len(_agent_routes())} 个接口" in record
+    assert "新增 13 个接口" in record  # 步骤 08 验收当时的数字；步骤 12 加了清空全部对话，共 14 个（见接口清单测试）
     assert "能力表 27 项加站内的“记住偏好”，一轮最多提供 28 个、最少 18 个" in record
     note = next(line for line in record.splitlines() if line.startswith("补充说明（步骤 10）"))
     assert f"共 {len(agent_registry()) + 6} 项能力、MCP 工具 {len(agent_registry())} 个" in note
@@ -183,7 +183,7 @@ def _agent_routes():
 def test_interface_doc_lists_every_agent_route_and_every_error_code():
     doc = _read("接口清单.md")
     routes = _agent_routes()
-    assert len(routes) == 13
+    assert len(routes) == 14
     for route in routes:
         for method in route.methods:
             assert f"{method} {route.path}" in doc, (method, route.path)

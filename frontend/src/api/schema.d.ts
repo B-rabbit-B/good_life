@@ -20,6 +20,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/account/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete My Account
+         * @description 重新输入密码并勾选确认后，立即彻底删除账号与全部数据（不可恢复）；登录令牌与智能体授权随之失效。
+         */
+        post: operations["delete_my_account_api_account_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Data
+         * @description 重新输入密码后导出本人全部数据（压缩包，禁止缓存）；成功后记一行审计 account.export。
+         */
+        post: operations["export_data_api_account_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent-grants": {
         parameters: {
             query?: never;
@@ -84,7 +124,11 @@ export interface paths {
         put?: never;
         /** Create Conversation */
         post: operations["create_conversation_api_agent_conversations_post"];
-        delete?: never;
+        /**
+         * Clear Conversations
+         * @description 清空全部对话历史，开场问候一并清掉。
+         */
+        delete: operations["clear_conversations_api_agent_conversations_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1628,6 +1672,16 @@ export interface components {
         AcceptRequest: {
             /** Version */
             version: string;
+        };
+        /** AccountDelete */
+        AccountDelete: {
+            /**
+             * Confirm
+             * @description 用户勾选了“我知道删除后不能恢复”，必须为 true
+             */
+            confirm: boolean;
+            /** Password */
+            password: string;
         };
         /** SettingsOut */
         app__agent__schemas__SettingsOut: {
@@ -3186,6 +3240,14 @@ export interface components {
             /** Vision */
             vision?: boolean | null;
         };
+        /**
+         * PasswordConfirm
+         * @description 敏感操作前复核本人密码。
+         */
+        PasswordConfirm: {
+            /** Password */
+            password: string;
+        };
         /** PeriodCreate */
         PeriodCreate: {
             /**
@@ -4121,6 +4183,70 @@ export interface operations {
             };
         };
     };
+    delete_my_account_api_account_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_data_api_account_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordConfirm"];
+            };
+        };
+        responses: {
+            /** @description 压缩包：每个模块一份 JSON、原件、照片与说明 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_grants_api_agent_grants_get: {
         parameters: {
             query?: never;
@@ -4285,6 +4411,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    clear_conversations_api_agent_conversations_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

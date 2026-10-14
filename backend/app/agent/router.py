@@ -75,6 +75,13 @@ def list_conversations(user: AgentUser, db: DbSession) -> list[ConversationOut]:
     return [ConversationOut.model_validate(c) for c in conversations.list_conversations(db, user.id)]
 
 
+@router.delete("/conversations", status_code=204)
+def clear_conversations(user: AgentUser, db: DbSession) -> Response:
+    """清空全部对话历史，开场问候一并清掉。"""
+    conversations.clear_all(db, user.id)
+    return Response(status_code=204)
+
+
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetailOut)
 def get_conversation(conversation_id: uuid.UUID, user: AgentUser, db: DbSession) -> ConversationDetailOut:
     conversation = conversations.get_conversation(db, user.id, conversation_id)

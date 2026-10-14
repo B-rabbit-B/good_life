@@ -27,6 +27,12 @@ def login(db: Session, username: str, password: str) -> str:
     return create_access_token(user.id, user.token_version)
 
 
+def verify_user_password(db: Session, user: User, password: str) -> None:
+    """导出、删除账号之类的敏感操作前复核本人密码。错了是 403：用户仍在登录状态，401 会让前端清掉令牌。"""
+    if not verify_password(password, user.password_hash):
+        raise AppError(403, "password_incorrect", "密码不正确，请重新输入")
+
+
 def logout(db: Session, user: User) -> None:
     """令牌版本号加一，让该用户所有已签发的令牌失效。"""
     user.token_version += 1

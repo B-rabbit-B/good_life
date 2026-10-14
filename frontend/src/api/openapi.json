@@ -14,6 +14,28 @@
         "title": "AcceptRequest",
         "type": "object"
       },
+      "AccountDelete": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm": {
+            "description": "用户勾选了“我知道删除后不能恢复”，必须为 true",
+            "title": "Confirm",
+            "type": "boolean"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "confirm"
+        ],
+        "title": "AccountDelete",
+        "type": "object"
+      },
       "AreaOut": {
         "properties": {
           "name": {
@@ -3928,6 +3950,23 @@
         "title": "OverridesUpdate",
         "type": "object"
       },
+      "PasswordConfirm": {
+        "additionalProperties": false,
+        "description": "敏感操作前复核本人密码。",
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "PasswordConfirm",
+        "type": "object"
+      },
       "PeriodCreate": {
         "additionalProperties": false,
         "properties": {
@@ -7170,6 +7209,89 @@
         ]
       }
     },
+    "/api/account/delete": {
+      "post": {
+        "description": "重新输入密码并勾选确认后，立即彻底删除账号与全部数据（不可恢复）；登录令牌与智能体授权随之失效。",
+        "operationId": "delete_my_account_api_account_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete My Account",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/export": {
+      "post": {
+        "description": "重新输入密码后导出本人全部数据（压缩包，禁止缓存）；成功后记一行审计 account.export。",
+        "operationId": "export_data_api_account_export_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "压缩包：每个模块一份 JSON、原件、照片与说明"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Data",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/agent-grants": {
       "get": {
         "operationId": "list_grants_api_agent_grants_get",
@@ -7358,6 +7480,24 @@
       }
     },
     "/api/agent/conversations": {
+      "delete": {
+        "description": "清空全部对话历史，开场问候一并清掉。",
+        "operationId": "clear_conversations_api_agent_conversations_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Clear Conversations",
+        "tags": [
+          "agent"
+        ]
+      },
       "get": {
         "operationId": "list_conversations_api_agent_conversations_get",
         "responses": {

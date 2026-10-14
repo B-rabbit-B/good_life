@@ -7,7 +7,7 @@
 
 ## 边界
 - 与 disclaimer 同层（第 2 层）：依赖 auth、common、db、disclaimer（路由经 require_disclaimer_user）、errors；不引用任何业务模块。
-- 被引用：cycle 与 medical 的 require_*_user 在能力检查之后调用 require_consent，SDK、MCP 与站内智能体都经这两个门槛，所以同一处生效；account 撤回时调用 has_consent 与 mark_withdrawn；演示与实测脚本建用户后调用 grant。
+- 被引用：cycle 与 medical 的 require_*_user 在能力检查之后调用 require_consent，SDK、MCP 与站内智能体都经这两个门槛，所以同一处生效；account 撤回时调用 has_consent 与 mark_withdrawn，导出时调用 list_statuses；站内智能体回放历史时调用 has_consent，未同意模块的工具结果不再回放；演示与实测脚本建用户后调用 grant。
 - 撤回不在这里：撤回要同时清除模块数据，放在上层的 account 包；mark_withdrawn 不提交，由调用方与清除放在同一个事务里。
 - 已同意的用户不因文案升版失效（has_consent 只看是否撤回）；若将来要求升版后重新同意，要同时改门槛、前端流程与测试。
 
