@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { sensitiveAreaMismatch } from '../../app/sensitiveAreas'
 import { addDays, formatMonthDay, todayISO } from '../../lib/dates'
 import {
-  dayMeals, ESTIMATE_NOTE, INSUFFICIENT_NOTE, insufficientSummary, summary, SUMMARY_DISCLAIMER,
+  dayMeals, ESTIMATE_NOTE, INSUFFICIENT_NOTE, insufficientSummary, MINOR_NOTE, minorSummary, summary, SUMMARY_DISCLAIMER,
 } from '../../test/fixtures/nutrition'
 import { nutritionHandlers, type NutritionOptions } from '../../test/msw/handlers/nutrition'
 import { server } from '../../test/msw/server'
@@ -69,6 +69,19 @@ describe('diary view', () => {
     expect(within(state).getByRole('link', { name: '去补充档案' })).toHaveAttribute('href', '/me/profile')
     expect(screen.queryByRole('img', { name: /今日能量/ })).not.toBeInTheDocument()
     expect(screen.getByRole('table', { name: '营养素' })).toBeInTheDocument()
+  })
+
+  it('shows the minor needs notes without energy numbers', async () => {
+    renderDiary({ summaries: { [today]: minorSummary() }, meals: { [today]: dayMeals() } })
+    const state = await screen.findByRole('region', { name: '还不能估算每日需要' })
+    expect(within(state).getByText(MINOR_NOTE)).toBeInTheDocument()
+    // 补充档案也不会估算，所以不给“去补充档案”
+    expect(within(state).queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /今日能量/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/1,850/)).not.toBeInTheDocument()
+    const table = screen.getByRole('table', { name: '营养素' })
+    const rows = within(table).getAllByRole('row').slice(1).map((row) => row.textContent)
+    expect(rows).toEqual(['蛋白质52.4克——', '脂肪38.1克——', '碳水化合物128.0克——', '膳食纤维9.2克——', '钠上限1,640毫克——'])
   })
 
   it('shows the empty day state with actions', async () => {

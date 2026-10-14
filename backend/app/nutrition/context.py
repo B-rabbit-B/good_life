@@ -5,6 +5,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.common.age import is_minor
 from app.cycle.insights import get_phase_info
 from app.fitness.signals import TrainingSignal, training_energy_low, training_signal
 from app.medical.items import get_current_constraints
@@ -74,7 +75,7 @@ def build_context(db: Session, user_id: uuid.UUID, today: date) -> EvaluationCon
     return EvaluationContext(
         constraints=constraints,
         cycle_phase=cycle_phase,
-        goal=profile.goal,
+        goal=None if is_minor(profile.birth_year, today) else profile.goal,  # 未成年不按减脂、增肌目标给软约束
         needs=_with_training(needs_for_profile(profile, today), signal),
         day_totals=meals.day_totals(db, user_id, today),
         food_avoidances=tuple(profile.food_avoidances or ()),

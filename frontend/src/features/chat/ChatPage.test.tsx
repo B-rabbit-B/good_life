@@ -16,6 +16,8 @@ import { photosHandlers } from '../../test/msw/handlers/photos'
 import { server } from '../../test/msw/server'
 
 const ANSWER = '今晚可以换成清蒸鱼或鸡胸肉，配一碗杂粮粥，蛋白质够，也清淡。'
+/** app.agent.safety.SAFE_REPLIES['minor_weight_loss'] 的开头（整段原样显示，这里只核对其中一句） */
+const MINOR_DIET_REPLY = '你正处在生长发育的阶段，身体需要足够的能量和营养。'
 const NOTICE = noticeLines([['卤猪肝', '避免动物内脏与浓肉汤（高嘌呤）']])
 
 const answerBubbles = () => Array.from(document.querySelectorAll<HTMLElement>('.msg-a'))
@@ -68,6 +70,18 @@ describe('chat page', () => {
     expect(screen.queryByText('仅供参考')).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: '快捷操作' })).not.toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '给助手发消息' })).toBeInTheDocument()
+  })
+
+  it('shows a care block for minor weight loss', async () => {
+    renderChat({ conversations: [conversation([
+      userMessage('我想减肥，一天吃多少热量'), assistantMessage(MINOR_DIET_REPLY, { flags: ['risk_minor_weight_loss'] }),
+    ])] })
+    const care = await screen.findByRole('note', { name: '请咨询医生或营养师' })
+    expect(within(care).getByText(MINOR_DIET_REPLY)).toBeInTheDocument()
+    expect(within(care).getByRole('link', { name: '拨打 120' })).toHaveAttribute('href', 'tel:120')
+    expect(within(care).getByRole('link', { name: '拨打 12356' })).toHaveAttribute('href', 'tel:12356')
+    expect(answerBubbles()).toHaveLength(0)
+    expect(screen.queryByText('仅供参考')).not.toBeInTheDocument()
   })
 
   it('labels a fixed fallback reply', async () => {

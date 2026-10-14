@@ -3503,7 +3503,8 @@
           "status": {
             "enum": [
               "ok",
-              "insufficient_profile"
+              "insufficient_profile",
+              "minor"
             ],
             "title": "Status",
             "type": "string"
@@ -5117,6 +5118,11 @@
       },
       "RegisterRequest": {
         "properties": {
+          "age_confirmed": {
+            "description": "用户确认已年满 14 周岁，必须为 true；只做校验，不入库",
+            "title": "Age Confirmed",
+            "type": "boolean"
+          },
           "password": {
             "maxLength": 128,
             "minLength": 8,
@@ -5133,7 +5139,8 @@
         },
         "required": [
           "username",
-          "password"
+          "password",
+          "age_confirmed"
         ],
         "title": "RegisterRequest",
         "type": "object"

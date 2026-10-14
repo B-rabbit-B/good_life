@@ -1,6 +1,7 @@
 """对话循环：保存用户消息 → 风险话题 → 装配 → 调模型与执行工具 → 输出检查 → 收尾。
 
-- 风险话题命中时直接用固定安全回复，不解析模型、不调模型、不调工具。
+- 风险话题命中时直接用固定安全回复，不解析模型、不调模型、不调工具。判断前先按档案的出生年份与今天算用户是否未成年
+  （_user_is_minor），未成年时多判断一类未成年减重。
 - 每轮只解析一次调用目标（resolve_target），同一个目标用于本轮的每次模型调用；工具循环最多 MAX_MODEL_CALLS 次模型调用，
   输出检查要求的那一次重写不算在内。
 - 工具只认本轮发给模型的工具声明：remember_preference 写偏好表（来源 agent，被拒绝时把结构化错误交回模型），
@@ -37,6 +38,8 @@ from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
+from sqlalchemy import select
+
 from app.agent import conversations, preferences
 from app.agent.assembly import CLIENT_NAME, REMEMBER_TOOL, AgentContext, build_system_prompt, load_context, tool_specs
 from app.agent.clues import detect_resolution_clue
@@ -51,11 +54,13 @@ from app.agent.guard import (
     safe_fallback,
 )
 from app.agent.safety import HEALTH_DISCLAIMER, SAFE_REPLIES, classify_risk
+from app.common.age import is_minor
 from app.db import get_sessionmaker
 from app.errors import AppError
 from app.llm.adapters.base import ChatMessage, ChatResult, ToolCall, ToolSpec
 from app.llm.service import AdapterFactory, ResolvedTarget, complete, resolve_target
 from app.nutrition.catalog import load_catalog
+from app.profile.models import Profile
 from app.sdk import AgentCredential, GoodLife, SdkError, SdkResult, audit
 from app.sdk.client import error_envelope
 from app.sdk.errors import from_app_error
@@ -111,6 +116,13 @@ def _save(user_id: uuid.UUID, conversation_id: uuid.UUID, items: Sequence[tuple[
     with get_sessionmaker()() as db:
         ids = [conversations.append_message(db, user_id, conversation_id, role, content).id for role, content in items]
     return ids[-1]
+
+
+def _user_is_minor(user_id: uuid.UUID, today: date) -> bool:
+    """按档案的出生年份判断是否未成年（短会话；没有档案或没填出生年份时不算）。"""
+    with get_sessionmaker()() as db:
+        birth_year = db.scalar(select(Profile.birth_year).where(Profile.user_id == user_id))
+    return is_minor(birth_year, today)
 
 
 def _saved_history(user_id: uuid.UUID, conversation_id: uuid.UUID) -> list[tuple[str, dict[str, Any]]]:
@@ -398,7 +410,8 @@ def run_turn(user_id: uuid.UUID, conversation_id: uuid.UUID, user_text: str, *, 
     """跑一轮对话并保存。调用方不要开着自己的事务：这里每次读写都用自己的短会话，调用模型期间不占事务。"""
     _save(user_id, conversation_id, [("user", {"text": user_text})])
 
-    risk = classify_risk(user_text)
+    minor = _user_is_minor(user_id, today)
+    risk = classify_risk(user_text, minor=minor)
     if risk is not None:
         flags = (f"risk_{risk.category}",)
         reply = SAFE_REPLIES[risk.category]

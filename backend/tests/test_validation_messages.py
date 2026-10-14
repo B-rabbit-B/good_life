@@ -91,7 +91,7 @@ def test_unknown_type_falls_back():
 
 
 def test_login_with_a_short_password_returns_chinese_details(client):
-    response = client.post("/api/auth/register", json={"username": "alice", "password": "short"})
+    response = client.post("/api/auth/register", json={"username": "alice", "password": "short", "age_confirmed": True})
     assert response.status_code == 422
     error = response.json()["error"]
     assert (error["code"], error["message"]) == ("validation_error", "请求参数不合法")
@@ -104,7 +104,7 @@ def test_login_with_a_short_password_returns_chinese_details(client):
 
 
 def test_profile_number_text_is_rejected_in_chinese(client):
-    client.post("/api/auth/register", json={"username": "bob", "password": "secret-pass-1"})
+    client.post("/api/auth/register", json={"username": "bob", "password": "secret-pass-1", "age_confirmed": True})
     token = client.post("/api/auth/login", json={"username": "bob", "password": "secret-pass-1"}).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     version = client.get("/api/disclaimer").json()["version"]

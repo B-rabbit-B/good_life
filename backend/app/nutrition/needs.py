@@ -1,9 +1,13 @@
-"""每日能量与营养素需求估算（Mifflin-St Jeor 公式乘活动系数）。只是估算，不是医疗指标。"""
+"""每日能量与营养素需求估算（Mifflin-St Jeor 公式乘活动系数）。只是估算，不是医疗指标。
+
+未满 18 周岁（按当年减出生年份）不估算：状态为 minor，全部数字为空，只给 MINOR_NOTE。
+"""
 
 from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
+from app.common.age import age_in_years, is_minor
 from app.nutrition.catalog import round_half_up
 
 ACTIVITY_FACTORS = {"sedentary": 1.2, "light": 1.375, "moderate": 1.55, "active": 1.725, "very_active": 1.9}
@@ -19,14 +23,14 @@ FIBER_G = (25, 30)
 SODIUM_MG_MAX = 2000
 ESTIMATE_NOTE = "以上是根据档案估算的大致需求，不是医疗指标；有医嘱或慢性病时以医嘱为准。"
 UNSPECIFIED_SEX_NOTE = "档案没有填写男女，按男女公式的中间值估算。"
-MINOR_NOTE = "未成年人的营养需求与成人不同，请咨询医生或营养师。"
+MINOR_NOTE = "未满 18 周岁不估算每日能量，也不按减脂目标给建议；未成年人的营养需求与成人不同，请咨询医生或营养师。"
 INSUFFICIENT_NOTE = "档案缺少估算所需的信息，补充后才能估算每日需求。"
 TRAINING_NOTE = "已计入当天训练估算消耗的下限 {kcal} 千卡。"
 
 
 @dataclass(frozen=True)
 class Needs:
-    status: str  # ok / insufficient_profile
+    status: str  # ok / insufficient_profile / minor（未成年不估算，全部数字为空）
     missing_fields: tuple[str, ...] = ()
     energy_kcal: int | None = None
     energy_kcal_low: int | None = None
@@ -59,14 +63,14 @@ def estimate_needs(
     missing = tuple(name for name, value in required if value is None)
     if missing:
         return Needs(status="insufficient_profile", missing_fields=missing, notes=(INSUFFICIENT_NOTE,))
-    age = today.year - birth_year
+    if is_minor(birth_year, today):
+        return Needs(status="minor", notes=(MINOR_NOTE,))
+    age = age_in_years(birth_year, today)
     bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age + SEX_CONSTANTS.get(gender, UNSPECIFIED_SEX_CONSTANT)
     energy = round_half_up(bmr * ACTIVITY_FACTORS[activity_level] * GOAL_ENERGY_FACTORS.get(goal, 1.0))
     notes = [ESTIMATE_NOTE]
     if gender not in SEX_CONSTANTS:
         notes.append(UNSPECIFIED_SEX_NOTE)
-    if age < 18:
-        notes.append(MINOR_NOTE)
     return Needs(
         status="ok",
         energy_kcal=energy,

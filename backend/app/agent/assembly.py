@@ -22,6 +22,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from app.agent.preferences import MAX_PREFERENCE_CHARS, collapse_whitespace, list_preferences
+from app.common.age import is_minor
 from app.db import get_sessionmaker
 from app.llm.adapters.base import ToolSpec
 from app.restaurants.amap import amap_configured
@@ -40,6 +41,9 @@ RECORD_CHECK = "记录饮食或训练前，如果不确定是否已经记过，�
 RESTAURANT_NOTE = "附近餐厅推荐只是按餐厅类别给出的一般性建议，不代表该店真实菜单；不要向用户索要定位授权，需要地点时请用户说出地名或地标。"
 NEARBY_CAPABILITY = "nutrition.nearby_restaurants"
 UNAVAILABLE = "暂时读不到"
+MINOR_INSTRUCTION = "用户未成年：不提供减重、热量目标或限制性饮食建议，引导咨询医生或营养师。"
+MINOR_INTAKE_LINE = "用户未成年：不估算每日能量需求。"
+MINOR_NEEDS_STATUS = "minor"
 WORKOUT_LOOKBACK_DAYS = 30
 FITNESS_QUERY_CAPABILITIES = frozenset(
     {"fitness.list_workouts", "fitness.get_week_summary", "fitness.get_exercise_trend", "fitness.get_training_signal"}
@@ -104,6 +108,7 @@ class Intake:
     missing_fields: tuple[str, ...]
     remaining_energy_kcal: float | None
     remaining_protein_g: float | None
+    needs_status: str  # ok / insufficient_profile / minor
 
 
 @dataclass(frozen=True)
@@ -130,6 +135,7 @@ class AgentContext:
     today: date
     # 读不到的部分：capabilities、profile、constraints、phase、intake、workouts、training、preferences
     unavailable: tuple[str, ...] = ()
+    minor: bool = False  # 按档案的出生年份与今天算；档案读不到时看当日汇总的需求状态
 
 
 def _read(sdk: GoodLife, credential: AgentCredential, capability: str, params: dict | None = None) -> Any:
@@ -170,6 +176,7 @@ def _intake(data: dict) -> Intake:
         missing_fields=tuple(needs["missing_fields"]),
         remaining_energy_kcal=remaining.get("energy_kcal"),
         remaining_protein_g=remaining.get("protein_g"),
+        needs_status=needs["status"],
     )
 
 
@@ -203,8 +210,11 @@ def _data_block(lines: list[str]) -> list[str]:
     return [DATA_START, *lines, DATA_END] if lines else []
 
 
-def _profile_text(data: dict) -> str:
-    """档案里与建议有关的内容写成一句话；不写经期开关，经期是否开放只看模块开放情况。用户自填的饮食偏好与忌口食物放进资料块。"""
+def _profile_text(data: dict, today: date) -> str:
+    """档案里与建议有关的内容写成一句话；不写经期开关，经期是否开放只看模块开放情况。用户自填的饮食偏好与忌口食物放进资料块。
+
+    未成年时不写目标（不按减脂、增肌目标给建议）。
+    """
     parts = []
     if data["gender"]:
         parts.append(f"性别{GENDER_NAMES.get(data['gender'], data['gender'])}")
@@ -216,7 +226,7 @@ def _profile_text(data: dict) -> str:
         parts.append(f"体重 {_num(data['weight_kg'])} 千克")
     if data["activity_level"]:
         parts.append(f"活动水平{ACTIVITY_NAMES.get(data['activity_level'], data['activity_level'])}")
-    if data["goal"]:
+    if data["goal"] and not is_minor(data["birth_year"], today):
         parts.append(f"目标{GOAL_NAMES.get(data['goal'], data['goal'])}")
     lines = ["档案：" + ("，".join(parts) if parts else "还没有填写") + "。"]
     written = []
@@ -230,6 +240,10 @@ def _profile_text(data: dict) -> str:
     if missing:
         lines.append(f"档案缺少{'、'.join(missing)}，暂时无法估算每日需求。")
     return "\n".join(lines)
+
+
+def _profile(data: dict, today: date) -> tuple[str, bool]:
+    return _profile_text(data, today), is_minor(data["birth_year"], today)
 
 
 def _profile_summary(capabilities: dict[str, bool] | None, profile: str | None, intake: Intake | None) -> str:
@@ -263,7 +277,8 @@ def load_context(sdk: GoodLife, credential: AgentCredential, today: date) -> Age
     day = {"day": today.isoformat()}
     read_caps = attempt("capabilities", lambda: _capabilities(call("profile.get_capabilities")))
     capabilities = read_caps if read_caps is not None else dict(FALLBACK_CAPABILITIES)
-    profile = attempt("profile", lambda: _profile_text(call("profile.get_profile")))
+    read_profile = attempt("profile", lambda: _profile(call("profile.get_profile"), today))
+    profile, minor = read_profile if read_profile is not None else (None, False)
 
     constraints: tuple[Constraint, ...] = ()
     if capabilities["medical"]:
@@ -299,6 +314,7 @@ def load_context(sdk: GoodLife, credential: AgentCredential, today: date) -> Age
         preferences=preferences,
         today=today,
         unavailable=tuple(unavailable),
+        minor=minor or (intake is not None and intake.needs_status == MINOR_NEEDS_STATUS),
     )
 
 
@@ -429,7 +445,9 @@ def _intake_section(ctx: AgentContext) -> list[str]:
         f"今天已记录的摄入：能量 {_num(intake.energy_kcal)} 千卡，蛋白质 {_num(intake.protein_g)} 克，"
         f"脂肪 {_num(intake.fat_g)} 克，碳水化合物 {_num(intake.carbohydrate_g)} 克。"
     )
-    if intake.need_energy_kcal is None:
+    if intake.needs_status == MINOR_NEEDS_STATUS:
+        lines.append(MINOR_INTAKE_LINE)
+    elif intake.need_energy_kcal is None:
         missing = "、".join(PROFILE_FIELD_NAMES.get(f, f) for f in intake.missing_fields) or "部分资料"
         lines.append(f"档案缺少{missing}，暂时无法估算每日需求；需要时可以请用户在档案里补充。")
     else:
@@ -506,7 +524,11 @@ def _principles_section(ctx: AgentContext, resolution_clue: bool) -> list[str]:
 
 
 def build_system_prompt(ctx: AgentContext, *, resolution_clue: bool, after_risk: bool = False) -> str:
-    """after_risk：最近一条助手回答是风险话题的固定回复时为真，安全边界一节多一句 RISK_FOLLOW_UP。"""
+    """after_risk：最近一条助手回答是风险话题的固定回复时为真，安全边界一节多一句 RISK_FOLLOW_UP。
+    用户未成年（ctx.minor）时，安全边界一节末尾再加一句 MINOR_INSTRUCTION。
+    """
+    safety = [*SAFETY_SECTION, *([f"- {RISK_FOLLOW_UP}"] if after_risk else []),
+              *([f"- {MINOR_INSTRUCTION}"] if ctx.minor else [])]
     sections = [
         [
             "你是 good-life 应用里的生活方式助手，帮用户把饮食、运动和日常安排得更合适。"
@@ -520,7 +542,7 @@ def build_system_prompt(ctx: AgentContext, *, resolution_clue: bool, after_risk:
         _intake_section(ctx),
         _training_section(ctx),
         _preferences_section(ctx),
-        [*SAFETY_SECTION, *([f"- {RISK_FOLLOW_UP}"] if after_risk else [])],
+        safety,
         _principles_section(ctx, resolution_clue),
     ]
     return "\n\n".join("\n".join(section) for section in sections if section)

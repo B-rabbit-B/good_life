@@ -83,6 +83,7 @@ export const RISK_TITLE_KEYS: Record<RiskCategory, TitleKey> = {
   self_harm: 'careSelfHarm',
   medication: 'careMedication',
   extreme_diet: 'careDiet',
+  minor_weight_loss: 'careDiet',
 }
 
 /** 就医提示里可拨打的电话 */
@@ -92,6 +93,7 @@ export const RISK_PHONES: Record<RiskCategory, ('120' | '12356')[]> = {
   self_harm: ['120', '12356'],
   medication: ['120'],
   extreme_diet: ['120', '12356'],
+  minor_weight_loss: ['120', '12356'],
 }
 
 /** 档案“健康状况”一项下面的提示（引导到医嘱页；录入向导与编辑档案共用） */

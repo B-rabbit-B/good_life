@@ -10,6 +10,7 @@ import { todayISO } from '../../lib/dates'
 export const SUMMARY_DISCLAIMER = '以上汇总与需求都是估算，仅供参考，不构成医疗建议；有医嘱时以医嘱为准。'
 export const ESTIMATE_NOTE = '以上是根据档案估算的大致需求，不是医疗指标；有医嘱或慢性病时以医嘱为准。'
 export const INSUFFICIENT_NOTE = '档案缺少估算所需的信息，补充后才能估算每日需求。'
+export const MINOR_NOTE = '未满 18 周岁不估算每日能量，也不按减脂目标给建议；未成年人的营养需求与成人不同，请咨询医生或营养师。'
 export const PARTIAL_MATCH_MESSAGE = '没有完全一致的食物，下面是名称相近的候选，请确认是否是你要找的'
 
 const zero = (): NutrientsOut => ({
@@ -48,6 +49,19 @@ export function insufficientSummary(over: Partial<SummaryOut> = {}): SummaryOut 
       status: 'insufficient_profile', missing_fields: ['height_cm'], energy_kcal: null, energy_kcal_low: null,
       energy_kcal_high: null, protein_g: null, fat_g_low: null, fat_g_high: null, carbohydrate_g_low: null,
       carbohydrate_g_high: null, fiber_g_low: null, fiber_g_high: null, sodium_mg_max: null, notes: [INSUFFICIENT_NOTE],
+    },
+    remaining: null,
+    ...over,
+  })
+}
+
+/** 未成年用户的一天：后端不估算需求（状态 minor，数字全为空，只有一条说明） */
+export function minorSummary(over: Partial<SummaryOut> = {}): SummaryOut {
+  return summary({
+    needs: {
+      status: 'minor', missing_fields: [], energy_kcal: null, energy_kcal_low: null, energy_kcal_high: null,
+      protein_g: null, fat_g_low: null, fat_g_high: null, carbohydrate_g_low: null, carbohydrate_g_high: null,
+      fiber_g_low: null, fiber_g_high: null, sodium_mg_max: null, notes: [MINOR_NOTE],
     },
     remaining: null,
     ...over,

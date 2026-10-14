@@ -17,6 +17,7 @@ from app.agent.openings import OPENING_KINDS
 from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES
 from app.agent.schemas import MAX_MESSAGE_CHARS
 from app.auth import service as auth_service
+from app.common.age import MIN_AGE
 from app.cycle.schemas import DayLogIn
 from app.disclaimer import deps as disclaimer_deps
 from app.errors import AppError
@@ -194,6 +195,7 @@ def test_contract_limits_and_error_codes_match_the_backend():
         "MAX_NOTE": _max_length(DayLogIn.model_fields["note"].metadata),
         "MAX_NAME_LENGTH": MAX_NAME_LENGTH,
         "MAX_TEXT": _max_length(OrderCreate.model_fields["text"].metadata),
+        "MIN_AGE": MIN_AGE,
     }
     assert {name: scalars.get(name) for name in limits} == {name: str(value) for name, value in limits.items()}, HINT
     assert "MAX_EVIDENCE_BYTES" in scalars, f"{HINT}：找不到 MAX_EVIDENCE_BYTES"

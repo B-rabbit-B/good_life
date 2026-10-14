@@ -724,7 +724,7 @@ def test_no_agent_tool_has_a_property_less_nested_object_for_gemini():
 
 
 def test_prompt_reports_overshoot_instead_of_negative_remaining():
-    intake = Intake(2300, 80, 70, 250, 1900, 1700, 2100, 60, (), -400, -20)
+    intake = Intake(2300, 80, 70, 250, 1900, 1700, 2100, 60, (), -400, -20, "ok")
     ctx = AgentContext(capabilities={"cycle": False, "medical": True, "nutrition": True, "fitness": True},
                        profile_summary="已开放的模块：医嘱、饮食、健身", constraints=(), phase=None, intake=intake,
                        training=None, has_workouts=False, preferences=(), today=TODAY)

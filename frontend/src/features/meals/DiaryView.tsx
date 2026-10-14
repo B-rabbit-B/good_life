@@ -33,7 +33,8 @@ function DateBar({ date, onChange }: { date: string; onChange: (date: string) =>
 }
 
 /**
- * 饮食记录的一天（设计稿 05）：日期条（今天之后不可用）；能量账本（档案不全时换成“数据不足”，正文是后端的说明）、
+ * 饮食记录的一天（设计稿 05）：日期条（今天之后不可用）；能量账本（档案不全时换成“数据不足”，正文是后端的说明；
+ * 未成年用户后端不估算需求，同样换成“数据不足”，只显示后端的说明，不给“去补充档案”）、
  * 营养表、三餐；当天完全没有记录时是“无数据”；最后是背景场上的“附近吃什么”。
  */
 export function DiaryView({ date }: { date: string }) {
@@ -63,16 +64,18 @@ export function DiaryView({ date }: { date: string }) {
     } else {
       body = (
         <>
-          {day.needs.status === 'insufficient_profile'
-            ? (
+          {day.needs.status === 'ok'
+            ? <Ledger summary={day} meals={meals.data} date={date} />
+            : (
               <div className="plate">
                 <InsufficientState
                   titleKey="needsProfile" notes={day.needs.notes}
-                  actions={<ButtonLink to={PATHS.profileEdit} variant="quiet">去补充档案</ButtonLink>}
+                  actions={day.needs.status === 'insufficient_profile'
+                    ? <ButtonLink to={PATHS.profileEdit} variant="quiet">去补充档案</ButtonLink>
+                    : undefined}
                 />
               </div>
-            )
-            : <Ledger summary={day} meals={meals.data} date={date} />}
+            )}
           <NutrientTable summary={day} />
           <MealList summary={day} meals={meals.data} date={date} />
         </>

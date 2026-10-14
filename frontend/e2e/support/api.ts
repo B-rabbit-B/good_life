@@ -65,7 +65,7 @@ export async function createUser(
   const stamp = Date.now().toString(36)
   const random = Math.random().toString(36).slice(2, 8)
   const username = `u${stamp}_${random}` // 小写字母、数字与下划线，不超过 32 位
-  await call(request, 'POST', '/api/auth/register', { data: { username, password: PASSWORD } })
+  await call(request, 'POST', '/api/auth/register', { data: { username, password: PASSWORD, age_confirmed: true } })
   const { access_token: token } = await call<Schemas['TokenResponse']>(request, 'POST', '/api/auth/login', {
     data: { username, password: PASSWORD },
   })

@@ -3001,7 +3001,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "ok" | "insufficient_profile";
+            status: "ok" | "insufficient_profile" | "minor";
         };
         /** NeedsUsedOut */
         NeedsUsedOut: {
@@ -3513,6 +3513,11 @@ export interface components {
         };
         /** RegisterRequest */
         RegisterRequest: {
+            /**
+             * Age Confirmed
+             * @description 用户确认已年满 14 周岁，必须为 true；只做校验，不入库
+             */
+            age_confirmed: boolean;
             /** Password */
             password: string;
             /** Username */

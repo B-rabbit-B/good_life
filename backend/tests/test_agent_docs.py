@@ -57,7 +57,7 @@ TESTS = ROOT / "backend" / "tests"
 AGENT_SOURCES = ROOT / "backend" / "app" / "agent"
 EXPECTED_DOCS = {"智能体行为设计.md", "主动开场规则表.md", "安全边界清单.md", "输出检查规则说明.md", "端到端场景脚本.md",
                  "接口清单.md", "验收记录.md"}
-RISK_ORDER = ["self_harm", "severe_symptom", "pregnancy", "medication", "extreme_diet"]
+RISK_ORDER = ["self_harm", "severe_symptom", "pregnancy", "medication", "extreme_diet", "minor_weight_loss"]
 
 
 def _read(name: str) -> str:

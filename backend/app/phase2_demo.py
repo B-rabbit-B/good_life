@@ -209,7 +209,8 @@ def chat_steps(story: Story) -> None:
     api = story.api
 
     # 1 账号、档案与模型
-    api("POST", "/api/auth/register", json={"username": story.username, "password": DEMO_PASSWORD})
+    api("POST", "/api/auth/register",
+        json={"username": story.username, "password": DEMO_PASSWORD, "age_confirmed": True})
     token = api("POST", "/api/auth/login", json={"username": story.username, "password": DEMO_PASSWORD})
     story.headers = {"Authorization": f"Bearer {token['access_token']}"}
     version = api("GET", "/api/disclaimer")["version"]

@@ -52,7 +52,7 @@ export const MAX_NEEDS = 3
 
 /** app.agent.loop.RISK_FLAG_PREFIX 与 app.agent.safety.RISK_CATEGORIES：助手回答的风险标记是 risk_ 加类别 */
 export const RISK_FLAG_PREFIX = 'risk_'
-export const RISK_CATEGORIES = ['medication', 'pregnancy', 'severe_symptom', 'extreme_diet', 'self_harm'] as const
+export const RISK_CATEGORIES = ['medication', 'pregnancy', 'severe_symptom', 'extreme_diet', 'self_harm', 'minor_weight_loss'] as const
 export type RiskCategory = (typeof RISK_CATEGORIES)[number]
 
 /** app.agent.loop.FLAG_CLUE：回答里有医嘱解除的线索（只给“去医嘱页处理”） */
@@ -100,6 +100,8 @@ export const MAX_NOTE = 500
 export const MAX_NAME_LENGTH = 30
 /** app.medical.schemas.OrderCreate.text：医嘱原文的长度上限 */
 export const MAX_TEXT = 5000
+/** app.common.age.MIN_AGE：注册时确认“已年满 N 周岁”的 N（档案的出生年份不满这个年龄时后端拒绝） */
+export const MIN_AGE = 14
 /** app.medical.orders.MAX_EVIDENCE_BYTES：医嘱原件文件的大小上限 */
 export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
 
