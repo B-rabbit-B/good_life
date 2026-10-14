@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 790" width="1000" height="790" role="img" aria-labelledby="t d">
+  <title id="t">好生活架构图：数据工具层、智能体层、体验层</title>
+  <desc id="d">体验层通过网页接口与流式接口访问后端；智能体层按风险话题、装配、模型与工具循环、输出检查、收尾的顺序处理一次对话，并经 SDK 调用数据工具层；外部 MCP 客户端也经 SDK 调用同一套能力。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b4856"/>
+    </marker>
+    <style>
+      text { font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif; fill: #1d2733; font-size: 13px; }
+      .title { font-size: 20px; font-weight: 700; text-anchor: middle; }
+      .band { font-size: 15px; font-weight: 700; }
+      .note { font-size: 12px; fill: #3b4856; }
+      .mid { text-anchor: middle; }
+      .box { fill: #ffffff; stroke: #5d6b7a; stroke-width: 1.2; }
+      .ext { fill: #f4f4f4; stroke: #5d6b7a; stroke-width: 1.2; stroke-dasharray: 5 3; }
+      .flow { stroke: #3b4856; stroke-width: 1.6; fill: none; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1000" height="790" fill="#ffffff"/>
+  <text class="title" x="500" y="30">好生活（good-life）架构：规则在前，模型在后</text>
+
+  <!-- 体验层 -->
+  <rect x="140" y="50" width="720" height="122" rx="10" fill="#e8f0fa" stroke="#5b7fa6" stroke-width="1.5"/>
+  <text class="band" x="154" y="72">体验层（手机浏览器 H5，React 加 TypeScript，只显示后端给的结论）</text>
+  <rect class="box" x="154" y="82" width="160" height="40" rx="6"/>
+  <text class="mid" x="234" y="107">对话页（流式回答）</text>
+  <rect class="box" x="324" y="82" width="160" height="40" rx="6"/>
+  <text class="mid" x="404" y="107">记录页（饮食、训练）</text>
+  <rect class="box" x="494" y="82" width="160" height="40" rx="6"/>
+  <text class="mid" x="574" y="107">健康页（经期、医嘱）</text>
+  <rect class="box" x="664" y="82" width="184" height="40" rx="6"/>
+  <text class="mid" x="756" y="107">我的（隐私、授权、模型）</text>
+  <rect class="box" x="154" y="132" width="694" height="30" rx="6"/>
+  <text class="mid" x="501" y="152">遮盖斜纹 · 密钥只显示掩码 · 磨砂玻璃四种降级 · 医嘱确认与解除只在面板里完成</text>
+
+  <!-- 体验层到智能体层 -->
+  <path class="flow" d="M500,172 L500,213" marker-end="url(#arrow)"/>
+  <text class="note" x="512" y="196">网页接口与流式推送（同源，打包后由后端提供）</text>
+
+  <!-- 智能体层 -->
+  <rect x="140" y="215" width="720" height="250" rx="10" fill="#e9f5ec" stroke="#5f9a6c" stroke-width="1.5"/>
+  <text class="band" x="154" y="237">智能体层（后端，站内智能体与各条主线）</text>
+  <rect class="box" x="154" y="248" width="128" height="58" rx="6"/>
+  <text class="mid" x="218" y="270">1 风险话题</text>
+  <text class="mid note" x="218" y="290">固定回复，不调模型</text>
+  <rect class="box" x="292" y="248" width="128" height="58" rx="6"/>
+  <text class="mid" x="356" y="270">2 装配</text>
+  <text class="mid note" x="356" y="290">按档案注入资料与工具</text>
+  <rect class="box" x="430" y="248" width="128" height="58" rx="6"/>
+  <text class="mid" x="494" y="270">3 模型与工具循环</text>
+  <text class="mid note" x="494" y="290">最多 6 次模型调用</text>
+  <rect class="box" x="568" y="248" width="128" height="58" rx="6"/>
+  <text class="mid" x="632" y="270">4 输出检查</text>
+  <text class="mid note" x="632" y="290">拦截违反医嘱的食物</text>
+  <rect class="box" x="706" y="248" width="142" height="58" rx="6"/>
+  <text class="mid" x="777" y="270">5 收尾</text>
+  <text class="mid note" x="777" y="290">医嘱提醒与健康提示</text>
+  <path class="flow" d="M282,277 L292,277" marker-end="url(#arrow)"/>
+  <path class="flow" d="M420,277 L430,277" marker-end="url(#arrow)"/>
+  <path class="flow" d="M558,277 L568,277" marker-end="url(#arrow)"/>
+  <path class="flow" d="M696,277 L706,277" marker-end="url(#arrow)"/>
+
+  <rect class="box" x="154" y="320" width="160" height="58" rx="6"/>
+  <text class="mid" x="234" y="342">拍照识别</text>
+  <text class="mid note" x="234" y="362">模型认菜名，营养库算营养</text>
+  <rect class="box" x="324" y="320" width="160" height="58" rx="6"/>
+  <text class="mid" x="404" y="342">主动开场</text>
+  <text class="mid note" x="404" y="362">规则决定问题，模型润色</text>
+  <rect class="box" x="494" y="320" width="160" height="58" rx="6"/>
+  <text class="mid" x="574" y="342">偏好记忆</text>
+  <text class="mid note" x="574" y="362">写入与读出都过滤</text>
+  <rect class="box" x="664" y="320" width="184" height="58" rx="6"/>
+  <text class="mid" x="756" y="342">附近餐厅</text>
+  <text class="mid note" x="756" y="362">规则筛类型，高德只负责检索</text>
+
+  <rect class="box" x="154" y="392" width="694" height="56" rx="6"/>
+  <text class="mid" x="501" y="414">多模型适配层：OpenAI 兼容、Claude、Gemini 三种协议</text>
+  <text class="mid note" x="501" y="434">密钥加密保存、只显示掩码；每次出站前复查服务地址不是内网</text>
+
+  <!-- 智能体层到数据工具层 -->
+  <path class="flow" d="M500,465 L500,493" marker-end="url(#arrow)"/>
+  <text class="note" x="512" y="484">智能体凭证，经 SDK 调用</text>
+
+  <!-- 数据工具层 -->
+  <rect x="140" y="495" width="720" height="280" rx="10" fill="#fbf1e1" stroke="#b98a3e" stroke-width="1.5"/>
+  <text class="band" x="154" y="517">数据工具层（后端，规则与数据）</text>
+  <text class="note" x="400" y="517">网页接口不经 SDK，直接调用各模块的服务层</text>
+  <rect class="box" x="154" y="528" width="694" height="62" rx="6"/>
+  <text class="mid" x="501" y="551">SDK 与 MCP：34 项能力（只读 23、写入 5、需本人确认 6），三种凭证，按授权最小化</text>
+  <text class="mid note" x="501" y="574">需本人确认的 6 项只认用户本人的登录令牌，不暴露给智能体与 MCP；每次调用写审计，审计不记内容</text>
+
+  <rect class="box" x="154" y="604" width="130" height="62" rx="6"/>
+  <text class="mid" x="219" y="628">经期</text>
+  <text class="mid note" x="219" y="648">规则预测加个人统计</text>
+  <rect class="box" x="295" y="604" width="130" height="62" rx="6"/>
+  <text class="mid" x="360" y="628">医嘱</text>
+  <text class="mid note" x="360" y="648">结构化条目加状态机</text>
+  <rect class="box" x="436" y="604" width="130" height="62" rx="6"/>
+  <text class="mid" x="501" y="628">营养引擎</text>
+  <text class="mid note" x="501" y="648">“能不能吃”的依据</text>
+  <rect class="box" x="577" y="604" width="130" height="62" rx="6"/>
+  <text class="mid" x="642" y="628">健身</text>
+  <text class="mid note" x="642" y="648">训练记录与训练信号</text>
+  <rect class="box" x="718" y="604" width="130" height="62" rx="6"/>
+  <text class="mid" x="783" y="628">档案</text>
+  <text class="mid note" x="783" y="648">模块开放与未成年规则</text>
+
+  <rect class="box" x="154" y="680" width="340" height="80" rx="6"/>
+  <text class="mid" x="324" y="705">PostgreSQL 16</text>
+  <text class="mid note" x="324" y="725">29 张表，健康相关字段是加密列</text>
+  <text class="mid note" x="324" y="745">全部带用户编号并级联删除</text>
+  <rect class="box" x="508" y="680" width="340" height="80" rx="6"/>
+  <text class="mid" x="678" y="705">门槛与归属</text>
+  <text class="mid note" x="678" y="725">免责声明、模块开放、单独同意</text>
+  <text class="mid note" x="678" y="745">查询从归属开始，别人的记录一律 404</text>
+
+  <!-- 外部 -->
+  <rect class="ext" x="8" y="535" width="122" height="52" rx="6"/>
+  <text class="mid" x="69" y="557">外部 MCP 客户端</text>
+  <text class="mid note" x="69" y="575">持授权令牌</text>
+  <path class="flow" d="M130,561 L154,561" marker-end="url(#arrow)"/>
+  <rect class="ext" x="872" y="392" width="122" height="56" rx="6"/>
+  <text class="mid" x="933" y="414">用户自配的</text>
+  <text class="mid" x="933" y="432">模型服务</text>
+  <path class="flow" d="M848,420 L872,420" marker-end="url(#arrow)"/>
+  <rect class="ext" x="872" y="320" width="122" height="58" rx="6"/>
+  <text class="mid" x="933" y="344">高德地图</text>
+  <text class="mid note" x="933" y="362">服务端密钥</text>
+  <path class="flow" d="M848,349 L872,349" marker-end="url(#arrow)"/>
+</svg>
