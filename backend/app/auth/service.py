@@ -1,5 +1,4 @@
 import secrets
-from functools import lru_cache
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -24,24 +23,21 @@ def register_user(db: Session, username: str, password: str) -> User:
     return user
 
 
-@lru_cache(maxsize=1)
-def _dummy_hash() -> str:
-    """用户不存在时拿来校验的假哈希：首次使用时用随机密码生成，之后固定，让两种失败耗时相同。"""
-    return hash_password(secrets.token_urlsafe(16))
+# 用户不存在时拿来校验的假哈希：模块导入时用随机密码生成，之后固定，首次登录也没有多一次哈希的时间差
+_DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
 
 
 def login(db: Session, username: str, password: str) -> str:
-    """同一用户名 15 分钟内失败 5 次后一律 429（用户不存在也计数）；成功清零。"""
+    """同一用户名 15 分钟内失败 5 次后一律 429（用户不存在也计数）；尝试先计数，成功清零。"""
     key = f"name:{username}"
-    limiter.check(key)
+    limiter.acquire(key)  # 先占一次尝试（原子），并发请求不能一起越过上限
     user = db.scalar(select(User).where(User.username == username))
     if user is None:
-        verify_password(password, _dummy_hash())  # 消除“用户不存在”与“密码错误”之间的时间差
+        verify_password(password, _DUMMY_HASH)  # 消除“用户不存在”与“密码错误”之间的时间差
         matched = False
     else:
         matched = verify_password(password, user.password_hash)
     if not matched:
-        limiter.record_failure(key)
         raise AppError(401, "invalid_credentials", "用户名或密码错误")
     limiter.reset(key)
     return create_access_token(user.id, user.token_version)
@@ -53,9 +49,8 @@ def verify_user_password(db: Session, user: User, password: str) -> None:
     与登录一样限速，键是用户编号（与登录的键分开）。
     """
     key = f"user:{user.id}"
-    limiter.check(key)
+    limiter.acquire(key)
     if not verify_password(password, user.password_hash):
-        limiter.record_failure(key)
         raise AppError(403, "password_incorrect", "密码不正确，请重新输入")
     limiter.reset(key)
 

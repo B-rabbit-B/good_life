@@ -5,8 +5,10 @@ import base64
 import io
 import json
 import socket
+import threading
 import uuid
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx2
 import pytest
@@ -81,13 +83,74 @@ def test_unknown_user_still_runs_a_password_check(client, monkeypatch):
     monkeypatch.setattr(auth_service, "verify_password", counting)
     unknown = _login(client, "nobody", PASSWORD)
     assert (unknown.status_code, unknown.json()["error"]["code"]) == (401, "invalid_credentials")
-    assert len(calls) == 1 and calls[0].startswith("$argon2")
+    assert calls == [auth_service._DUMMY_HASH]
     _login(client, "nobody", PASSWORD)
-    assert calls[1] == calls[0]  # 假哈希在模块里固定，只生成一次
+    assert calls[1] == calls[0]  # 假哈希在模块里固定
     # 不存在的用户名同样被限速，不能借“是否被限速”判断账号是否存在
     for _ in range(limiter.MAX_FAILURES - 2):
         assert _login(client, "nobody", PASSWORD).status_code == 401
     assert _login(client, "nobody", PASSWORD).status_code == 429
+
+
+def test_dummy_hash_exists_right_after_import():
+    # 导入时就生成，第一次遇到不存在的用户名时不会多算一次哈希
+    assert auth_service._DUMMY_HASH.startswith("$argon2")
+
+
+RACERS = 20
+
+
+def _race(monkeypatch, send) -> list[int]:
+    """并发发 RACERS 个错误密码。进入密码校验的请求先停在门口，直到每个请求要么进了校验、要么已被拒绝，
+    再一起放行：限速若不是原子的，所有请求都会先通过上限检查再进校验。"""
+    real = auth_service.verify_password
+    cond = threading.Condition()
+    state = {"entered": 0, "rejected": 0, "open": False}
+
+    def gated(password, password_hash):
+        with cond:
+            state["entered"] += 1
+            cond.notify_all()
+            assert cond.wait_for(lambda: state["open"], timeout=30)
+        return real(password, password_hash)
+
+    def run() -> int:
+        status = send().status_code
+        if status == 429:
+            with cond:
+                state["rejected"] += 1
+                cond.notify_all()
+        return status
+
+    monkeypatch.setattr(auth_service, "verify_password", gated)
+    with ThreadPoolExecutor(RACERS) as pool:
+        futures = [pool.submit(run) for _ in range(RACERS)]
+        with cond:
+            assert cond.wait_for(lambda: state["entered"] + state["rejected"] == RACERS, timeout=60), state
+            state["open"] = True
+            cond.notify_all()
+        statuses = [future.result() for future in futures]
+    monkeypatch.setattr(auth_service, "verify_password", real)
+    return statuses
+
+
+def test_concurrent_wrong_logins_cannot_exceed_the_limit(client, monkeypatch):
+    register_and_login(client, "alice")
+    statuses = _race(monkeypatch, lambda: _login(client, "alice", "wrong-pass-9"))
+    assert statuses.count(401) <= limiter.MAX_FAILURES
+    assert sorted(set(statuses)) == [401, 429]
+    assert _login(client, "alice", PASSWORD).status_code == 429
+    limiter.reset("name:alice")
+    assert _login(client, "alice", PASSWORD).status_code == 200
+
+
+def test_concurrent_wrong_reconfirms_cannot_exceed_the_limit(client, monkeypatch):
+    headers = ready_user(client, "alice")
+    statuses = _race(monkeypatch, lambda: client.post("/api/account/export", json={"password": "wrong-pass-9"},
+                                                      headers=headers))
+    assert statuses.count(403) <= limiter.MAX_FAILURES
+    assert sorted(set(statuses)) == [403, 429]
+    assert client.post("/api/account/export", json={"password": PASSWORD}, headers=headers).status_code == 429
 
 
 def test_password_reconfirm_shares_the_limit(client):

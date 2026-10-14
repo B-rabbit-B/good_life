@@ -2,6 +2,7 @@
 
 进程内滑动窗口计数（写法同 restaurants/service.py），只在单进程部署下有效；多个进程或多台机器之间不共享，
 重启后清零。键由调用方给出：登录用“name:用户名”，密码复核用“user:用户编号”。
+调用方用 acquire：同一把锁里先判断上限、再记一次尝试，同一键的并发请求不能一起越过上限；成功后 reset 清零。
 """
 
 import threading
@@ -27,17 +28,15 @@ def _prune(now: float) -> None:
             del _failures[key]
 
 
-def check(key: str) -> None:
-    """窗口内已失败 MAX_FAILURES 次时抛 429 too_many_attempts。"""
+def acquire(key: str) -> None:
+    """原子地占用一次尝试：窗口内已有 MAX_FAILURES 次时抛 429，否则先记下这次尝试（成功后由调用方 reset）。"""
     with _lock:
-        _prune(time.monotonic())
-        if len(_failures.get(key, ())) >= MAX_FAILURES:
+        now = time.monotonic()
+        _prune(now)
+        recent = _failures.setdefault(key, deque())
+        if len(recent) >= MAX_FAILURES:
             raise AppError(429, "too_many_attempts", "尝试次数过多，请 15 分钟后再试")
-
-
-def record_failure(key: str) -> None:
-    with _lock:
-        _failures.setdefault(key, deque()).append(time.monotonic())
+        recent.append(now)
 
 
 def reset(key: str) -> None:

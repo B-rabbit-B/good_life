@@ -5,7 +5,7 @@
   - ownership.py：UserOwnedMixin（业务表统一的 user_id 外键，删用户级联删除）、owned_by（所有业务查询的起点）、get_owned_or_404；
   - clock.py：get_today 依赖，路由取“今天”都经它，测试里可以换成固定日期；
   - age.py：年龄按“当年减出生年份”算，MIN_AGE 14（不满不服务）、ADULT_AGE 18（未成年规则的分界）；
-  - body_limit.py：请求体上限中间件，在鉴权与请求体解析之前拦住过大的请求：POST、PUT、PATCH 先按方法与路径匹配医嘱证据、餐食照片与模型对话（32 MiB）三条专门规则，其余一律 1 MiB（413 request_too_large）；
+  - body_limit.py：请求体上限中间件，在鉴权与请求体解析之前拦住过大的请求：POST、PUT、PATCH 先按方法与路径匹配医嘱证据、餐食照片与模型对话（32 MiB，覆盖常见用法，极端的合法请求可能超过而得到 413）三条专门规则，其余一律 1 MiB（413 request_too_large）；
   - request_log.py：请求日志中间件（访问日志只记“方法 路由模板 状态码”；兜住未处理的异常，回统一的 500，只记类名、方法与路由模板，不再抛给服务器）、route_template（按方法与路径查路由模板）与 install_log_hygiene（丢弃 uvicorn.access、把 sqlalchemy 的引擎与连接池记录器钉在 WARNING）。
 
 ## 边界
