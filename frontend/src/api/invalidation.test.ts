@@ -1,7 +1,7 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { createTestQueryClient } from '../test/render'
-import { DOMAINS, invalidateDomain, type Domain } from './invalidation'
+import { discardConversations, DOMAINS, invalidateDomain, type Domain } from './invalidation'
 import { qk } from './keys'
 
 const DAY = '2026-10-13'
@@ -67,5 +67,25 @@ describe('domain invalidation', () => {
     const queryClient = seeded()
     for (const domain of DOMAINS) await invalidateDomain(queryClient, domain)
     expect(queryClient.getQueryState(qk.recognitionImage('r1'))?.isInvalidated).toBe(false)
+  })
+
+  it('drops every conversation and keeps today without an opening after clearing the chat', () => {
+    const queryClient = seeded()
+    queryClient.setQueryData(qk.conversation('c1'), { seeded: true })
+    queryClient.setQueryData(qk.opening, { opening: { id: 'o1', kind: 'review_due', question: '要不要现在看看？' } })
+    queryClient.setQueryData(qk.agentSettings, { seeded: true })
+    discardConversations(queryClient)
+    expect(queryClient.getQueryData(qk.conversations)).toBeUndefined()
+    expect(queryClient.getQueryData(qk.conversation('c1'))).toBeUndefined()
+    expect(queryClient.getQueryData(qk.opening)).toEqual({ opening: null })
+    expect(queryClient.getQueryState(qk.opening)?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryData(qk.agentSettings)).toEqual({ seeded: true })
+    expect(queryClient.getQueryData(qk.providers)).toEqual({ seeded: true })
+  })
+
+  it('does not invent an opening that was never fetched', () => {
+    const queryClient = seeded()
+    discardConversations(queryClient)
+    expect(queryClient.getQueryState(qk.opening)).toBeUndefined()
   })
 })

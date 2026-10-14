@@ -77,6 +77,7 @@ export default function LoginPage() {
       <div className="wm"><b>good-life</b><span>个人档案驱动的健康生活助手</span></div>
       <div className="login-h"><Title k={mode} level="display" as="h1" /></div>
       <p className="login-p">之后的饮食、训练与医嘱记录，都只保存在你的账号下。</p>
+      {state?.deleted && <p className="login-p login-deleted" role="status">账号与全部数据已删除</p>}
       {state?.expired && (
         <div className="plate login-expired" role="status">
           <AuthNeededState titleKey="sessionExpired" body="请重新登录，记录不会丢失。" />

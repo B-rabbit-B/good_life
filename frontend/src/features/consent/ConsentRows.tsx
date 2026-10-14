@@ -83,6 +83,7 @@ export function ConsentRows() {
         will={[
           { text: `立即清除你的全部${label}数据，${label}功能随即关闭。`, irreversible: true },
           { text: '对话里已有的副本不会随之删除，需要时可以在智能体里删除对应的对话。' },
+          { text: '开场问候记录里可能含相关内容，撤回时同样不会自动删除，可在“隐私与数据”页清空对话历史时一并清掉。' },
           { text: '以后可以重新同意，从空白开始使用。' },
         ]}
         confirmLabel={`撤回并清除${label}数据`} confirmVariant="danger" ack="我知道清除后不能恢复"

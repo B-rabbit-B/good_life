@@ -9,9 +9,13 @@ import { KeyMask } from './KeyMask'
 
 /**
  * 一个模型服务：名称、地址（完整显示，可换行）、密钥掩码；“测试连通”用分配给它的模型（有的话）测一次，
- * 结果写“已连通”或“未连通”加后端的说明原文（失败时带错误码）。
+ * 结果写“已连通”或“未连通”加后端的说明原文（失败时带错误码）。“删除”打开模型服务页持有的确认面板（DeleteProviderSheet）。
  */
-export function ProviderRow({ provider, modelId }: { provider: ProviderOut; modelId: string | undefined }) {
+export function ProviderRow({ provider, modelId, onDelete }: {
+  provider: ProviderOut
+  modelId: string | undefined
+  onDelete: (provider: ProviderOut) => void
+}) {
   const test = useTestProvider(provider.id)
   const flight = useSingleFlight()
   const [result, setResult] = useState<{ report: ConnectionReportOut } | { error: ApiError } | null>(null)
@@ -33,6 +37,9 @@ export function ProviderRow({ provider, modelId }: { provider: ProviderOut; mode
         <Button variant="text" isPending={test.isPending} onPress={() => void run()}>测试连通</Button>
       </span>
       <KeyMask hint={provider.key_hint} />
+      <span className="prov-del">
+        <Button variant="text" onPress={() => onDelete(provider)}>删除</Button>
+      </span>
       {result && 'report' in result && (
         <div className="prov-r" role="status">
           <VerdictMark conclusion={result.report.ok ? 'suitable' : 'not_recommended'} label={result.report.ok ? '已连通' : '未连通'} />

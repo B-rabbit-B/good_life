@@ -114,6 +114,28 @@ export async function apiBlob(path: string, signal: AbortSignal): Promise<Blob> 
   return response.blob()
 }
 
+/** Content-Disposition 里的文件名（后端生成，例如 good-life-export-20261014.zip）；没有时用 download */
+function dispositionFilename(header: string | null): string {
+  return /filename="?([^";]+)"?/i.exec(header ?? '')?.[1] ?? 'download'
+}
+
+/**
+ * 下载一个文件（导出压缩包）：与 api() 一样带令牌、解析错误、统一网络错误；以 JSON 请求体 POST（密码只在请求体里，
+ * 不进地址），文件名取响应的 Content-Disposition。
+ */
+export async function apiDownload(path: string, json: unknown): Promise<{ blob: Blob; filename: string }> {
+  const headers = authHeaders()
+  headers.set('Content-Type', 'application/json')
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path), { method: 'POST', headers, body: JSON.stringify(json) })
+  } catch {
+    throw networkError()
+  }
+  if (!response.ok) return handleErrorResponse(response)
+  return { blob: await response.blob(), filename: dispositionFilename(response.headers.get('Content-Disposition')) }
+}
+
 /**
  * 处理一个非 2xx 的响应：读出后端的统一错误体（读不出时是 http_error），401 登录失效时清令牌并通知监听者，
  * 然后抛出 ApiError。只读一次响应体。

@@ -46,6 +46,15 @@ describe('ConfirmSheet', () => {
     expect(screen.getByText('解除不能撤销。以后需要时，请重新录入。')).toHaveClass('irrev')
   })
 
+  it('shows extra content and keeps confirm disabled until the caller allows it', async () => {
+    const { onConfirm } = renderSheet({ confirmDisabled: true, children: <p>请再输入一次密码</p> })
+    expect(screen.getByText('请再输入一次密码')).toBeInTheDocument()
+    const confirm = screen.getByRole('button', { name: '确认解除' })
+    expect(confirm).toBeDisabled()
+    await userEvent.click(confirm)
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
   it('ignores repeated presses while confirming', async () => {
     let finish: () => void = () => {}
     const onConfirm = vi.fn(() => new Promise<void>((resolve) => { finish = resolve }))

@@ -54,6 +54,7 @@ export function llmHandlers(opts: LlmOptions = {}) {
     overrides: [] as { pk: string; body: unknown }[],
     assigns: [] as { purpose: string; body: unknown }[],
     manual: [] as unknown[],
+    deletes: [] as string[],
   }
   const allModels = () => Object.values(models).flat()
 
@@ -97,8 +98,13 @@ export function llmHandlers(opts: LlmOptions = {}) {
       providers = providers.map((p) => (p.id === id ? next : p))
       return HttpResponse.json(next)
     }),
+    // 与后端一样：服务的模型与用途分配随服务一起删除
     http.delete('/api/llm/providers/:id', ({ params }) => {
-      providers = providers.filter((p) => p.id !== String(params.id))
+      const id = String(params.id)
+      record.deletes.push(id)
+      providers = providers.filter((p) => p.id !== id)
+      assignments = assignments.filter((a) => a.model.provider_id !== id)
+      models[id] = []
       return new HttpResponse(null, { status: 204 })
     }),
     http.post('/api/llm/providers/:id/fetch-models', ({ params }) => {

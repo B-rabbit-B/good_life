@@ -2,14 +2,17 @@ import { onlineManager } from '@tanstack/react-query'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
+import { createMemoryRouter } from 'react-router'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { api } from '../../api/client'
-import { getToken } from '../../api/token'
+import { clearToken, getToken } from '../../api/token'
+import type { LoginState } from '../../app/guards'
+import { routes } from '../../app/routes'
 import { MIN_AGE } from '../../lib/contract'
 import { TEST_TOKEN } from '../../test/fixtures/core'
 import { TEST_PASSWORD } from '../../test/fixtures/profile'
 import { server } from '../../test/msw/server'
-import { renderRoute } from '../../test/render'
+import { renderRoute, renderRouter } from '../../test/render'
 
 type Router = ReturnType<typeof renderRoute>['router']
 
@@ -141,6 +144,16 @@ describe('login page', () => {
     expect(screen.getByText('请重新登录，记录不会丢失。')).toBeInTheDocument()
     expect(notice.closest('[role="status"]')).not.toBeNull()
     // 页题在前，过期说明在后
+    const title = screen.getByRole('heading', { level: 1, name: '登录' })
+    expect(title.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('says the account was deleted after deletion', async () => {
+    clearToken()
+    renderRouter(createMemoryRouter(routes, { initialEntries: [{ pathname: '/login', state: { deleted: true } satisfies LoginState }] }))
+    const notice = await screen.findByText('账号与全部数据已删除')
+    expect(notice).toHaveAttribute('role', 'status')
+    expect(screen.queryByRole('heading', { name: '登录已过期' })).not.toBeInTheDocument()
     const title = screen.getByRole('heading', { level: 1, name: '登录' })
     expect(title.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })

@@ -26,8 +26,8 @@ export const SENSITIVE_AREAS = {
   workoutNew: ['constraints'],
   /** 模型服务：“其他设置”里已保存的大致区域名 */
   models: ['savedArea'],
-  /** 隐私与数据：已保存的大致区域、外部授权列表、调用记录 */
-  privacy: ['savedArea', 'grants', 'audit'],
+  /** 隐私与数据：已保存的大致区域、外部授权列表、调用记录；导出、清空对话与删除账号三块（不含内容，随本页一起遮盖） */
+  privacy: ['savedArea', 'grants', 'audit', 'exportData', 'clearChat', 'deleteAccount'],
 } as const
 
 export type SensitivePage = keyof typeof SENSITIVE_AREAS

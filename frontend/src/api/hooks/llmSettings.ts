@@ -54,7 +54,7 @@ export function useUpdateProvider() {
   })
 }
 
-// 暂无界面调用：删除模型服务的入口并入步骤 12 的数据删除，钩子先保留
+/** 删除服务（后端连同它的模型、用途分配与密钥一起删除）；成功后模型服务的全部查询失效 */
 export function useDeleteProvider() {
   const queryClient = useQueryClient()
   return useMutation({

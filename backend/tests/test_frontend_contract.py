@@ -109,6 +109,7 @@ ERROR_CODES = {
     "RESTAURANT_LOCATION_NOT_GRANTED": ("restaurant_location_not_granted", 409, restaurant_service),
     "CONSENT_REQUIRED": ("consent_required", 403, consent_deps),
     "CONSENT_OUTDATED": ("consent_outdated", 409, consent_service),
+    "PASSWORD_INCORRECT": ("password_incorrect", 403, auth_service),
 }
 
 

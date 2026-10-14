@@ -197,6 +197,16 @@ export async function sendMessage(
   return { ...turn, conversation_id: id }
 }
 
+/** 准备一段对话：新建一个会话并发一句话（要先用 seedModelService 配好对话模型），返回会话编号 */
+export async function seedConversation(request: APIRequestContext, token: string, text: string): Promise<string> {
+  return (await sendMessage(request, token, text)).conversation_id
+}
+
+/** 本人现有的会话数 */
+export async function conversationCount(request: APIRequestContext, token: string): Promise<number> {
+  return (await call<Schemas['ConversationOut'][]>(request, 'GET', '/api/agent/conversations', { token })).length
+}
+
 /** 上传一张测试图片识别为草稿（看图模型是本地模拟服务：meal.jpg 认作麻婆豆腐加米饭） */
 export async function recognizePhoto(
   request: APIRequestContext,

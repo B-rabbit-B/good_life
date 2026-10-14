@@ -165,6 +165,9 @@ describe('me page', () => {
     let sheet = await screen.findByRole('dialog', { name: '撤回医嘱的单独同意' })
     const confirm = within(sheet).getByRole('button', { name: '撤回并清除医嘱数据' })
     expect(confirm).toBeDisabled()
+    // 开场问候不随撤回删除：指向“隐私与数据”页的清空对话历史
+    expect(within(sheet).getByText('开场问候记录里可能含相关内容，撤回时同样不会自动删除，可在“隐私与数据”页清空对话历史时一并清掉。'))
+      .toBeInTheDocument()
     await user.click(within(sheet).getByRole('button', { name: '继续使用' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(consents.record.withdrawn).toEqual([])

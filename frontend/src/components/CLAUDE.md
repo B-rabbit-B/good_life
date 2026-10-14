@@ -14,6 +14,7 @@
 - 单次锁：ConfirmSheet 的确认经 lib/singleFlight 的 useSingleFlight，双击或连按时第二次直接跳过；按钮的 isPending 要等下一次渲染才生效，不能只靠它。
 - 面板锁定：确认请求进行中（含次按钮自己的请求）时确认、次按钮与取消都停用，面板不响应 Esc 关闭（onBusyChange）；需要“请求中不能关”的新面板沿用这一套。
 - 不可撤销的动作用 ConfirmSheet 的 ack（必须勾选的一句话），勾选前确认按钮不可用。
+- 面板里要多填东西（例如导出与删除账号重新输入密码）：把输入框作为 ConfirmSheet 的 children（写在清单与勾选之间），没填好时传 confirmDisabled；请求中的锁定、单次锁与错误显示照旧由 ConfirmSheet 负责。
 - 标题：固定的宋体标题用 Title 与 lib/titles；面板标题二选一：titleKey（宋体，键在 titles.json）或 title（黑体，任意文字）。
 - 测试与组件同名放在一起；整体渲染与读屏检查见 shell.test.tsx、graphics.test.tsx、marks.test.tsx 等。
 

@@ -19,10 +19,11 @@ import { BootSplash, useRemoveBootShell } from './BootSplash'
 import { PATHS, onboardingPath } from './paths'
 import { firstIncompleteStep, isProfileComplete } from './profile'
 
-/** 跳到登录页时随 location.state 带上的内容：from 是被拦下的路径，expired 表示登录已过期 */
+/** 跳到登录页时随 location.state 带上的内容：from 是被拦下的路径，expired 表示登录已过期，deleted 表示刚删除了账号 */
 export interface LoginState {
   from?: string
   expired?: boolean
+  deleted?: boolean
 }
 
 

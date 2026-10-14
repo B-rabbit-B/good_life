@@ -1,4 +1,4 @@
-// 模型服务（设计稿 10a 上半）：服务列表（名称、完整地址、密钥掩码、测试连通）、当前用途、“添加模型服务”、
+// 模型服务（设计稿 10a 上半）：服务列表（名称、完整地址、密钥掩码、测试连通、删除）、当前用途、“添加模型服务”、
 // “其他设置”三行链接（隐私与数据、已保存的大致区域（区域名在敏感区里）、免责声明）。
 import { Link } from 'react-router'
 import { asApiError } from '../../api/errors'
@@ -15,11 +15,14 @@ import { Sensitive } from '../../components/Sensitive'
 import { ErrorState } from '../../components/states/ErrorState'
 import { LoadingState } from '../../components/states/LoadingState'
 import { Title } from '../../components/Title'
+import { useToast } from '../../components/Toast'
+import { useSheetHost } from '../../components/useSheetHost'
 import type { Purpose } from '../../lib/labels'
 import { PURPOSE_LABELS } from '../../lib/settingsLabels'
 import '../../styles/components/me.css'
 import '../../styles/components/sec-head.css'
 import '../../styles/components/settings.css'
+import { DeleteProviderSheet } from './DeleteProviderSheet'
 import { ProviderRow } from './ProviderRow'
 
 const PURPOSES: Purpose[] = ['chat', 'vision']
@@ -69,10 +72,15 @@ function OtherSettings() {
   )
 }
 
+// 删除服务后那一行（连同触发的按钮）不在了：焦点落到“添加模型服务”上
+const addProviderLink = () => document.querySelector<HTMLElement>('.add-prov a')
+
 export default function ModelsPage() {
   useSensitivePage('models')
   const providers = useProviders()
   const assignments = useAssignments()
+  const toast = useToast()
+  const host = useSheetHost<ProviderOut>(addProviderLink)
   const failed = providers.error ?? assignments.error
   const error = failed === null ? null : asApiError(failed)
   return (
@@ -87,7 +95,9 @@ export default function ModelsPage() {
           {providers.data.length > 0
             ? (
               <ul className="plate provs" aria-label="模型服务">
-                {providers.data.map((p) => <ProviderRow key={p.id} provider={p} modelId={assignedModel(p, assignments.data)} />)}
+                {providers.data.map((p) => (
+                  <ProviderRow key={p.id} provider={p} modelId={assignedModel(p, assignments.data)} onDelete={host.show} />
+                ))}
               </ul>
             )
             : <p className="pv-note">还没有模型服务。添加一个，填地址与密钥即可。</p>}
@@ -102,6 +112,13 @@ export default function ModelsPage() {
         </>
       )}
       <OtherSettings />
+      <DeleteProviderSheet
+        key={host.nonce} provider={host.sheet} isOpen={host.open} onClose={() => host.close(host.nonce)}
+        onDeleted={() => {
+          host.close(host.nonce)
+          toast.show('已删除')
+        }}
+      />
     </>
   )
 }

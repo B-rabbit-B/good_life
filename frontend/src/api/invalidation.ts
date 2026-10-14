@@ -4,6 +4,7 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import { CONSENT_REQUIRED } from '../lib/contract'
 import { ApiError } from './errors'
 import { qk } from './keys'
+import type { OpeningResponse } from './types'
 
 export type Domain = 'nutrition' | 'fitness' | 'cycle' | 'medical' | 'profile'
 export const DOMAINS: readonly Domain[] = ['nutrition', 'fitness', 'cycle', 'medical', 'profile']
@@ -53,6 +54,15 @@ export async function invalidateDomain(queryClient: QueryClient, domain: Domain)
 export async function discardDomain(queryClient: QueryClient, domain: Domain): Promise<void> {
   for (const queryKey of [...DERIVED[domain], qk.opening]) queryClient.removeQueries({ queryKey })
   await invalidateRecognitionRecords(queryClient)
+}
+
+/**
+ * 清空全部对话（后端同时清掉开场问候的记录）：会话列表与每个会话的消息直接从缓存丢掉；今天的开场已经取过的，改成“没有开场”。
+ * 开场不整个丢掉也不失效：重新取会让后端为今天再生成一张卡片、再调一次模型。不动“打开应用时主动提问”的设置。
+ */
+export function discardConversations(queryClient: QueryClient): void {
+  queryClient.removeQueries({ queryKey: qk.conversations })
+  if (queryClient.getQueryData(qk.opening) !== undefined) queryClient.setQueryData<OpeningResponse>(qk.opening, { opening: null })
 }
 
 /** 任何请求回 403 consent_required（例如在另一台设备上撤回了）：同意状态已过期，重新读取，守门随即回到同意面板 */
