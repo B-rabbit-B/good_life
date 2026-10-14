@@ -22,6 +22,7 @@ from app.consents import deps as consent_deps
 from app.consents import service as consent_service
 from app.cycle.schemas import DayLogIn
 from app.disclaimer import deps as disclaimer_deps
+from app.disclaimer.content import POSITIONING_STATEMENT, REFERENCE_LABEL
 from app.errors import AppError
 from app.llm import service as llm_service
 from app.llm import urls as llm_urls
@@ -155,6 +156,8 @@ def test_contract_copies_match_the_backend():
     scalars = _scalars(text)
     expected_scalars = {
         "HEALTH_DISCLAIMER": _ts_string(HEALTH_DISCLAIMER),
+        "POSITIONING_STATEMENT": _ts_string(POSITIONING_STATEMENT),
+        "REFERENCE_LABEL": _ts_string(REFERENCE_LABEL),
         "NOTICE_HEADER_PREFIX": _ts_string(NOTICE_HEADER.split("{foods}")[0]),
         "PENDING_REVIEW_NOTE": _ts_string(PENDING_REVIEW_NOTE),
         "LOW_CONFIDENCE": repr(REVIEW_CONFIDENCE),

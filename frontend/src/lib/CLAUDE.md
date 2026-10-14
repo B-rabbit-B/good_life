@@ -2,7 +2,7 @@
 
 ## 职责
 - 最底层的工具与“前端唯一可以写死的东西”：
-  - contract.ts：后端固定文案与常量的副本（健康提示、医嘱提醒开头、到期原因原文、风险类别、上限数字等），每一项注明出自后端哪个常量，backend/tests/test_frontend_contract.py 逐字、逐项核对；
+  - contract.ts：后端固定文案与常量的副本（健康提示、定位声明、“仅供参考”标签、医嘱提醒开头、到期原因原文、风险类别、上限数字等），每一项注明出自后端哪个常量，backend/tests/test_frontend_contract.py 逐字、逐项核对；
   - labels.ts 与各模块的 *Labels.ts：枚举到中文的标签映射，类型取自生成的接口类型，后端加了取值这里会编译报错；
   - titles.json 与 titles.ts：全部写死的宋体标题，宋体字体子集只含这些字加 SERIF_EXTRA；
   - formErrors.ts（把后端错误归到表单字段，说明原文照搬）、singleFlight.ts（单次锁）、dates.ts、format.ts、motion.ts（减少动效偏好）、photoHandoff.ts（对话底座把照片交给拍照页，只在内存里）、queryParams.ts。

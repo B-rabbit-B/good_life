@@ -1,7 +1,7 @@
 # backend/tests 目录说明书
 
 ## 职责
-- 后端全部自动化测试（pytest）：单元、接口、交叉用户（越权矩阵、金丝雀扫描与缺口补测：test_isolation_*.py）、提示词注入（test_injection_bounds.py 让 ScriptedModel 扮演完全听从注入的模型，只断言硬边界；test_preference_injection.py 是偏好过滤与持久化注入链）、迁移、文档核对（各步骤的 *_docs.py 核对交付文档与代码一致）、前端契约（test_frontend_contract.py 逐字核对 frontend/src/lib/contract.ts）、接口快照（test_openapi_snapshot.py）与目录说明书（test_directory_manuals.py）、依赖方向（test_import_boundaries.py：ast 扫描 app 的跨包引用，按 LAYERS 分层）与文件行数（test_engineering_rules.py：源码文件不超过 800 行）；test_ci_workflow.py 按文本核对 .github/workflows/ci.yml 的结构（本机无法运行工作流），test_step12_ops_docs.py 核对备份与依赖故障预案、新人复现记录与 README 第 23 至 26 节。
+- 后端全部自动化测试（pytest）：单元、接口、交叉用户（越权矩阵、金丝雀扫描与缺口补测：test_isolation_*.py）、提示词注入（test_injection_bounds.py 让 ScriptedModel 扮演完全听从注入的模型，只断言硬边界；test_preference_injection.py 是偏好过滤与持久化注入链）、迁移、文档核对（各步骤的 *_docs.py 核对交付文档与代码一致）、前端契约（test_frontend_contract.py 逐字核对 frontend/src/lib/contract.ts）、接口快照（test_openapi_snapshot.py）与目录说明书（test_directory_manuals.py）、依赖方向（test_import_boundaries.py：ast 扫描 app 的跨包引用，按 LAYERS 分层）与文件行数（test_engineering_rules.py：源码文件不超过 800 行）；test_ci_workflow.py 按文本核对 .github/workflows/ci.yml 的结构（本机无法运行工作流），test_step12_ops_docs.py 核对备份与依赖故障预案、新人复现记录与 README 第 23 至 26 节，test_step12_docs.py 核对免责声明与隐私说明（含按模型逐列核对的明文列与加密列清单）、高风险内容清单、营养数据总清点与数据导出与删除说明。
 - 夹具与助手：
   - conftest.py：导入 app 之前把数据库固定成测试库 goodlife_test、换上固定的测试密钥并放开模型服务的内网地址；会话开始迁移到最新；每个测试结束清空全部表并清零登录与密码复核的失败计数（reset_login_limits，计数在进程内）；client 夹具是全新的 TestClient。
   - helpers.py：register_and_login、accept_disclaimer、grant_consents、ready_user（注册、登录、确认免责，默认同时给出经期与医嘱两项单独同意，可选写档案）；需要未同意状态时显式传 consents=False，之后可用 grant_consents 只给出其中一项。

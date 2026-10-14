@@ -8,7 +8,7 @@ import { api } from '../../api/client'
 import { clearToken, getToken } from '../../api/token'
 import type { LoginState } from '../../app/guards'
 import { routes } from '../../app/routes'
-import { MIN_AGE } from '../../lib/contract'
+import { MIN_AGE, POSITIONING_STATEMENT } from '../../lib/contract'
 import { TEST_TOKEN } from '../../test/fixtures/core'
 import { TEST_PASSWORD } from '../../test/fixtures/profile'
 import { server } from '../../test/msw/server'
@@ -233,5 +233,10 @@ describe('login page', () => {
 
     const cached = () => JSON.stringify(queryClient.getMutationCache().getAll().map((mutation) => mutation.state))
     await waitFor(() => expect(cached()).not.toContain(TEST_PASSWORD))
+  })
+
+  it('shows the positioning statement from the contract', async () => {
+    renderRoute('/login', { token: null })
+    expect(await screen.findByText(POSITIONING_STATEMENT)).toHaveClass('foot-note')
   })
 })

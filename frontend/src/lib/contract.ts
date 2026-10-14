@@ -4,6 +4,12 @@
 /** app.agent.safety.HEALTH_DISCLAIMER：拼在助手回答末尾的免责句 */
 export const HEALTH_DISCLAIMER = '以上内容仅供日常生活参考，不能替代医生的诊断和建议。'
 
+/** app.disclaimer.content.POSITIONING_STATEMENT：全站的定位声明（登录页底部） */
+export const POSITIONING_STATEMENT = '只提供生活方式建议，不做医疗诊断，不替代医生。'
+
+/** app.disclaimer.content.REFERENCE_LABEL：全站统一的“仅供参考”小标签 */
+export const REFERENCE_LABEL = '仅供参考'
+
 /** app.agent.guard.NOTICE_HEADER 在 {foods} 之前的部分：输出检查附加的医嘱提醒以它开头 */
 export const NOTICE_HEADER_PREFIX = '按你当前生效的医嘱，以下食物不建议：'
 
