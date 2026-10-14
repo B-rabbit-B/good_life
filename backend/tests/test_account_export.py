@@ -220,3 +220,24 @@ def test_export_response_is_not_cacheable_and_audited(client, owner):
     [row] = [row for row in after if row not in before]
     assert (row["capability"], row["credential_kind"], row["client_name"], row["outcome"], row["grant_id"]) == \
         ("account.export", "user_session", "app", "ok", None)
+
+
+def test_export_works_for_a_user_who_never_consented(client):
+    headers = ready_user(client, "shy", consents=False)
+    entries = _unzip(_export(client, headers))
+    assert _json(entries, "medical.json") == {"orders": [], "items": [], "events": []}
+    consents = _json(entries, "disclaimer_and_consents.json")["consents"]
+    assert [(c["kind"], c["granted"], c["granted_at"], c["withdrawn_at"]) for c in consents] == \
+        [("cycle", False, None, None), ("medical", False, None, None)]
+
+
+def test_export_after_withdrawing_medical_consent_has_empty_medical_lists(client, owner):
+    headers, ids = owner
+    assert client.post("/api/account/consents/medical/withdraw", headers=headers).status_code == 204
+    entries = _unzip(_export(client, headers))
+    assert _json(entries, "medical.json") == {"orders": [], "items": [], "events": []}
+    assert not any(name.startswith("evidence/") for name in entries)
+    consents = {c["kind"]: c for c in _json(entries, "disclaimer_and_consents.json")["consents"]}
+    assert consents["medical"]["withdrawn_at"] is not None and consents["medical"]["granted"] is False
+    assert consents["cycle"]["withdrawn_at"] is None and consents["cycle"]["granted"] is True
+    assert _json(entries, "cycle.json")["periods"]  # 只清掉了医嘱
