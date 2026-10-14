@@ -23,7 +23,7 @@
 
 ## 禁区
 - 不读、不改、不提交 .env 与 llm_keys.local.env；任何 *_live_result.md 与 photo_eval 目录不提交。
-- 各包的 live_check、photos/eval_check 是用户本人用真实密钥运行的实测脚本，自动化测试只用模拟服务驱动它们，Claude 不运行真实实测。
+- 各包的 live_check、photos/eval_check、agent/redteam_check 是用户本人用真实密钥运行的实测脚本，自动化测试只用模拟服务驱动它们，Claude 不运行真实实测。
 - 日志只记方法、路由模板、状态码、能力名、错误码与异常类名；不记请求或响应内容、路径参数、查询串、异常文字与堆栈。
   现状：访问日志与未处理异常由 common/request_log.py 统一记（只记方法、路由模板、状态码与异常类名，uvicorn 自带的访问日志整条丢弃），唯一约束冲突在 errors.py 转成 409 只记约束名；不用 logger.exception，也不在日志里写 request.url。tests/test_log_canaries.py 起真实服务器、全部日志出口调到 DEBUG 守护这条规则。
 - 不在路由函数里写业务规则：规则放在各包的 service、engine 一类模块里，SDK 与网页才能共用同一套。

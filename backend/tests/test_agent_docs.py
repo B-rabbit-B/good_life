@@ -43,7 +43,7 @@ from app.agent.openings import (
     PROFILE_STALE_DAYS,
     TEMPLATES,
 )
-from app.agent.preferences import INSTRUCTION_REASON, MAX_PREFERENCE_CHARS, MAX_PREFERENCES
+from app.agent.preferences import INSTRUCTION_REASON, INSTRUCTION_WORDS, MAX_PREFERENCE_CHARS, MAX_PREFERENCES
 from app.agent.router import SSE_CHUNK_CHARS
 from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES, SAFE_REPLIES
 from app.agent.schemas import MAX_MESSAGE_CHARS
@@ -229,6 +229,16 @@ def test_behavior_doc_numbers_and_fixed_texts_match_the_code(monkeypatch):
         assert word in doc, word
     for text in (DATA_NOTICE, RECORD_CHECK, INSTRUCTION_REASON):
         assert text in doc, text
+
+
+def test_behavior_doc_lists_the_step_12_preference_filter_with_existing_tests():
+    section = _read("智能体行为设计.md").split("### 步骤 12 收紧的偏好过滤")[1].split("\n## ")[0]
+    for word in INSTRUCTION_WORDS[INSTRUCTION_WORDS.index("回答都"):]:
+        assert word in section, word
+    refs = re.findall(r"(test_\w+\.py)::(test_\w+)", section)
+    assert ("test_preference_injection.py", "test_persistent_injection_chain_is_cut") in refs
+    for file_name, test_name in refs:
+        assert f"def {test_name}(" in (TESTS / file_name).read_text(encoding="utf-8"), test_name
 
 
 def test_scenario_script_covers_the_five_user_kinds_and_the_live_check_inputs():

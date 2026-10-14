@@ -1,7 +1,7 @@
 # backend/tests 目录说明书
 
 ## 职责
-- 后端全部自动化测试（pytest）：单元、接口、交叉用户（越权矩阵、金丝雀扫描与缺口补测：test_isolation_*.py）、迁移、文档核对（各步骤的 *_docs.py 核对交付文档与代码一致）、前端契约（test_frontend_contract.py 逐字核对 frontend/src/lib/contract.ts）、接口快照（test_openapi_snapshot.py）与目录说明书（test_directory_manuals.py）。
+- 后端全部自动化测试（pytest）：单元、接口、交叉用户（越权矩阵、金丝雀扫描与缺口补测：test_isolation_*.py）、提示词注入（test_injection_bounds.py 让 ScriptedModel 扮演完全听从注入的模型，只断言硬边界；test_preference_injection.py 是偏好过滤与持久化注入链）、迁移、文档核对（各步骤的 *_docs.py 核对交付文档与代码一致）、前端契约（test_frontend_contract.py 逐字核对 frontend/src/lib/contract.ts）、接口快照（test_openapi_snapshot.py）与目录说明书（test_directory_manuals.py）。
 - 夹具与助手：
   - conftest.py：导入 app 之前把数据库固定成测试库 goodlife_test、换上固定的测试密钥并放开模型服务的内网地址；会话开始迁移到最新；每个测试结束清空全部表；client 夹具是全新的 TestClient。
   - helpers.py：register_and_login、accept_disclaimer、grant_consents、ready_user（注册、登录、确认免责，默认同时给出经期与医嘱两项单独同意，可选写档案）；需要未同意状态时显式传 consents=False，之后可用 grant_consents 只给出其中一项。
@@ -23,6 +23,7 @@
 - 新加接口：test_isolation_matrix.py 从接口描述取出全部路径参数，新参数名没登记就失败；资源参数自动进矩阵（B 的令牌带 A 的编号，必须与随机编号一样 404，A 的数据指纹不变），写接口还要在 SAMPLE_BODIES 给请求体；没有资源参数的新 GET 接口要加进 test_isolation_canary.py 的扫描计划或登记为公共接口；新的带编号 SDK 能力要加进 test_isolation_gaps.py 的 _ID_CAPABILITIES。
 - 加交叉用户测试：用 ready_user 建两个用户（例如 alice 与 bella），alice 建数据，bella 对同一编号逐个调用读、改、删与状态动作，断言全部是 404 not_found（与不存在时完全相同），列表与汇总里看不到 alice 的数据，最后确认 alice 的数据没被改动；范例见 test_medical_api.py 的 test_other_users_cannot_touch_items。
 - 新加业务路由时同步看 test_route_guards.py：每个业务路由都要经免责与模块门槛。
+- 新加智能体写入工具（write 级别能力）：test_injection_bounds.py 的 WRITE_TOOLS 与 AUDIT_NAMES 要一起改，那条测试先核对智能体恰好有这些写入工具，再断言每个都有审计。
 - 新增带用户数据的表必须带 user_id 列（UserOwnedMixin，级联指向 users）：级联守护、导出比对、删除与数据指纹都只认带 user_id 的表，只靠外键挂在别的表下面的用户数据会被这些守护漏掉。
 - 新加带 user_id 的表：test_cascade_guard.py 会检查级联与 fill_every_table 的覆盖；同时给 account 的导出加上它（test_account_export.py 逐项比对）。
 - 磁盘残留类测试：用 tempfile.mkdtemp 建专用目录，把 tempfile.tempdir 与 TEMP、TMP、TMPDIR 指向它，只扫它与 app、migrations（不扫系统临时目录），结束时删除；范例见 test_account_delete.py。

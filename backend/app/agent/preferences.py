@@ -13,7 +13,11 @@
   孕期与坐月子，以及几个英文词干。英文的 dr、doc 太短，只按整词算（前后不是英文字母，“dr说”“my dr”算，
   “drink”“document”不算），在保留空白的归一文字上查。
 - 指令式的话一律拒绝（原因是 INSTRUCTION_REASON）：偏好会写进系统指令，所以含有【】、指令、忽略、规则、
-  system prompt、ignore（不分大小写）的内容不记。
+  system prompt、ignore（不分大小写）的内容不记；步骤 12 起再加短语级的回答与身份操控（回答都、每次回复、必须先、
+  先推荐、不要告诉、扮演、你是等）与外部引流（网址、网站、链接、二维码、微信号、公众号、http、www、prompt、assistant）
+  的说法，以及像网址的写法（_DOMAIN，例如 example.com）。只收短语，不收“总是”“必须”“以后”这类宽泛的词。
+- 读出写进系统指令时（assembly._read_preferences）再按 check_preference 过滤一次：旧规则下记进去的偏好同样受新规则约束；
+  偏好列表接口不过滤，用户仍能看到并删除它们。
 - “忌口”本身不拒绝：用户自己的口味取舍（“我不吃香菜”）可以记；但把忌口和医嘱、医生、疾病联系在一起的写法
   （例如“忌口（因医嘱）”“医生让我少吃盐”）会命中上面的词，因此被拒。
 - 空白文字、超过 MAX_PREFERENCE_CHARS 个字的文字同样被拒。
@@ -62,8 +66,18 @@ HARD_INFO_WORDS = (
 LATIN_WHOLE_WORDS = ("dr", "doc")
 _LATIN_WHOLE = re.compile(rf"(?<![a-z])(?:{'|'.join(LATIN_WHOLE_WORDS)})(?![a-z])")
 
-# 指令式的说法：偏好会写进系统指令，这些一律不记
-INSTRUCTION_WORDS = ("【", "】", "指令", "忽略", "规则", "systemprompt", "ignore")
+# 指令式的说法：偏好会写进系统指令，这些一律不记。步骤 12 加上短语级的回答与身份操控、外部引流说法；
+# 不收单字或宽泛的词（例如“总是”“必须”“以后”“回答”“模型”），免得误伤“晚上总是饿”“以后都少吃甜”这类日常说法
+INSTRUCTION_WORDS = (
+    "【", "】", "指令", "忽略", "规则", "systemprompt", "ignore",
+    # 回答与身份操控
+    "回答都", "回复都", "回答前", "回复前", "每次回答", "每次回复", "必须先", "总是先", "先推荐", "不要告诉",
+    "扮演", "你是", "你现在是",
+    # 外部引流
+    "网址", "网站", "链接", "二维码", "微信号", "公众号", "http", "www", "prompt", "assistant",
+)
+# 像网址的写法（在归一后的文字上查）。按 ASCII 判断词边界：“abc.com的”这类后面紧跟汉字的写法也算
+_DOMAIN = re.compile(r"[a-z0-9-]+\.(com|cn|net|org|io|top|xyz|cc|me|app|co)\b", re.ASCII)
 
 # 日常说法，匹配前先去掉，避免“病、慢性、药、医院、炎、肝、肾”这些词误伤普通口味
 SAFE_PHRASES = (
@@ -79,7 +93,10 @@ TRADITIONAL_TO_SIMPLIFIED = dict(zip(_TRADITIONAL, _SIMPLIFIED, strict=True))
 _TO_SIMPLIFIED = str.maketrans(TRADITIONAL_TO_SIMPLIFIED)
 
 REJECT_REASON = "这是医嘱或健康状况信息，请在医嘱或档案里记录，不放进偏好记忆"
-INSTRUCTION_REASON = "偏好里不能有指令式的内容（例如“忽略”“规则”“指令”、英文 ignore、system prompt 或【】符号），请只写口味或习惯"
+INSTRUCTION_REASON = (
+    "偏好里不能有指令式的内容、链接或网址（例如“忽略”“规则”“指令”“以后回答都先……”、英文 ignore、system prompt 或【】符号），"
+    "请只写口味或习惯"
+)
 
 
 def collapse_whitespace(text: str) -> str:
@@ -102,6 +119,12 @@ _NORMALIZED_WORDS = tuple(_normalize(word) for word in HARD_INFO_WORDS)
 _NORMALIZED_SAFE = tuple(_normalize(phrase) for phrase in SAFE_PHRASES)
 
 
+def instruction_like(text: str) -> bool:
+    """归一后含有 INSTRUCTION_WORDS 里的任何一项，或有像网址的写法（_DOMAIN）。"""
+    normalized = _normalize(text)
+    return any(word in normalized for word in INSTRUCTION_WORDS) or _DOMAIN.search(normalized) is not None
+
+
 def check_preference(text: str) -> str | None:
     """返回拒绝原因；可以记就返回 None。"""
     normalized = _normalize(text)
@@ -109,7 +132,7 @@ def check_preference(text: str) -> str | None:
         return "偏好内容不能为空"
     if len(collapse_whitespace(text)) > MAX_PREFERENCE_CHARS:
         return f"偏好最多 {MAX_PREFERENCE_CHARS} 个字，请精简后再记"
-    if any(word in normalized for word in INSTRUCTION_WORDS):
+    if instruction_like(text):
         return INSTRUCTION_REASON
     for phrase in _NORMALIZED_SAFE:
         normalized = normalized.replace(phrase, "/")

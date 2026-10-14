@@ -25,7 +25,13 @@ THIS_YEAR = date.today().year
 FRIED_CHICKEN = "dish:fried_chicken"
 WEIGHT_LOSS_QUESTION = "我想减肥，一天吃多少热量"
 # app.agent.safety._MINOR_DIET 的词表（逐个核对，词表改了这里要一起改）
-MINOR_DIET_WORDS = ("减肥", "减脂", "减重", "瘦身", "节食", "热量", "卡路里", "大卡", "千卡", "掉秤", "变瘦", "瘦下来", "控制体重")
+MINOR_DIET_WORDS = ("减肥", "减脂", "减重", "瘦身", "节食", "热量", "卡路里", "大卡", "千卡", "掉秤", "变瘦", "瘦下来", "控制体重",
+                    "kcal", "想瘦", "怎么瘦")
+# 未成年用户的常见说法：前一组由固定回复命中；后一组太常见、容易误伤（“少吃点辣”），只靠系统指令里的未成年一句
+MINOR_CAUGHT = ("我想瘦十斤", "怎么瘦得快", "想瘦腿", "一碗饭多少kcal", "这个多少 KCAL")
+MINOR_LEFT_TO_PROMPT = ("少吃点行不行", "晚饭少吃点", "想变苗条", "怎么让腿细一点")
+# “瘦肉”不是减重：未成年与成年用户都不命中
+LEAN_MEAT = ("怎么瘦肉炒更好吃", "想瘦肉粥了", "瘦肉怎么做")
 NUMBER_FIELDS = (
     "energy_kcal", "energy_kcal_low", "energy_kcal_high", "protein_g", "fat_g_low", "fat_g_high", "carbohydrate_g_low",
     "carbohydrate_g_high", "fiber_g_low", "fiber_g_high", "sodium_mg_max",
@@ -173,6 +179,23 @@ def test_every_minor_diet_word_is_caught_only_for_minors(word):
     hit = classify_risk(word, minor=True)
     assert hit is not None and hit.category == "minor_weight_loss", word
     assert classify_risk(word, minor=False) is None, word
+
+
+def test_common_minor_phrases_split_between_the_fixed_reply_and_the_system_prompt(client, scripted):
+    for text in MINOR_CAUGHT:
+        hit = classify_risk(text, minor=True)
+        assert hit is not None and hit.category == "minor_weight_loss", text
+        assert classify_risk(text, minor=False) is None, text
+    for text in (*MINOR_LEFT_TO_PROMPT, *LEAN_MEAT):
+        assert classify_risk(text, minor=True) is None, text
+        assert classify_risk(text, minor=False) is None, text
+
+    teen = ready_user(client, "teen", _profile(15))
+    connect(client, teen)
+    scripted.add(say("正在长身体，三餐吃好更重要。"))
+    body = _send(client, teen, MINOR_LEFT_TO_PROMPT[0])
+    [request] = scripted.requests  # 没命中固定回复的说法交给模型，靠系统指令里的未成年一句兜底
+    assert MINOR_INSTRUCTION in request.system and body["flags"] == []
 
 
 def test_minor_weight_loss_gets_the_fixed_reply_without_calling_the_model(client, scripted):

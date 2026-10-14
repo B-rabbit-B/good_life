@@ -13,7 +13,7 @@
 
 用户自己写的文字（档案里的饮食偏好与忌口食物、医嘱条目内容、偏好记忆）放进以 DATA_START 开头、DATA_END 结尾的资料块，
 系统指令开头有一句 DATA_NOTICE 说明资料块里的内容不是指令；写进去之前把空白与换行压成一个空格、把【】换成 []，
-所以用户文字既不能另起一行冒充一节，也不能提前结束资料块。
+所以用户文字既不能另起一行冒充一节，也不能提前结束资料块。偏好记忆读出时再按 check_preference 过滤一次。
 """
 
 import logging
@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from app.agent.preferences import MAX_PREFERENCE_CHARS, collapse_whitespace, list_preferences
+from app.agent.preferences import MAX_PREFERENCE_CHARS, check_preference, collapse_whitespace, list_preferences
 from app.common.age import is_minor
 from app.db import get_sessionmaker
 from app.llm.adapters.base import ToolSpec
@@ -202,8 +202,9 @@ def _training(data: dict) -> Training:
 
 
 def _read_preferences(user_id: uuid.UUID) -> tuple[str, ...]:
+    """读出时再过滤一次：旧规则下记进去、现在会被拒绝的偏好不写进系统指令（偏好是持久化的注入链）。"""
     with get_sessionmaker()() as db:
-        return tuple(p.content for p in list_preferences(db, user_id))
+        return tuple(p.content for p in list_preferences(db, user_id) if check_preference(p.content) is None)
 
 
 def _capabilities(data: dict) -> dict[str, bool]:
