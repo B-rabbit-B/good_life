@@ -1,6 +1,6 @@
 """步骤 10：附近餐厅作为只读 SDK 能力 nutrition.nearby_restaurants，经 SDK、MCP 与站内智能体使用。
 
-高德一律由 tests/test_restaurant_flow.py 的模拟服务（MockTransport）回答，模型一律用 tests/agent_fake.py 的模拟服务，
+高德一律由 tests/amap_fake.py 的模拟服务（MockTransport）回答，模型一律用 tests/agent_fake.py 的模拟服务，
 绝不访问真实网络。
 """
 
@@ -30,7 +30,7 @@ from app.sdk.registry import REGISTRY
 from app.sdk.tooling import TOOL_USAGE, exposed_capabilities
 from tests.agent_fake import call, connect, say, scripted  # noqa: F401
 from tests.helpers import ready_user
-from tests.test_restaurant_flow import BASE, KEY, FakeAmap, _poi, _settings, ok
+from tests.amap_fake import BASE, KEY, FakeAmap, _poi, _settings, ok
 
 TODAY = date(2026, 10, 7)
 CAPABILITY = "nutrition.nearby_restaurants"

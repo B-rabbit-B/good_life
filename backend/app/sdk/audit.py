@@ -33,6 +33,6 @@ def record_call(
                 duration_ms=duration_ms,
             ))
             db.commit()
-    except Exception:
-        # 只记能力名与结果，不带参数；写审计失败不改变调用结果。
-        logger.exception("写入 SDK 调用审计失败：%s %s", capability, outcome)
+    except Exception as err:
+        # 只记能力名与异常类名，不带参数与堆栈；写审计失败不改变调用结果。
+        logger.error("写入 SDK 调用审计失败：%s %s", capability, type(err).__name__)

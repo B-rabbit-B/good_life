@@ -128,10 +128,11 @@ class GoodLife:
             error_code = converted.code
             db.rollback()
             raise converted from None
-        except Exception:
+        except Exception as err:
             error_code = "internal_error"
             db.rollback()
-            logger.exception("SDK 调用出错：%s", _printable(capability, "unknown"))
+            # 只记能力名与异常类名：异常文字与堆栈里可能带参数或返回内容。
+            logger.error("SDK 调用出错：%s %s", _printable(capability, "unknown"), type(err).__name__)
             raise SdkError("internal", "internal_error", "服务内部出错") from None
         finally:
             db.close()
