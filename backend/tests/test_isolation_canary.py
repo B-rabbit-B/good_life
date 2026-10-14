@@ -157,6 +157,28 @@ def scene(client, scripted, fake):  # noqa: F811
     return {"bella": bella, "bella_ids": bella_ids, "forbidden": forbidden, "rice": rice, "logged_day": logged_day}
 
 
+AGGREGATE_ROUTES = ("/api/cycle/stats", "/api/cycle/prediction", "/api/nutrition/summary",
+                    "/api/fitness/summary/week", "/api/fitness/signal", "/api/medical/constraints")
+
+
+def test_aggregates_do_not_mix_in_another_users_numbers(client, scripted, fake):  # noqa: F811
+    """同构、同一天的数据：先只填 B 并快照聚合与统计响应，再填 A；A 的行若被算进 B 的数字，响应会变（例如翻倍）。"""
+    bella = ready_user(client, "bella")
+    fill_every_table(client, bella, marker=BELLA_MARK, scripted=scripted, amap=fake)
+    params = {"/api/nutrition/summary": {"date": date.today().isoformat()}}
+
+    def snapshot() -> dict[str, str]:
+        responses = {path: client.get(path, headers=bella, params=params.get(path, {})) for path in AGGREGATE_ROUTES}
+        assert {path: r.status_code for path, r in responses.items() if r.status_code != 200} == {}
+        return {path: r.text for path, r in responses.items()}
+
+    alone = snapshot()
+    assert json.loads(alone["/api/nutrition/summary"])["total"]["energy_kcal"] > 0  # 有数字可翻倍
+    alice = ready_user(client, "alice")
+    fill_every_table(client, alice, marker=ALICE_MARK, scripted=scripted, amap=fake)
+    assert snapshot() == alone
+
+
 def _without_echo(payload, term: str | None):
     """搜索结果在 query 与 message 两个字段里原样回显检索词，那是 B 自己的输入，不算泄露；结果列表等其余内容照查。"""
     if isinstance(payload, dict) and payload.get("query") == term:
@@ -214,7 +236,7 @@ async def test_list_and_search_routes_never_show_another_users_marker(client, sc
     async with Client(server) as mcp:
         tools = {tool.name for tool in (await mcp.list_tools()).tools}
         by_tool = {tool_name(name): name for name in params}
-        assert tools <= set(by_tool)
+        assert tools == set(by_tool)
         ordered = sorted(tools, key=lambda name: (_level(sdk, by_tool[name]) != "read", name))
         for name in ordered:
             for args in params[by_tool[name]]:

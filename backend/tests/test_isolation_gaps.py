@@ -10,17 +10,20 @@ from datetime import date, timedelta
 
 import pytest
 from mcp.client import Client
+from pydantic import ConfigDict, create_model
 from sqlalchemy import text
 
 from app.db import get_engine
 from app.mcp_server.server import build_server
 from app.sdk import AgentGrantToken, GoodLife, SdkError, UserAccessToken
+from app.sdk.registry import Capability, NoParams
 from app.sdk.tooling import exposed_capabilities, tool_name
 from tests.agent_fake import scripted  # noqa: F401
 from tests.amap_fake import fake  # noqa: F401
 from tests.db_inspect import user_fingerprint
 from tests.full_user import fill_every_table
 from tests.helpers import ready_user
+from tests.isolation_registry import RESOURCE_PARAMS
 
 ALICE_MARK = "mkalice7q"
 BELLA_MARK = "mkbella3z"
@@ -213,6 +216,27 @@ def _random_id(capability: str) -> str:
     return str(uuid.uuid4()) if capability.startswith("medical.") else f"custom:{uuid.uuid4()}"
 
 
+# 能力参数里出现这些名字就算“带编号”：全部资源参数，外加用途分配请求体里的模型编号（将来若暴露成能力）
+_ID_FIELDS = set(RESOURCE_PARAMS) | {"model_id"}
+
+
+def _id_capabilities(capabilities) -> set[str]:
+    """输入模式（含嵌套，如训练里的动作）里出现任一 _ID_FIELDS 字段名的能力。"""
+    return {cap.name for cap in capabilities
+            if _ID_FIELDS & set(json.dumps(cap.input_model.model_json_schema()).split('"'))}
+
+
+def test_id_capability_detection_does_not_silently_narrow():
+    """思考实验：将来新增带 workout_id、period_id、conversation_id 或 model_id 参数的能力，必须被推导出来。"""
+    probes = []
+    for field in ("workout_id", "period_id", "conversation_id", "model_id", "item_id"):
+        params = create_model(f"Probe_{field}", __config__=ConfigDict(extra="forbid"), **{field: (str, ...)})
+        probes.append(Capability(f"fitness.probe_{field}", "fitness", "read", "x", params, dict, lambda c, p: {}))
+    harmless = Capability("fitness.probe_plain", "fitness", "read", "x", NoParams, dict, lambda c, p: {})
+    assert _id_capabilities([*probes, harmless]) == {cap.name for cap in probes}
+    assert _id_capabilities(GoodLife().capabilities()) == set(_ID_CAPABILITIES)
+
+
 def _error(credential, capability: str, params: dict) -> dict:
     with pytest.raises(SdkError) as caught:
         GoodLife().call(credential, capability, params, client_name="pytest")
@@ -224,9 +248,7 @@ async def test_agent_grant_of_one_user_never_reaches_another(client, pair):
     alice, alice_ids, bella, bella_ids = pair
     alice_id = _user_id("alice")
     capabilities = GoodLife().capabilities()
-    with_ids = {cap.name for cap in capabilities
-                if {"item_id", "exercise_id"} & set(json.dumps(cap.input_model.model_json_schema()).split('"'))}
-    assert with_ids == set(_ID_CAPABILITIES), "新的带编号能力要加进 _ID_CAPABILITIES"
+    assert _id_capabilities(capabilities) == set(_ID_CAPABILITIES), "新的带编号能力要加进 _ID_CAPABILITIES"
     levels = {cap.name: cap.level for cap in capabilities}
     grant = AgentGrantToken(bella_ids["grant_token"])
     session = UserAccessToken(bella["Authorization"].removeprefix("Bearer "))

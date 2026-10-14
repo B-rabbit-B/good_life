@@ -124,11 +124,12 @@ def test_another_user_gets_404_on_every_resource_route_and_nothing_changes(clien
             problems.append((method, path, "与不存在的编号响应不同", theirs.text[:200], missing.text[:200]))
     assert problems == [], "\n".join(map(str, problems))
     assert user_fingerprint(alice_id) == before
-    # A 自己仍能读到全部资源（反证上面用的确实是有效编号）
-    for path in ("/api/cycle/periods", "/api/medical/items", "/api/llm/providers", "/api/agent/conversations"):
-        assert client.get(path, headers=alice).json()
-    assert client.get(f"/api/medical/items/{alice_ids['item_id']}", headers=alice).status_code == 200
-    assert client.get(f"/api/fitness/exercises/{alice_ids['exercise_id']}", headers=alice).status_code == 200
+    # A 自己用同一编号请求矩阵里的每个 GET 接口都成功：反证上面用的是有效编号，也防路由整体坏掉而矩阵照样通过
+    gets = [(path, param) for method, path, param in routes if method == "GET"]
+    assert len(gets) >= 10
+    own = {path: client.get(path.replace("{" + param + "}", alice_ids[RESOURCE_PARAMS[param]]), headers=alice)
+           for path, param in gets}
+    assert {path: r.status_code for path, r in own.items() if r.status_code != 200} == {}
 
 
 def test_day_logs_of_another_user_cannot_be_read_or_deleted(client):
