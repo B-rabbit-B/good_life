@@ -1,0 +1,31 @@
+# backend 目录说明书
+
+## 职责
+- FastAPI 后端：全部业务规则、数据与对外能力都在这里，前端只显示后端给的结论。入口 app/main.py 的 create_app 装配全部路由、错误处理与上传体积中间件，并在根路径提供打包好的前端（app/frontend_static.py）。
+- app/models.py 汇总导入全部 ORM 模型，Alembic 与测试都靠它拿到完整的表结构；新增模型文件必须在这里登记。
+- app/errors.py 把业务错误统一成 {"error": {"code", "message"}}，校验错误换成中文说明；前端按 code 分支、原样显示 message。
+- app 根下的 phase1_demo、phase2_demo、phase2_acceptance、e2e_server、openapi_export 是演示、验收与工具入口，不是业务模块。
+
+## 边界
+- 分层（数字小的在底层，只能引用同层或更低层；任务 10 由 tests/test_import_boundaries.py 守护）：
+  0 config、db、errors、security、common → 1 auth → 2 disclaimer（步骤 12 起加 consents）→ 3 profile →
+  4 cycle、medical、llm、agent_grants → 5 fitness → 6 nutrition → 7 photos、restaurants → 8 sdk → 9 agent →
+  10 mcp_server、main 与 app 根下的入口模块（步骤 12 起加 account）。
+- 现有唯一的反向引用：common/body_limit.py 从 medical 与 photos 取两个上传上限常量，只取常量。
+- 每个业务路由都要经免责声明门槛（disclaimer 的 require_disclaimer_user，或建在它上面的模块门槛），tests/test_route_guards.py 逐条检查。
+- 所有用户数据查询从 common/ownership 的 owned_by 开始；别人的记录与不存在的一样返回 404。
+- 健康相关的明文字段用 security/crypto 的 EncryptedJSON 或 EncryptedBytes 存；数据库只能看到密文。
+
+## 入口
+- 运行：在本目录用 uv run（例如 uv run uvicorn app.main:app --reload --port 8000）；迁移 uv run alembic upgrade head。
+- 测试：uv run pytest -q -W error，必须零失败零警告；测试固定连 127.0.0.1:5433 的 goodlife_test，见 tests/CLAUDE.md。
+- 接口变化后在 frontend 运行 pnpm api:gen 并提交生成结果；SDK 能力的输入输出变化后运行 uv run python -m app.sdk.manifest。
+- 各包的职责与禁区见 app 下每个包的 CLAUDE.md；迁移见 migrations/CLAUDE.md。
+
+## 禁区
+- 不读、不改、不提交 .env 与 llm_keys.local.env；任何 *_live_result.md 与 photo_eval 目录不提交。
+- 各包的 live_check、photos/eval_check 是用户本人用真实密钥运行的实测脚本，自动化测试只用模拟服务驱动它们，Claude 不运行真实实测。
+- 日志只记方法、路由模板、状态码、能力名、错误码与异常类名；不记请求或响应内容、路径参数、查询串与异常文字。
+- 不在路由函数里写业务规则：路由只做依赖注入与转发，规则放在各包的 service、engine 一类模块里，SDK 与网页才能共用同一套。
+- 不引入 import-linter 之类的新依赖做检查；依赖方向用自写的 ast 扫描测试。
+- 后端全量 pytest 与前端 Playwright 不同时运行（共用 goodlife_test，端到端服务器启动时清空全部表）。

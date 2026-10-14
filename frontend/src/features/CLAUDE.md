@@ -1,0 +1,33 @@
+# frontend/src/features 目录说明书
+
+## 职责
+- 各功能的页面与只属于该功能的组件、钩子与小工具。每个功能目录不单独写说明书，在这里逐目录写一行：
+- auth/：登录与注册页（注册要勾选年满 14 周岁的确认）。
+- chat/：对话页（首屏）：消息流、流式回答（useChatStream 读 api/sse）、对话底座、开场卡片、待复核条、没有模型时的引导。
+- cycle/：经期视图（月历、经期与每日记录面板）；对外只经 index 的 loadCycleView 按需加载。
+- fitness/：训练视图、周汇总与动作趋势、记一次训练页、顶部的运动限制条；对外只经 index 的 TrainingView。
+- health/：健康页，按能力清单摆出经期与医嘱的分段或子标签。
+- me/：“我的”页与修改档案页（经期记录开关只给女性用户）。
+- meals/：记录页（饮食与训练两个标签）、能量账本、营养表、三餐、记一餐页。
+- medical/：医嘱视图（待核对、生效中、历史与审计三个子标签）、录入医嘱页、确认生效、修改、作废、解除与继续遵守的面板、证据查看；对外只经 index 的 MedicalView 与 MedicalTabs。
+- onboarding/：免责声明页与三步建档。
+- photos/：拍照识别的上传与结果页（压缩、进度、修正识别项、整餐评价、确认入库）。
+- restaurants/：附近餐厅页（定位授权、手动地点、需求词、店铺列表、被避开的类型）。
+- settings/：模型服务（列表与四步添加流程、密钥掩码）、隐私与数据（保存的大致区域、外部授权、调用记录）、免责声明查看、磨砂偏好。
+
+## 边界
+- 可以引用 lib、api、components、app（paths、AppShell 的登记钩子、nav 等）。
+- 一个功能引用另一个功能只能经对方的 index（test/boundaries.test.ts 守护）；唯一例外是 chat 的 OpeningCard 与 PendingStrip 用 lazy 动态引入 medical/ContinueSheet，经 index 会把整个医嘱视图拉进对话页首屏。
+- 医嘱的确认生效、作废与确认解除只在医嘱页的面板里二次确认；对话页只给“去医嘱页处理”与继续遵守，绝不出现确认或解除医嘱的按钮。
+- 页面上的敏感内容包在 Sensitive 里，区域名与 app/sensitiveAreas.ts 的登记一致。
+
+## 入口
+- 新功能目录：建目录、在 routes.tsx 加按需加载的路由，在本文件加一行（tests/test_directory_manuals.py 检查每个功能目录都有一行）；被别的功能用的部分放进它的 index.ts。
+- 提交类按钮用 useSingleFlight 或 ConfirmSheet 防重复提交；不可撤销的动作用 ConfirmSheet 的 ack。
+- 测试与页面放在一起，接口用 test/msw 的处理器，渲染用 test/render.tsx。
+
+## 禁区
+- 不做业务规则判断：能不能吃、是否需要复核、模块是否开放都看后端返回；错误原样显示 message 与“错误码 code”。
+- 不在对话页静态引入大块的东西（首屏预算）；只在一个页面用的接口钩子不放进对话页也用的钩子文件。
+- 新面板标题用 title（黑体），新区块用 sec-l 小标题；不新增 titleKey。
+- 模型密钥只显示后端给的掩码；地点原文与坐标不写进浏览器存储。
