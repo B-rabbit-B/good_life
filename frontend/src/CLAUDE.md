@@ -15,7 +15,15 @@
 
 ## 入口
 - 路由表 app/routes.tsx：每个页面按需加载；对话页是首屏，受首屏预算约束。
-- 各目录的说明书：api、app、components、lib、features、test、dev 下各有一份 CLAUDE.md；styles 没有单独的说明书，规则写在这里与 lib/CLAUDE.md（字体）。
+- 子目录说明书索引（更深的子目录没有单独说明书时，以最近的上级说明书为准）：
+  - lib/CLAUDE.md：底层工具、标签映射、后端文案副本、宋体标题
+  - api/CLAUDE.md：接口、错误、查询键、缓存失效与钩子
+  - components/CLAUDE.md：不认业务的界面零件、遮盖、单次锁与面板锁定
+  - styles/CLAUDE.md：设计令牌、材质、组件样式表、生成的字体样式
+  - features/CLAUDE.md：各功能目录（逐目录一行）
+  - app/CLAUDE.md：外壳、路由、守卫、敏感区登记
+  - test/CLAUDE.md：测试支撑与三条全局守护测试
+  - dev/CLAUDE.md：组件样张页
 - 测试与源码放在一起（*.test.ts、*.test.tsx），支撑代码在 test/。
 
 ## 禁区

@@ -13,7 +13,9 @@
 - 字段加密密钥与 JWT 密钥由配置在启动时校验，配置不合法时 create_app 启动即失败；本包不提供默认密钥。
 
 ## 入口
-- passwords.hash_password、verify_password；tokens.create_access_token、decode_access_token、InvalidTokenError；crypto.EncryptedJSON、EncryptedBytes、encrypt_value、decrypt_value。
+- 新表里有健康相关或用户自写的文字、数字、JSON：列类型用 EncryptedJSON；有文件或图片字节：用 EncryptedBytes（大字段再加 deferred，只在真正要读时加载）。
+- 迁移里要把已有明文转成密文、或在原生 SQL 外处理密文：用 encrypt_value、decrypt_value，与列类型同一套密钥与格式。
+- 存密码或核对密码：只经 passwords；签发或认登录令牌：只经 tokens（认令牌后还要比对 token_version，见 auth）。
 - 测试：tests/test_security.py、tests/test_config.py；迁移里的加密转换见 tests/test_migrations.py。
 
 ## 禁区

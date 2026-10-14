@@ -14,6 +14,7 @@
 
 ## 入口
 - 能力定义：capabilities/ 下按模块一个文件，capabilities/__init__.py 的 ALL 汇总；registry.py 校验命名、模块与级别。
+- 新增 write 级别的能力（会成为智能体的写入工具）时，必须在 frontend/src/lib/contract.ts 的 WRITE_TOOL_DOMAINS 登记它的工具名与数据域，否则一轮对话后前端不知道让哪些页面刷新；tests/test_frontend_contract.py 的 test_every_write_tool_has_a_frontend_domain 守护。
 - 能力清单快照：manifest.json，能力的输入输出有变化时在 backend 目录运行 uv run python -m app.sdk.manifest 并提交，版本号保持 1.2。
 - 测试：tests/test_sdk_core.py、test_sdk_capabilities.py、test_sdk_agent_credential.py、test_sdk_docs.py。
 

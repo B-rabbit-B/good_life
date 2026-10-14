@@ -14,7 +14,10 @@
 - 被几乎所有业务包引用；main 挂上 UploadBodyLimitMiddleware。
 
 ## 入口
-- owned_by、get_owned_or_404、UserOwnedMixin、get_today、age_in_years、is_minor、MIN_AGE、UploadBodyLimitMiddleware。
+- 新建业务表：混入 UserOwnedMixin，删除用户时自动级联。
+- 查当前用户的数据：一律从 owned_by 起写查询；按编号取一条并要求属于当前用户：用 get_owned_or_404，不要先按编号查再判断归属。
+- 路由要“今天”：注入 get_today，测试才能固定日期；判断是否未成年或是否满 14 周岁：用 age.py，不另写算法。
+- 新增上传接口：在 body_limit.py 的规则里加路径与上限，上限常量仍定义在业务包里。
 - 测试：归属与 404 散在各模块的交叉用户测试（例如 tests/test_medical_api.py、tests/test_cycle_records.py）；年龄见 tests/test_minors.py；上传上限见 tests/test_medical_api.py 与 tests/test_photo_flow.py。
 
 ## 禁区

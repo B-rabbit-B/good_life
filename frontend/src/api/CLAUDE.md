@@ -13,7 +13,10 @@
 - hooks/ 按模块分文件；只有医嘱页用的钩子放 hooks/medicalPage.ts，对话页也用的放 hooks/medical.ts，免得医嘱页的代码进对话页首屏（vite.config.ts 的 common 分组也按这个分）。
 
 ## 入口
-- api()、ApiError、networkError、isSessionEnded、onUnauthorized（client.ts）；qk（keys.ts）；invalidateDomain（invalidation.ts）；hooks/ 下的 useXxx。
+- 页面要读写后端：用 hooks/ 下对应模块的钩子；没有就在该模块的钩子文件里加（只有医嘱页用的放 medicalPage.ts），查询键加在 keys.ts。
+- 普通 JSON 请求：经 client.ts；流式对话：经 sse.ts；带进度的上传：经 upload.ts；三者错误与 401 处理一致，不另写 fetch。
+- 写操作成功后要刷新别的页面：调用 invalidation.ts 的 invalidateDomain，改依赖关系就改那张表。
+- 需要接口类型：从 types.ts 取别名，没有就在那里按生成的 schema 加一个。
 - 生成：在 frontend 运行 pnpm api:gen，提交 openapi.json 与 schema.d.ts；schema.test.ts 检查生成结果是最新的。
 - 测试：client.test.ts、errors.test.ts、sse.test.ts、upload.test.ts、keys.test.ts、invalidation.test.ts、hooks/hooks.test.tsx、hooks/domainInvalidation.test.tsx、itemContext/dueReason.test.ts。
 

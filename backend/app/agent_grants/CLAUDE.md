@@ -12,7 +12,8 @@
 
 ## 入口
 - 路由：POST 与 GET /api/agent-grants、GET /api/agent-grants/audit、DELETE /api/agent-grants/{id}（router.py），都经 require_disclaimer_user。
-- 服务：service.create_grant、list_grants、revoke_grant、authenticate_grant、list_audits、grant_status。
+- 网页上让用户管理授权与查看调用记录：走上面的路由；外部客户端拿令牌调用能力：由 sdk/credentials.py 经本包认令牌，不在别处另认 gl_ 令牌。
+- 想知道某次调用发生过什么：查审计表；要新增审计维度，先确认它不是内容类信息。
 - 测试：tests/test_agent_grants.py、tests/test_sdk_core.py（认证与审计）、tests/test_mcp_server.py。
 
 ## 禁区

@@ -8,7 +8,8 @@
   - agent_fake.py：基于 MockTransport 的脚本化模拟模型（say、call、echo、fail），scripted 夹具替换适配器工厂，connect 为用户配好对话模型。
 
 ## 边界
-- 测试只连 127.0.0.1:5433 的 goodlife_test；与 Playwright 的端到端服务器共用这个库（它启动时清空全部表），所以后端全量 pytest 与 Playwright 绝不同时运行。
+- 测试只连 127.0.0.1:5433 的 goodlife_test（由 deploy/db-init 的建库脚本在数据库容器首次启动时建立）；与 Playwright 的端到端服务器共用这个库（它启动时清空全部表），所以后端全量 pytest 与 Playwright 绝不同时运行。
+- 单文件运行也会连库并清表（conftest 的 autouse 夹具 clean_tables 在每个测试后 TRUNCATE 全部表），所以单文件也不得与全量 pytest、别的 pytest 或 Playwright 并行。
 - 模型、高德一律用 MockTransport 或本机模拟服务；不联网、不读 backend/.env、不碰真实密钥。
 - 需要临时目录用 tempfile，不用 pytest 的 tmp_path；需要固定日期用 get_today 依赖覆盖或显式传参，不靠真实时间碰运气。
 
