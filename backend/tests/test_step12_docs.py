@@ -350,3 +350,219 @@ def test_interface_doc_lists_the_step_12_error_codes_and_routes():
                   "/api/account/consents/{kind}/withdraw"):
         assert route in doc, route
     assert "age_confirmed" in doc and "evidence_limit_reached" in doc
+
+
+# ---------- 任务 13：安全审查记录、已知问题与限制清单、验收记录、总检查 ----------
+
+SECURITY = "安全审查记录.md"
+KNOWN = "已知问题与限制清单.md"
+ACCEPTANCE = "验收记录.md"
+PORTFOLIO_DOCS = ("项目介绍.md", "架构说明.md", "创新点说明.md", "取舍记录.md", "演示脚本.md", "面试追问清单.md",
+                  "开源使用说明.md")
+OPS_DOCS = ("备份与恢复预案.md", "依赖故障预案.md", "新人复现记录.md")
+TASK_13_DOCS = (SECURITY, KNOWN, ACCEPTANCE)
+PLANNED_DOCS = set(TASK_9_DOCS) | set(PORTFOLIO_DOCS) | set(OPS_DOCS) | set(TASK_13_DOCS)
+USER_OK = "通过（代验，见“代为验收记录”）"
+USER_LATER = "待用户补做"
+RESULT_AUTOMATED = "已通过自动化验证"
+RESULT_3 = "已通过脚本化模型的自动化验证；真实模型红队待用户运行实测脚本"
+RESULT_8 = "作品集材料齐全并通过文档检查；不看稿讲解待用户在第三阶段整体验收中完成"
+CHECKLIST = "关键路径检查清单"
+STEP_11_RECORD = ROOT / "docs" / "11-交付物" / "验收记录.md"
+
+
+def _refs(text: str) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
+    return ({m.groups() for m in BACKEND_REF.finditer(text)}, {m.groups() for m in FRONTEND_REF.finditer(text)})
+
+
+def _acceptance_rows() -> list[list[str]]:
+    return _rows(_read(ACCEPTANCE).split(f"## {CHECKLIST}")[0])
+
+
+def _step_11_limits() -> list[str]:
+    text = STEP_11_RECORD.read_text(encoding="utf-8").replace("\r\n", "\n")
+    block = _section(text, "已知限制与需要用户决定的设计取舍")
+    return [line for line in block.splitlines() if re.match(r"^\d+\. ", line)]
+
+
+def test_delivery_docs_are_exactly_the_planned_set_and_contain_no_code():
+    names = {path.name for path in DOCS.glob("*.md")}
+    assert names == PLANNED_DOCS and len(names) == 17, sorted(names ^ PLANNED_DOCS)
+    assert (DOCS / "架构图.svg").is_file()
+    assert {path.name for path in DOCS.iterdir()} == PLANNED_DOCS | {"架构图.svg"}
+    for name in sorted(names):
+        text = _read(name)
+        _assert_no_code(text)
+        assert len(text.splitlines()) <= 800, name
+        # 任务 8 之前写的“计划中的数值”都已换成代码里的现值
+        assert "计划中的数值" not in text and "以最终代码为准" not in text, name
+    licences = (ROOT / "docs" / "01-交付物" / "依赖许可证.md").read_text(encoding="utf-8")
+    assert "python-multipart" in licences
+
+
+def test_acceptance_record_has_nine_rows_and_a_guarded_user_column():
+    """交付时“用户验收”列留空；之后只能由用户本人或代验的验收会话填成固定的写法（第 3、8 条只能写待补做）。"""
+    rows = _acceptance_rows()
+    assert [row[0] for row in rows] == [str(n) for n in range(1, 10)]
+    for row in rows:
+        assert len(row) == 6, row[0]
+        assert all(row[:5]), row[0]
+        allowed = {"", USER_LATER} if row[0] in ("3", "8") else {"", USER_OK}
+        assert row[5] in allowed, (row[0], row[5])
+    record = _read(ACCEPTANCE)
+    for heading in ("## 关键路径检查清单", "## 自动化验证记录", "## 需要用户完成的事项", "## 代为验收记录"):
+        assert heading in record, heading
+    delegated = record.split("## 代为验收记录")[1]
+    assert "待代验" in delegated or "验收人：Claude" in delegated
+
+
+def test_criteria_3_7_and_8_wait_for_the_user_and_the_others_do_not():
+    rows = {row[0]: row for row in _acceptance_rows()}
+    assert rows["3"][4] == RESULT_3 and "红队" in rows["3"][3]
+    assert "用户决定不跟进" in rows["7"][4] and "没有实际运行" in rows["7"][4]
+    assert rows["8"][4] == RESULT_8 and "不看稿" in rows["8"][3]
+    for number in "124569":
+        assert rows[number][4] == RESULT_AUTOMATED, number
+
+
+def test_acceptance_rows_reference_existing_tests():
+    references = set()
+    for row in _acceptance_rows():
+        backend, frontend = _refs(row[2])
+        assert backend, row[0]  # 每一行至少有一个后端引用（第 1 至 6 条与第 9 条是硬性要求，其余也有）
+        for file_name, test_name in sorted(backend):
+            source = (TESTS / file_name).read_text(encoding="utf-8")
+            assert re.search(rf"^(async )?def {test_name}\(", source, re.MULTILINE), (file_name, test_name)
+        for path, title in sorted(frontend):
+            assert (ROOT / path).is_file(), path
+            assert f"'{title}'" in (ROOT / path).read_text(encoding="utf-8"), (path, title)
+        references |= backend | frontend
+    assert len(references) >= 40
+
+
+def test_key_path_checklist_covers_every_step():
+    section = _section(_read(ACCEPTANCE), CHECKLIST)
+    rows = _rows(section)
+    assert [row[0] for row in rows] == [f"{n:02d}" for n in range(1, 13)]
+    for row in rows:
+        assert len(row) == 5 and all(row), row[0]
+        backend, frontend = _refs(row[3])
+        assert backend or frontend, row[0]
+        assert row[4].startswith("是"), row[0]
+    assert _assert_refs_exist(section) >= 30
+
+
+# ---------- 安全审查记录 ----------
+
+
+def test_security_review_lists_every_encrypted_column():
+    _plain, encrypted = _columns()
+    doc = _read(SECURITY)
+    section = _section(doc, "加密列逐列核对")
+    assert _tokens(section) == encrypted, (sorted(encrypted - _tokens(section)), sorted(_tokens(section) - encrypted))
+    listed = [row[1] for row in _rows(section)]
+    assert len(listed) == len(set(listed)) and set(listed) == encrypted  # 每列恰好一行
+    tables = {name.split(".")[0] for name in encrypted}
+    assert f"合计 {len(encrypted)} 个加密列，分布在 {len(tables)} 张表里" in section
+    assert f"数据库共 {len(Base.metadata.tables)} 张表" in section
+    assert "test_encrypted_columns.py::test_every_encrypted_column_holds_only_ciphertext_after_every_table_is_filled" in section
+    assert _assert_refs_exist(section) >= 10
+
+
+def test_security_review_maps_every_retention_rule_to_a_test():
+    section = _section(_read(SECURITY), "保留策略逐条对照")
+    rows = _rows(section)
+    assert len(rows) >= 12
+    for row in rows:
+        backend, frontend = _refs(row[2])
+        assert backend or frontend, row[0]
+    _assert_refs_exist(section)
+    # 隐私说明“保存多久”表里的每种数据都在对照表里出现
+    kept = _section(_read(PRIVACY), "保存多久")
+    for topic in ("餐食照片", "医嘱原件", "大致区域", "登录状态", "运行日志", "数据库备份"):
+        assert topic in kept, topic
+    for phrase in ("餐食照片", "元数据", "大致区域", "对话", "偏好", "密钥", "内网", "退出登录", "导出", "删除账号",
+                   "运行日志", "撤回单独同意"):
+        assert phrase in section, phrase
+    assert "没有自动化测试的保留项" in section and "备份" in section
+
+
+def test_security_review_numbers_match_the_code():
+    doc = _read(SECURITY)
+    _assert_no_code(doc)
+    assert f"{int(limiter.WINDOW_SECONDS // 60)} 分钟内失败 {limiter.MAX_FAILURES} 次" in doc
+    assert f"请求体最大 {MAX_JSON_BODY_BYTES // MIB} MiB" in doc
+    assert f"对话最大 {MAX_LLM_CHAT_BODY_BYTES // MIB} MiB" in doc
+    assert f"每份医嘱最多 {MAX_EVIDENCE_PER_ORDER} 个原件" in doc
+    assert f"合计超过 {MAX_EXPORT_FILE_BYTES // MIB} MiB" in doc
+    assert f"营养库的食物数是 {len(load_catalog().foods)} 个" in doc
+    assert "智能体有 6 个写入工具" in doc
+    for title in ("二、越权", "三、日志", "四、加密列逐列核对", "五、保留策略逐条对照", "六、提示词注入",
+                  "七、智能体的写入工具", "八、其他加固", "十、选择不修复的攻击面", "十一、各任务的审查发现与处置",
+                  "十二、这次审查没有做的事"):
+        assert f"## {title}" in doc, title
+    injection = _section(doc, "提示词注入")
+    assert "假设模型完全听从" in injection and "不能证明真实模型能抵抗注入" in injection and "红队" in injection
+    logs = _section(doc, "三、日志")
+    for phrase in ("数据库服务端日志", "语句日志", "trace", "详情", "图片处理库"):
+        assert phrase in logs, phrase
+    assert _assert_refs_exist(doc) >= 60
+
+
+def test_security_review_records_the_corrected_spec_fact():
+    doc = _read(SECURITY)
+    section = _section(doc, "规格事实的更正")
+    assert "test_base_url_is_rechecked_before_every_call" in section
+    assert "每次出站前都会重新解析并检查地址" in section and "域名重绑定窗口" in section
+    assert "共三处调用" in section and "328、502、636" in section
+    assert "只在保存时检查" in section and "1744" in section
+    service = (ROOT / "backend" / "app" / "llm" / "service.py").read_text(encoding="utf-8").splitlines()
+    for number in (328, 502, 636):  # 文中写的行号要真的是调用复查函数的地方
+        assert "_check_url(" in service[number - 1], number
+    assert len(load_catalog().foods) == 1744
+    _assert_refs_exist(section)
+
+
+# ---------- 已知问题与限制清单 ----------
+
+
+def test_known_issues_cover_all_twelve_step_11_items_and_the_unfixed_attack_surface():
+    doc = _read(KNOWN)
+    _assert_no_code(doc)
+    assert len(_step_11_limits()) == 12
+    for number in range(1, 13):
+        assert f"步骤 11 第 {number} 条" in doc, number
+    step_11 = _section(doc, "一、步骤 11 的 12 条限制")
+    row_5 = next(line for line in step_11.splitlines() if line.startswith("| 步骤 11 第 5 条"))
+    assert "已解决" in row_5
+    row_11 = next(line for line in step_11.splitlines() if line.startswith("| 步骤 11 第 11 条"))
+    assert "已变更" in row_11 and "数据库级的锁" in row_11 and "独立的数据库" in row_11
+    unfixed = _section(doc, "选择不修的项")
+    for keyword in ("本地存储", "改密码", "不吊销", "速率限制", "域名重绑定", "写入不需要确认"):
+        assert keyword in unfixed, keyword
+    delayed = _section(doc, "三、本步骤延期的项")
+    for keyword in ("进程内", "三倍", "200 MiB", "同模块", "能力清单", "回放", "词表", "开场", "未成年用户的目标",
+                    "不记审计", "界面入口", "字节一致性", "转移", "年龄", ".well-known"):
+        assert keyword in delayed, keyword
+    refused = _section(doc, "明确不做")
+    assert "撤回" in refused and "保留数据" in refused and "只停用" in refused
+    _assert_refs_exist(doc)
+
+
+def test_step_11_record_no_longer_promises_a_database_lock():
+    text = STEP_11_RECORD.read_text(encoding="utf-8")
+    assert "数据库级的锁" not in text
+    assert "独立的数据库" in text
+    assert len(_step_11_limits()) == 12
+
+
+# ---------- README 与总览 ----------
+
+
+def test_readme_and_overview_record_step_12():
+    overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "| 12 | 合规、安全与作品集收尾 | 12-合规安全与作品集收尾.md | 全部 | 待验收 |" in overview
+    opening = (ROOT / "README.md").read_text(encoding="utf-8").split("定位声明")[0]
+    assert "步骤 12" in opening and "待验收" in opening
+    for name in ("安全审查记录", "已知问题与限制清单", "验收记录"):
+        assert name in opening, name
