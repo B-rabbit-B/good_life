@@ -25,6 +25,7 @@
 - frontend/e2e/CLAUDE.md：端到端测试
 - frontend/scripts/CLAUDE.md：构建、生成与字体脚本
 - docs/CLAUDE.md：文档目录约定
+- .github/workflows/ci.yml：持续集成，后端与前端两个互不依赖、各带自己数据库的任务（backend/tests/test_ci_workflow.py 守护结构）；改任务、端口或库名要同步 README 第 25 节与 e2e 的环境变量。
 - deploy/ 没有单独说明书：只有 docker-compose 挂载的建库脚本（db-init 建测试库 goodlife_test），改它要同步 README 与 backend/tests/CLAUDE.md。
 
 ## 禁区
