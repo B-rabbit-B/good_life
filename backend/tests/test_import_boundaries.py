@@ -57,25 +57,36 @@ def _target(module: str, level: int, current: Path) -> str | None:
     return ".".join(parts[:2]) if parts else None
 
 
+def edges_in(path: Path, source_text: str) -> set[tuple[str, str]]:
+    """一个文件里的跨包引用；path 只用来确定引用方与相对导入的基准，文件内容由调用方给出。"""
+    edges: set[tuple[str, str]] = set()
+    source = _unit(path)
+    for node in ast.walk(ast.parse(source_text)):
+        targets: list[str | None] = []
+        if isinstance(node, ast.Import):
+            targets = [_target(alias.name, 0, path) for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            base = _target(node.module or "", node.level, path)
+            if base is None and (node.level or node.module == "app"):
+                # from app import agent、from .. import agent：包名为空，导入的名字本身就是目标包
+                targets = [_target(alias.name, node.level, path) if node.level else f"{alias.name}"
+                           for alias in node.names]
+            else:
+                targets = [base]
+                if base is not None and "." not in base:
+                    # from app.agent import loop：名字可能是子模块
+                    targets += [f"{base}.{alias.name}" for alias in node.names]
+        for target in targets:
+            if target and target.split(".")[0] != source.split(".")[0]:
+                edges.add((source, target))
+    return edges
+
+
 def scan() -> set[tuple[str, str]]:
     """全部跨包引用 (引用方单元, 被引用方单元)，同一顶层包内的引用不算。"""
     edges: set[tuple[str, str]] = set()
     for path in sorted(APP.rglob("*.py")):
-        source = _unit(path)
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            targets: list[str | None] = []
-            if isinstance(node, ast.Import):
-                targets = [_target(alias.name, 0, path) for alias in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                base = _target(node.module or "", node.level, path)
-                targets = [base]
-                if base is not None and "." not in base:
-                    # from app import x / from app.agent import loop：名字可能是子模块
-                    targets += [f"{base}.{alias.name}" for alias in node.names]
-            for target in targets:
-                if target and target.split(".")[0] != source.split(".")[0]:
-                    edges.add((source, target))
+        edges |= edges_in(path, path.read_text(encoding="utf-8"))
     return edges
 
 
@@ -88,6 +99,16 @@ def test_scanner_sees_known_edges():
     assert ("agent", "sdk") in tops
     assert ("main", "agent") in tops
     assert ("nutrition", "fitness") in tops
+
+
+def test_empty_package_imports_use_the_imported_name_as_the_target():
+    where = APP / "nutrition" / "service.py"
+    assert edges_in(where, "from app import agent") == {("nutrition.service", "agent")}
+    assert edges_in(where, "from .. import agent, sdk") == {("nutrition.service", "agent"), ("nutrition.service", "sdk")}
+    assert edges_in(APP / "main.py", "from . import agent") == {("main", "agent")}
+    # 同一包内的相对导入与带包名的写法不受影响
+    assert edges_in(where, "from . import engine; from app.fitness import service") == {
+        ("nutrition.service", "fitness"), ("nutrition.service", "fitness.service")}
 
 
 def test_every_package_has_a_layer():

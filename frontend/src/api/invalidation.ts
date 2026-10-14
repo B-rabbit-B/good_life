@@ -1,6 +1,6 @@
 // 数据域的失效依赖：写了一个域的数据，哪些查询要跟着重新取。各模块的写操作与一轮对话里智能体的写入工具都按这张表失效，
 // 不再各自挑键（一处漏了，别的页面就显示旧数据）。只标记失效：正在显示的查询会重新取，其余等下次用到时再取。
-import type { QueryClient, QueryKey } from '@tanstack/react-query'
+import { hashKey, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { CONSENT_REQUIRED } from '../lib/contract'
 import { ApiError } from './errors'
 import { qk } from './keys'
@@ -49,7 +49,7 @@ export interface FreshlyStored {
 
 /** 写了 domain 的数据之后调用：按上表失效相关查询，全部标记完（正在显示的也重新取完）才返回；stored 里的那条不重取 */
 export async function invalidateDomain(queryClient: QueryClient, domain: Domain, stored: FreshlyStored = {}): Promise<void> {
-  const keys = stored.profile ? DERIVED[domain].filter((queryKey) => queryKey !== qk.profile) : DERIVED[domain]
+  const keys = stored.profile ? DERIVED[domain].filter((queryKey) => hashKey(queryKey) !== hashKey(qk.profile)) : DERIVED[domain]
   await Promise.all([
     ...keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     invalidateRecognitionRecords(queryClient, stored.recognition),

@@ -655,7 +655,7 @@
 - [ ] **Step 1: 写失败测试**
   - `test_import_boundaries.py`：`test_scanner_sees_known_edges`（扫描结果含 `agent -> sdk` 与 `main -> agent`）、`test_every_package_has_a_layer`、`test_modules_only_import_lower_or_same_layers`、`test_listed_exceptions_are_still_used`。
   - `test_engineering_rules.py`：`test_no_source_file_exceeds_800_lines`（`backend/app`、`backend/tests`、`backend/migrations`、`frontend/src`、`frontend/e2e`、`frontend/scripts` 下的 py、ts、tsx、mjs、css 文件，生成文件除外）。
-  - 前端：`errors.test.ts` `'keeps a programming type error out of the network error'`；`boundaries.test.ts` 增加 `'reads imports in either quote style'`（对一段内存里的文本跑同一正则）；后端 `test_frontend_static.py` `test_not_found_and_head_responses_carry_security_headers`；`hooks.test.tsx` `'refreshes the profile once after an update'`；`domainInvalidation.test.tsx` `'confirming a recognition refreshes the nutrition domain'`。
+  - 前端：`errors.test.ts` `'keeps a programming type error out of the network error'`；`boundaries.test.ts` 增加 `'reads imports in either quote style'`（对一段内存里的文本跑同一正则）；后端 `test_frontend_static.py` `test_not_found_and_head_responses_carry_security_headers`；`hooks.test.tsx` `'does not refetch the profile after an update'`；`domainInvalidation.test.tsx` `'confirming a recognition refreshes the nutrition domain'`。
 
 - [ ] **Step 2: 运行确认失败**：`uv run pytest tests/test_import_boundaries.py tests/test_engineering_rules.py tests/test_frontend_static.py -q -W error`；`pnpm exec vitest run src/api src/test` → FAIL。
 

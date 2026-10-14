@@ -631,7 +631,7 @@ pnpm visual
 
 ## 23. 隐私与数据
 
-步骤 12 让用户能自己处置自己的数据。下面的接口都在 http://localhost:8000/docs 的 account 与 consents 分组里，登录并 Authorize 后即可操作（界面里的对应入口见 `docs/12-交付物/`）。
+步骤 12 让用户能自己处置自己的数据。下面的接口都在 http://localhost:8000/docs 的 account 与 consents 分组里，登录并 Authorize 后即可操作（界面里的对应入口见 `docs/12-交付物/免责声明与隐私说明.md` 与 `docs/12-交付物/数据导出与删除说明与验证记录.md`）。
 
 - 单独同意：经期与医嘱是敏感模块，免责声明之外还要各自单独同意才开放，否则访问相应接口得到 403 `consent_required`。`GET /api/consents` 看两项同意的状态与当前文案版本，`POST /api/consents/{kind}` 给出同意（`kind` 是 `cycle` 或 `medical`，正文填 `version`，必须是当前版本）。
 - 撤回同意：`POST /api/account/consents/{kind}/withdraw`，没有有效同意时是 404。撤回在同一个事务里清除该模块的全部数据（经期是经期记录、每日记录与经期状态；医嘱是全部医嘱单，原件、条目与事件随之级联删除），模块随即关闭，返回 204。对话里已经出现过的文字副本不在清除范围内，要清掉请用下一条。

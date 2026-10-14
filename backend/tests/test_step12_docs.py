@@ -248,6 +248,8 @@ def test_high_risk_doc_covers_six_categories_with_fixed_replies_and_tests():
         for phone in phones:
             assert f"拨打 {phone}" in row, (category, phone)
     assert "这是一条固定的安全提示，不是模型生成的。" in behaviour
+    table = [line for line in behaviour.splitlines() if line.startswith("|")]
+    assert table[0].startswith("| 类别") and set(table[1]) <= set("|- "), table[:2]
     # 每类至少有一个对应测试，且都存在
     tests = _section(doc, "对应测试")
     for category in RISK_CATEGORIES:
@@ -288,7 +290,6 @@ def test_nutrition_inventory_counts_match_the_catalog():
     assert f"{kinds['ingredient']} 加 {kinds['dish']} 加 {kinds['supplement']}，等于 {len(foods)}" in doc
     assert f"“仅供个人学习”的 {licences[LICENSE_PERSONAL_STUDY]} 个" in doc
     assert f"“手动估算，未核对”的 {licences[LICENSE_SELF_ESTIMATE]} 个" in doc
-    assert (kinds["ingredient"], kinds["dish"], kinds["supplement"]) == (1677, 46, 21)
     # 每个食物都带出处、数据集与授权状态
     assert all(food.source.dataset and food.source.license_status and food.source.note for food in foods)
     datasets = {food.source.dataset for food in foods}

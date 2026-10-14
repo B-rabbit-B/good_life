@@ -58,7 +58,7 @@ describe('auth and profile hooks', () => {
     expect(queryClient.getQueryData(qk.profile)).toMatchObject({ gender: 'male' })
   })
 
-  it('refreshes the profile once after an update', async () => {
+  it('does not refetch the profile after an update', async () => {
     setToken(TEST_TOKEN)
     let profileReads = 0
     server.use(

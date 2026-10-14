@@ -82,7 +82,7 @@ export function ConsentRows() {
         isOpen={host.open} onClose={() => host.close(host.nonce)} title={`撤回${target?.title ?? ''}的单独同意`}
         will={[
           { text: `立即清除你的全部${label}数据，${label}功能随即关闭。`, irreversible: true },
-          { text: '对话里已有的副本不会随之删除，需要时可以在智能体里删除对应的对话。' },
+          { text: '对话里已有的副本不会随之删除，需要时可在“我的 → 隐私与数据”里清空全部对话历史。' },
           { text: '开场问候记录里可能含相关内容，撤回时同样不会自动删除，可在“隐私与数据”页清空对话历史时一并清掉。' },
           { text: '以后可以重新同意，从空白开始使用。' },
         ]}

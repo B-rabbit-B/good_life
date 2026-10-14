@@ -241,7 +241,7 @@ OPENING_SENTENCE = "开场问候记录里可能含相关内容，撤回时同样
 def test_consent_text_says_openings_are_cleared_with_the_conversation_history():
     for kind, body in CONSENT_TEXTS.items():
         assert OPENING_SENTENCE in body, kind
-    assert CONSENT_VERSION == "2026-10-14"
+    assert CONSENT_VERSION == "2026-10-15"
 
 
 def _turn(client, headers, cid: str, text_: str) -> dict:
