@@ -31,6 +31,7 @@
 - 交付文档（`docs/12-交付物/` 下全部 Markdown）不含代码、命令、反引号或代码块；命令只写在 README。步骤文档与计划不写时间估计。
 - 用子代理驱动开发执行：每个任务由实现者完成后，依次做规格符合性审查与代码质量审查，问题修完再进入下一个任务；全部任务完成后做一次最终终审，均沿用步骤 11 的流程。
 - 从任务 3a 起，`tests/helpers.py` 的 `ready_user` 默认同时给出经期与医嘱两项单独同意；需要“未同意”状态的测试显式传 `consents=False`。
+- 目录说明书（用户规则，任务 1b 已建好，守护测试 `backend/tests/test_directory_manuals.py`）：每个目录都有自己的 `CLAUDE.md`（职责、边界、入口、禁区）；进入目录改代码前先读它与上一级的；改变了目录的职责、边界、入口或不变量，就在同一提交里更新它；新建目录或新包就同时写它的说明书并加进最近上级说明书的索引与测试清单（新后端包要进 `backend/CLAUDE.md` 与 `test_directory_manuals.py` 的包清单，新前端功能目录要进 `frontend/src/features/CLAUDE.md`）。
 
 ## 已定的取舍
 
@@ -84,11 +85,11 @@
 
 ## 文件结构
 
-- 后端新建：`backend/app/common/age.py`（任务 1）、`backend/app/common/request_log.py`（任务 2）、`backend/app/consents/`（`__init__.py`、`models.py`、`content.py`、`schemas.py`、`service.py`、`deps.py`、`router.py`，任务 3a）、`backend/app/account/`（`__init__.py`、`clearing.py`、`router.py`（任务 3a），`schemas.py`、`export.py`、`deletion.py`（任务 4））、`backend/migrations/versions/0017_sensitive_consents.py`（任务 3a）、`backend/app/auth/limiter.py`（任务 8）、`backend/app/agent/redteam_check.py`（任务 7）、`backend/app/*/CLAUDE.md`（任务 10）。
+- 后端新建：`backend/app/common/age.py`（任务 1）、`backend/app/common/request_log.py`（任务 2）、`backend/app/consents/`（`__init__.py`、`models.py`、`content.py`、`schemas.py`、`service.py`、`deps.py`、`router.py`，任务 3a）、`backend/app/account/`（`__init__.py`、`clearing.py`、`router.py`（任务 3a），`schemas.py`、`export.py`、`deletion.py`（任务 4））、`backend/migrations/versions/0017_sensitive_consents.py`（任务 3a）、`backend/app/auth/limiter.py`（任务 8）、`backend/app/agent/redteam_check.py`（任务 7）、`backend/app/consents/CLAUDE.md`、`backend/app/account/CLAUDE.md`（任务 3a；其余目录说明书已在任务 1b 建好）。
 - 后端测试新建：`test_minors.py`（1）；`live_server.py`、`amap_fake.py`、`test_log_hygiene.py`、`test_log_canaries.py`（2）；`test_consents.py`（3a）；`db_inspect.py`、`full_user.py`、`test_cascade_guard.py`、`test_account_export.py`、`test_account_delete.py`（4）；`isolation_registry.py`、`test_isolation_matrix.py`、`test_isolation_canary.py`、`test_isolation_gaps.py`（6）；`test_injection_bounds.py`、`test_preference_injection.py`、`test_redteam_check.py`（7）；`test_hardening.py`（8）；`test_step12_docs.py`（9 起）；`test_import_boundaries.py`、`test_engineering_rules.py`、`agent_loop_support.py`、`test_agent_loop_history.py`、`test_nutrition_engine_real.py`（10）；`test_ci_workflow.py`（11）。
 - 前端新建：`src/api/hooks/consents.ts`（3b）、`src/features/consent/`（`ConsentPanel.tsx`、`ConsentGate.tsx`、`ConsentRows.tsx`、`index.ts` 与测试，3b）、`src/api/hooks/account.ts`、`src/app/useDeleteAccount.ts`、`src/features/settings/ExportData.tsx`、`ClearConversations.tsx`、`DeleteAccount.tsx`、`DeleteProviderSheet.tsx` 与测试（5）、`src/test/msw/handlers/consents.ts`、`account.ts`；`e2e/pages/consent.spec.ts`（3b）、`e2e/pages/privacy-data.spec.ts`、`e2e/acceptance/data-control.spec.ts`（5）。
-- 仓库根目录：`CLAUDE.md`（10）、`.github/workflows/ci.yml`（11）。
-- 文档：`docs/12-交付物/` 下 免责声明与隐私说明.md、高风险内容清单与处理说明.md、营养数据总清点.md、数据导出与删除说明与验证记录.md（9）；备份与恢复预案.md、依赖故障预案.md、新人复现记录.md（11）；项目介绍.md、架构说明.md、架构图.svg、创新点说明.md、取舍记录.md、演示脚本.md、面试追问清单.md、开源使用说明.md（12）；安全审查记录.md、已知问题与限制清单.md、验收记录.md（13）；`docs/CLAUDE.md`（10）。
+- 仓库根目录：`CLAUDE.md`（任务 1b 已建，任务 10 核对）、`.github/workflows/ci.yml`（11）。
+- 文档：`docs/12-交付物/` 下 免责声明与隐私说明.md、高风险内容清单与处理说明.md、营养数据总清点.md、数据导出与删除说明与验证记录.md（9）；备份与恢复预案.md、依赖故障预案.md、新人复现记录.md（11）；项目介绍.md、架构说明.md、架构图.svg、创新点说明.md、取舍记录.md、演示脚本.md、面试追问清单.md、开源使用说明.md（12）；安全审查记录.md、已知问题与限制清单.md、验收记录.md（13）；`docs/CLAUDE.md`（任务 1b 已建）。
 
 ## 规格到任务对照
 
@@ -282,6 +283,7 @@
 - Modify: `backend/app/models.py`、`backend/app/main.py`、`backend/app/cycle/deps.py`、`backend/app/medical/deps.py`、`backend/app/sdk/errors.py`、`backend/app/agent/assembly.py`；上面列出的演示与实测脚本（建用户后给出两项同意）
 - Modify 测试：`backend/tests/helpers.py`、`backend/tests/live_server.py`（`prepare_user`）、`backend/tests/test_route_guards.py`、`backend/tests/test_frontend_contract.py`、`backend/tests/test_restaurant_docs.py`（第 102 行改为“除 `sensitive_consents` 外正好 28 张”，第 218 行改为“共二十九张表”）、`backend/tests/test_photo_docs.py`（第 90 行改为“除 `restaurant_settings` 与 `sensitive_consents` 外正好 27 张”）、凡是不经 `ready_user` 建用户又访问经期或医嘱的测试（全量跑出来逐个补同意）
 - Modify 其他：`README.md` 第 5 节（表清单加 `sensitive_consents`，“共二十九张表”）；前端 `src/lib/contract.ts`（`CONSENT_REQUIRED`）、`src/api/openapi.json` 与 `schema.d.ts`（`pnpm api:gen`）
+- 目录说明书（用户规则，任务 1b 已建好全部说明书与守护测试 `backend/tests/test_directory_manuals.py`；进目录前先读它，改了职责、入口或不变量就同步更新）：Create `backend/app/consents/CLAUDE.md`、`backend/app/account/CLAUDE.md`（四节：职责、边界、入口、禁区）；Modify `backend/CLAUDE.md`（索引加 consents、account 两行；层次表加入这两个包）、`backend/tests/test_directory_manuals.py`（后端包清单与磁盘说明书清单加这两个包，否则守护测试失败）；把已有说明书里写成“任务 3a 起”的计划性内容改成现状：`backend/app/disclaimer/CLAUDE.md`（放行名单加 `/api/account/`）、`backend/migrations/CLAUDE.md`（最新迁移 0017）、`backend/tests/CLAUDE.md`、`backend/app/cycle/CLAUDE.md`、`backend/app/medical/CLAUDE.md`、`backend/app/agent/CLAUDE.md`、`backend/app/sdk/CLAUDE.md`（`consent_required` 归类）。
 
 **Interfaces:**
 - Produces:
@@ -319,7 +321,7 @@
 
 - [ ] **Step 4: 运行确认通过**：上面的命令；后端全量 `uv run pytest -q -W error`；前端 `pnpm typecheck`、`pnpm test`（快照与契约的变化不影响现有前端测试）。
 
-- [ ] **Step 5: 提交**：`git add backend/app backend/migrations backend/tests README.md frontend/src/lib/contract.ts frontend/src/api/openapi.json frontend/src/api/schema.d.ts`；提交信息 `feat(consent): require separate consent for cycle and medical data with withdrawal that clears the module`，最后一段同上。
+- [ ] **Step 5: 提交**：`git add backend/app backend/migrations backend/tests backend/CLAUDE.md README.md frontend/src/lib/contract.ts frontend/src/api/openapi.json frontend/src/api/schema.d.ts`（`backend/app`、`backend/migrations`、`backend/tests` 下的 `CLAUDE.md` 一并提交；运行 `uv run pytest tests/test_directory_manuals.py -q -W error` 确认说明书守护通过）；提交信息 `feat(consent): require separate consent for cycle and medical data with withdrawal that clears the module`，最后一段同上。
 
 ---
 
@@ -333,7 +335,7 @@
 
 **Files:**
 - Create: `frontend/src/api/hooks/consents.ts`、`frontend/src/features/consent/ConsentPanel.tsx`、`ConsentGate.tsx`、`ConsentRows.tsx`、`index.ts` 与测试、`frontend/src/test/msw/handlers/consents.ts`（默认两项都已同意）、`frontend/e2e/pages/consent.spec.ts`
-- Modify: `frontend/src/api/keys.ts`（`consents`）、`src/api/hooks/medical.ts`、`medicalPage.ts`、`cycle.ts`、`src/features/health/HealthPage.tsx`、`src/features/me/MePage.tsx`、`src/app/routes.tsx`（录入医嘱页外包 `ConsentGate`）、`src/lib/labels.ts`（`CONSENT_KIND_LABELS`）、`src/test/msw/handlers/index.ts`、`frontend/e2e/support/api.ts`（`createUser` 加 `consents?: boolean`，默认真）
+- Modify: `frontend/src/api/keys.ts`（`consents`）、`src/api/hooks/medical.ts`、`medicalPage.ts`、`cycle.ts`、`src/features/health/HealthPage.tsx`、`src/features/me/MePage.tsx`、`src/app/routes.tsx`（录入医嘱页外包 `ConsentGate`）、`src/lib/labels.ts`（`CONSENT_KIND_LABELS`）、`src/test/msw/handlers/index.ts`、`frontend/e2e/support/api.ts`（`createUser` 加 `consents?: boolean`，默认真）；`frontend/src/features/CLAUDE.md`（逐目录一行，加 `consent/`；新建的 `features/consent` 不加这一行，后端 `test_directory_manuals.py` 的 features 清单守护会失败，请在本任务运行 `uv run pytest tests/test_directory_manuals.py -q -W error` 确认）、必要时 `frontend/src/CLAUDE.md`（改了职责或不变量时同步）
 
 **Interfaces:**
 - Consumes: 任务 3a 的三个接口、生成的 `ConsentOut` 类型与契约常量 `CONSENT_REQUIRED`。
@@ -354,7 +356,7 @@
 
 - [ ] **Step 5: 版式与无障碍检查**：`e2e/pages/consent.spec.ts`（`createUser({ consents: false })`）：`'asks for consent once before the cycle page and remembers it'`（勾选“我已阅读并同意”之前同意按钮停用）、`'asks for consent before the medical page and the new order page'`；两种宽度下同意面板 `expectTouchTargets`、`expectMinFontSize`、`expectNoHorizontalScroll`，正文不截断，勾选行 44 高、勾选框 22×22；撤回面板的勾选行 44 高、勾选前确认按钮停用、打开时焦点不离开面板、关闭后回到“撤回”按钮。运行 `pnpm exec playwright test e2e/pages/consent.spec.ts e2e/pages/medical.spec.ts e2e/pages/cycle-fitness.spec.ts --project=layout-390 --project=layout-360`，再运行 `pnpm e2e`（与后端测试分开运行）确认既有验收流程恢复通过。
 
-- [ ] **Step 6: 提交**：`git add frontend/src frontend/e2e`；提交信息 `feat(frontend): add the consent panel, gate cycle and medical views and show consents on the me page`，最后一段同上。
+- [ ] **Step 6: 提交**：`git add frontend/src frontend/e2e`（含 `frontend/src/features/CLAUDE.md`）；提交信息 `feat(frontend): add the consent panel, gate cycle and medical views and show consents on the me page`，最后一段同上。
 
 ---
 
@@ -634,12 +636,13 @@
 
 **依据：**
 - 后端包之间的现有引用（用 ast 实际扫描）：`common` 引用 `medical`、`photos`（只有 `common/body_limit.py` 第 13 至 14 行取两个上限常量）；`nutrition` 引用 `fitness`、`medical`、`cycle`；`fitness` 引用 `medical`；`photos` 与 `restaurants` 引用 `llm`、`nutrition`；`sdk` 引用各业务模块；`agent` 引用 `sdk` 与各模块；`mcp_server` 只引用 `sdk`；没有反向引用到 `agent`、`sdk` 的业务模块。
-- 仓库里没有任何 `CLAUDE.md`；用户的工程规则见“已定的取舍”。
+- 目录说明书已在任务 1b 建好（32 份加守护测试 `backend/tests/test_directory_manuals.py`，后续任务各自维护）；本任务只做最终核对：每份说明书与代码现状一致（把写成“任务 N 起”的计划性内容改成现状）、日志规则与实际一致。用户的工程规则见“已定的取舍”。
 - 超过 800 行的测试：`backend/tests/test_agent_loop.py` 929 行（第 71 至 176 行是辅助函数，第 625 行起是流式、错误与历史三节）、`backend/tests/test_nutrition_engine.py` 838 行（第 225 行起是真实营养库的回归）；`docs/04-交付物/验收记录.md`、`docs/04-交付物/约束融合规则说明.md`、`docs/08-交付物/验收记录.md` 共引用这两个文件的测试 60 处，由各步骤的文档测试检查引用存在。
 - 步骤 11 小问题：`frontend/src/api/errors.ts` 第 28 至 32 行把任何 TypeError 当作网络错误；`frontend/src/test/boundaries.test.ts` 第 37 行 `IMPORT` 只认单引号；`backend/app/frontend_static.py` 第 80 至 85 行交给 `not_found` 的 404 与 HEAD 响应没有 `SECURITY_HEADERS`；`_safe_relative` 第 42 行拒绝点开头的段（影响 `/.well-known`）；档案域失效时多发一次档案请求（`src/api/invalidation.ts` 与 `src/api/hooks/profile.ts`）；`src/api/hooks/photos.ts` 的确认识别没有走 `invalidateDomain`；`frontend/scripts/subset-fonts.mjs` 调用 `uvx --from "fonttools[woff]"` 没有钉版本。
 
 **Files:**
-- Create: `backend/tests/test_import_boundaries.py`、`backend/tests/test_engineering_rules.py`、`backend/tests/agent_loop_support.py`、`backend/tests/test_agent_loop_history.py`、`backend/tests/test_nutrition_engine_real.py`；仓库根目录 `CLAUDE.md`；`backend/CLAUDE.md`、`backend/tests/CLAUDE.md`、`backend/app/` 下每个包一份 `CLAUDE.md`（agent、agent_grants、auth、account、common、consents、cycle、disclaimer、fitness、llm、mcp_server、medical、nutrition、photos、profile、restaurants、sdk、security）、`backend/migrations/CLAUDE.md`、`frontend/CLAUDE.md`、`frontend/src/CLAUDE.md`、`frontend/e2e/CLAUDE.md`、`docs/CLAUDE.md`
+- Create: `backend/tests/test_import_boundaries.py`、`backend/tests/test_engineering_rules.py`（只含 `test_no_source_file_exceeds_800_lines`；说明书的存在、四节、索引与清单守护已由任务 1b 的 `test_directory_manuals.py` 承担，不再重复）、`backend/tests/agent_loop_support.py`、`backend/tests/test_agent_loop_history.py`、`backend/tests/test_nutrition_engine_real.py`
+- 目录说明书：核对并更新，不再新建（见依据）；`backend/CLAUDE.md` 的日志现状提示与分层表按任务 2、8 的结果核对。
 - Modify: `backend/tests/test_agent_loop.py`、`backend/tests/test_nutrition_engine.py`（拆出后各自不超过 800 行，测试名与测试数不变）；上面三份文档里移动过的测试引用（只改文件名部分，不改结论）；`frontend/src/api/errors.ts` 与测试；`frontend/src/test/boundaries.test.ts`；`backend/app/frontend_static.py` 与 `backend/tests/test_frontend_static.py`；`frontend/src/api/invalidation.ts`、`src/api/hooks/profile.ts`、`src/api/hooks/photos.ts` 与对应测试；`frontend/scripts/subset-fonts.mjs`
 
 **Interfaces:**
@@ -651,16 +654,16 @@
 
 - [ ] **Step 1: 写失败测试**
   - `test_import_boundaries.py`：`test_scanner_sees_known_edges`（扫描结果含 `agent -> sdk` 与 `main -> agent`）、`test_every_package_has_a_layer`、`test_modules_only_import_lower_or_same_layers`、`test_listed_exceptions_are_still_used`。
-  - `test_engineering_rules.py`：`test_every_directory_has_a_manual_with_four_sections`（上面列出的每个目录都有 `CLAUDE.md`，含“职责”“边界”“入口”“禁区”四个二级标题）、`test_root_manual_lists_every_directory_manual`、`test_no_source_file_exceeds_800_lines`（`backend/app`、`backend/tests`、`backend/migrations`、`frontend/src`、`frontend/e2e`、`frontend/scripts` 下的 py、ts、tsx、mjs、css 文件，生成文件除外）。
+  - `test_engineering_rules.py`：`test_no_source_file_exceeds_800_lines`（`backend/app`、`backend/tests`、`backend/migrations`、`frontend/src`、`frontend/e2e`、`frontend/scripts` 下的 py、ts、tsx、mjs、css 文件，生成文件除外）。
   - 前端：`errors.test.ts` `'keeps a programming type error out of the network error'`；`boundaries.test.ts` 增加 `'reads imports in either quote style'`（对一段内存里的文本跑同一正则）；后端 `test_frontend_static.py` `test_not_found_and_head_responses_carry_security_headers`；`hooks.test.tsx` `'refreshes the profile once after an update'`；`domainInvalidation.test.tsx` `'confirming a recognition refreshes the nutrition domain'`。
 
 - [ ] **Step 2: 运行确认失败**：`uv run pytest tests/test_import_boundaries.py tests/test_engineering_rules.py tests/test_frontend_static.py -q -W error`；`pnpm exec vitest run src/api src/test` → FAIL。
 
-- [ ] **Step 3: 实现**：写目录说明书（每份简短，按真实代码写入口文件与禁区）；拆分两个测试文件（拆前后分别记下 `uv run pytest tests/test_agent_loop.py tests/test_nutrition_engine.py --collect-only -q` 的测试数，拆后两组合计相同）；运行 `uv run pytest tests/test_agent_docs.py tests/test_nutrition_docs.py -q -W error`，按提示把文档里移动过的测试改为新文件名；处理步骤 11 小问题。
+- [ ] **Step 3: 实现**：核对并更新目录说明书（把“任务 N 起”的计划性写法改成现状，确认分层表与 `LAYERS` 一致）；拆分两个测试文件（拆前后分别记下 `uv run pytest tests/test_agent_loop.py tests/test_nutrition_engine.py --collect-only -q` 的测试数，拆后两组合计相同）；运行 `uv run pytest tests/test_agent_docs.py tests/test_nutrition_docs.py -q -W error`，按提示把文档里移动过的测试改为新文件名；处理步骤 11 小问题。
 
 - [ ] **Step 4: 运行确认通过**：上面的命令；后端全量 `uv run pytest -q -W error`；前端 `pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm build:check`。
 
-- [ ] **Step 5: 提交**：`git add CLAUDE.md backend frontend docs`；提交信息 `chore(quality): enforce backend import layers, add directory manuals, split oversized tests and fix step 11 minors`，最后一段同上。
+- [ ] **Step 5: 提交**：`git add CLAUDE.md backend frontend docs`；提交信息 `chore(quality): enforce backend import layers, update directory manuals, split oversized tests and fix step 11 minors`，最后一段同上。
 
 ---
 
