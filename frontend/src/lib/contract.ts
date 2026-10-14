@@ -104,6 +104,8 @@ export const MAX_TEXT = 5000
 export const MIN_AGE = 14
 /** app.medical.orders.MAX_EVIDENCE_BYTES：医嘱原件文件的大小上限 */
 export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
+/** app.medical.orders.MAX_EVIDENCE_PER_ORDER：每份医嘱最多上传的原件份数 */
+export const MAX_EVIDENCE_FILES = 10
 
 /** 界面按错误码分支的几个接口错误码（后端没有常量，test_frontend_contract.py 按抛出处的源码原文核对） */
 export const STILL_DUE = 'still_due'

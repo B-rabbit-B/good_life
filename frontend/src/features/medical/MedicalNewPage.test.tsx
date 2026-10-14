@@ -130,6 +130,29 @@ describe('medical new page', { timeout: 15_000 }, () => {
     await waitFor(() => expect(medical.createdOrders).toHaveLength(2))
   })
 
+  it('stops adding evidence at the limit', async () => {
+    const user = userEvent.setup()
+    const { medical } = renderNew()
+    await fill(user, Array.from({ length: 8 }, (_, i) => jpg(`单据${i + 1}.jpg`)))
+    expect(screen.queryByText('最多 10 个文件')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '从相册选' })).toBeEnabled()
+    // 一次多选超出上限：只留前 10 个
+    const album = document.querySelector('input[type="file"]:not([capture])') as HTMLInputElement
+    await user.upload(album, [jpg('单据9.jpg'), jpg('单据10.jpg'), jpg('单据11.jpg')])
+    const list = screen.getByRole('list', { name: '证据' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(10)
+    expect(within(list).queryByText('单据11.jpg')).not.toBeInTheDocument()
+    expect(screen.getByText('最多 10 个文件')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '拍照' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '从相册选' })).toBeDisabled()
+    // 移除一个后又可以选
+    await user.click(screen.getByRole('button', { name: '移除单据10.jpg' }))
+    expect(screen.queryByText('最多 10 个文件')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '从相册选' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: '提取条目' }))
+    await waitFor(() => expect(medical.uploads).toHaveLength(9))
+  })
+
   it('counts characters up to 5000', async () => {
     const user = userEvent.setup()
     renderNew()

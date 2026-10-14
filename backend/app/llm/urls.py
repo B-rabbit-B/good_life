@@ -27,11 +27,12 @@ def _is_internal(address: str) -> bool:
 
 
 def validate_base_url(
-    url: str, *, allow_private: bool, resolver: Callable[..., Any] = socket.getaddrinfo
+    url: str, *, allow_private: bool, resolver: Callable[..., Any] | None = None
 ) -> str:
     """检查用户填写的服务地址，返回去掉结尾斜杠的地址。
 
     IP 直接检查，不做域名解析；域名用 resolver 解析后，任何一个结果落在内网就拒绝，避免借服务地址探测内网。
+    resolver 不传时在调用时才取 socket.getaddrinfo（测试替换 socket.getaddrinfo 即可生效）。
     """
     text = url.strip()
     try:
@@ -59,7 +60,7 @@ def validate_base_url(
             addresses = [host]
         except ValueError:
             try:
-                infos = resolver(host, port or 443, type=socket.SOCK_STREAM)
+                infos = (resolver or socket.getaddrinfo)(host, port or 443, type=socket.SOCK_STREAM)
             except OSError:
                 raise _invalid(f"无法解析主机 {host}，请检查地址是否拼写正确、网络是否可用") from None
             addresses = [info[4][0] for info in infos]

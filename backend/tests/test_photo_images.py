@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 from PIL import Image, ImageCms
 from PIL.PngImagePlugin import PngInfo
 
-from app.common.body_limit import DEFAULT_RULES, MAX_PHOTO_BODY_BYTES, UploadBodyLimitMiddleware
+from app.common.body_limit import (
+    DEFAULT_RULES,
+    MAX_JSON_BODY_BYTES,
+    MAX_PHOTO_BODY_BYTES,
+    UploadBodyLimitMiddleware,
+)
 from app.errors import AppError
 from app.photos.images import (
     JPEG_QUALITY,
@@ -315,5 +320,8 @@ def test_photo_body_within_limit_and_other_paths_pass_through():
     client = _limited_app()
     ok = client.post("/api/photos/recognitions", content=b"x" * MAX_PHOTO_BODY_BYTES)
     assert (ok.status_code, ok.json()) == (200, {"size": MAX_PHOTO_BODY_BYTES})
-    other = client.post("/api/other", content=b"x" * (MAX_PHOTO_BODY_BYTES + 1))
-    assert (other.status_code, other.json()) == (200, {"size": MAX_PHOTO_BODY_BYTES + 1})
+    # 其他路径走默认的 1 MiB 上限（任务 8 起），照片的上限不外溢
+    other = client.post("/api/other", content=b"x" * MAX_JSON_BODY_BYTES)
+    assert (other.status_code, other.json()) == (200, {"size": MAX_JSON_BODY_BYTES})
+    over = client.post("/api/other", content=b"x" * (MAX_JSON_BODY_BYTES + 1))
+    assert (over.status_code, over.json()["error"]["code"]) == (413, "request_too_large")

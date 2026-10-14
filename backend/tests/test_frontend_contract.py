@@ -27,7 +27,7 @@ from app.llm import service as llm_service
 from app.llm import urls as llm_urls
 from app.medical import items as medical_items
 from app.medical.items import _due_reason, validate_item_dates
-from app.medical.orders import MAX_EVIDENCE_BYTES
+from app.medical.orders import MAX_EVIDENCE_BYTES, MAX_EVIDENCE_PER_ORDER
 from app.medical.schemas import Content, OrderCreate, Reason
 from app.nutrition.engine import PENDING_REVIEW_NOTE, SOURCE_NAMES
 from app.photos import service as photo_service
@@ -201,6 +201,7 @@ def test_contract_limits_and_error_codes_match_the_backend():
         "MAX_NAME_LENGTH": MAX_NAME_LENGTH,
         "MAX_TEXT": _max_length(OrderCreate.model_fields["text"].metadata),
         "MIN_AGE": MIN_AGE,
+        "MAX_EVIDENCE_FILES": MAX_EVIDENCE_PER_ORDER,
     }
     assert {name: scalars.get(name) for name in limits} == {name: str(value) for name, value in limits.items()}, HINT
     assert "MAX_EVIDENCE_BYTES" in scalars, f"{HINT}：找不到 MAX_EVIDENCE_BYTES"

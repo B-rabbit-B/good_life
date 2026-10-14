@@ -6,6 +6,8 @@
 - 不导出密码哈希、令牌版本号、授权令牌的哈希与模型服务的密钥原文（ProviderOut 只有 key_hint）；只查本人的数据。
 - 原件放在 evidence/<证据编号>.<扩展名>，保留的照片放在 photos/<识别编号>.jpg，原始文件名只写在 medical.json。
 - 读医嘱前按接口的做法先刷新到期状态（refresh_statuses），导出里的状态与界面看到的一致。
+- 原件与照片合计超过 MAX_EXPORT_FILE_BYTES 时先拒绝（413 export_too_large），不读任何文件内容：
+  整个压缩包在内存里生成，峰值约为文件总量的三倍。
 """
 
 import io
@@ -16,6 +18,7 @@ from datetime import date, datetime
 from typing import Any
 
 from pydantic_core import to_jsonable_python
+from sqlalchemy import func
 from sqlalchemy.orm import Session, undefer
 
 from app.agent import conversations as agent_conversations
@@ -36,6 +39,7 @@ from app.cycle.schemas import CycleSettingsOut, DayLogOut, PeriodOut
 from app.disclaimer.content import DISCLAIMER_VERSION
 from app.disclaimer.models import DisclaimerAcceptance
 from app.disclaimer.router import DisclaimerStatus
+from app.errors import AppError
 from app.fitness import workouts as fitness_workouts
 from app.fitness.models import Workout
 from app.fitness.router import _exercise_detail, _workouts_out
@@ -76,6 +80,10 @@ README_NAME = "说明.txt"
 EVIDENCE_DIR = "evidence"
 PHOTO_DIR = "photos"
 HIDDEN_MESSAGE_KEYS = ("provider_state",)
+MAX_EXPORT_FILE_BYTES = 200 * 1024 * 1024  # 原件与保留照片的原始字节合计上限
+# 照片没有存大小，按 Fernet 密文长度推算原始大小：base64 解码后减去版本、时间戳、初始向量、签名与至少 1 字节的补位，
+# 结果不小于原始大小，最多多算 17 字节
+_FERNET_OVERHEAD = 58
 
 README_TEXT = f"""好生活 数据导出说明
 
@@ -240,6 +248,17 @@ def _files(db: Session, user_id: uuid.UUID) -> list[tuple[str, bytes]]:
     return files
 
 
+def _file_bytes(db: Session, user_id: uuid.UUID) -> int:
+    """原件与保留照片的原始字节合计，只在数据库里求和，不读文件内容。"""
+    evidence = db.scalar(owned_by(MedicalEvidence, user_id)
+                         .with_only_columns(func.coalesce(func.sum(MedicalEvidence.size_bytes), 0)))
+    photos = db.scalar(owned_by(PhotoRecognition, user_id)
+                       .with_only_columns(func.coalesce(
+                           func.sum(func.octet_length(PhotoRecognition.image) * 3 / 4 - _FERNET_OVERHEAD), 0))
+                       .where(PhotoRecognition.image_kept.is_(True), PhotoRecognition.image.is_not(None)))
+    return int(evidence) + int(photos)
+
+
 def _encode(content: Any) -> bytes:
     return json.dumps(to_jsonable_python(content), ensure_ascii=False, indent=2).encode("utf-8")
 
@@ -251,6 +270,10 @@ def build_export(db: Session, user: User, now: datetime, *, today: date | None =
     """
     today = today or now.astimezone().date()
     user_id = user.id
+    if _file_bytes(db, user_id) > MAX_EXPORT_FILE_BYTES:
+        raise AppError(413, "export_too_large",
+                       f"医嘱原件与保留的餐食照片合计超过 {MAX_EXPORT_FILE_BYTES // (1024 * 1024)} MB，无法一次导出；"
+                       "请先删除部分医嘱原件或不需要的餐食照片后再试")
     contents: dict[str, Any] = {
         "account.json": UserOut.model_validate(user),
         "profile.json": _profile(db, user_id),

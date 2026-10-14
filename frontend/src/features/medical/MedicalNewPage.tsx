@@ -1,5 +1,5 @@
 // 录入医嘱（设计稿 07f）：照原文粘贴（1 至 5000 字）、开具日期（默认今天、不晚于今天）与可选的证据（拍照或相册，
-// 可移除，显示大小与“加密保存”）。“提取条目”先建医嘱（后端提取出待核对的条目），再逐个上传证据，全部完成后去待核对。
+// 可移除，显示大小与“加密保存”，最多 10 个，选满后停用两个选择按钮）。“提取条目”先建医嘱（后端提取出待核对的条目），再逐个上传证据，全部完成后去待核对。
 // 任何一步失败都原样显示后端的说明与错误码；已经建好的医嘱不会重复提交，重试只上传还没传完的证据。
 // 医嘱未单独同意时页头照常、内容换成同意面板。
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
@@ -18,7 +18,7 @@ import { IconButton } from '../../components/IconButton'
 import { PageHeader } from '../../components/PageHeader'
 import { Sensitive } from '../../components/Sensitive'
 import { TextField } from '../../components/TextField'
-import { MAX_EVIDENCE_BYTES, MAX_TEXT } from '../../lib/contract'
+import { MAX_EVIDENCE_BYTES, MAX_EVIDENCE_FILES, MAX_TEXT } from '../../lib/contract'
 import { todayISO } from '../../lib/dates'
 import { fmtBytes } from '../../lib/format'
 import { useSingleFlight } from '../../lib/singleFlight'
@@ -79,6 +79,7 @@ function OrderForm() {
   const album = useRef<HTMLInputElement>(null)
   const errorRef = useRef<HTMLDivElement>(null)
   const today = todayISO()
+  const full = files.length >= MAX_EVIDENCE_FILES
   const fieldErrors = failure && !failure.file && failure.error.code === 'validation_error' ? errorsOf(failure.error) : {}
   const formMessage = failure && (failure.file || failure.error.code !== 'validation_error' || fieldErrors[FORM_ERROR])
     ? `${failure.file ? `${failure.file}：` : ''}${fieldErrors[FORM_ERROR] ?? failure.error.message}`
@@ -96,7 +97,7 @@ function OrderForm() {
       return { key: nextKey.current, file }
     })
     event.target.value = ''
-    setFiles((list) => [...list, ...picked])
+    setFiles((list) => [...list, ...picked].slice(0, MAX_EVIDENCE_FILES)) // 一次多选超出上限时只留前面的
   }
 
   const submit = () => {
@@ -167,9 +168,10 @@ function OrderForm() {
           </ul>
         )}
         <div className="mn-pick">
-          <Button variant="text" icon="camera" isDisabled={pending} onPress={() => camera.current?.click()}>拍照</Button>
-          <Button variant="text" icon="image" isDisabled={pending} onPress={() => album.current?.click()}>从相册选</Button>
+          <Button variant="text" icon="camera" isDisabled={pending || full} onPress={() => camera.current?.click()}>拍照</Button>
+          <Button variant="text" icon="image" isDisabled={pending || full} onPress={() => album.current?.click()}>从相册选</Button>
         </div>
+        {full && <p className="t-cap">最多 {MAX_EVIDENCE_FILES} 个文件</p>}
         {order && (
           <p className="t-small mn-status" role="status">
             医嘱已提交，提取出 {order.items.length} 条。重试只上传还没传完的证据，不会重复提交医嘱。
