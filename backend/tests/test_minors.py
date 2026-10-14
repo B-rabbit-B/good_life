@@ -2,13 +2,21 @@
 未成年用户问减重与热量时直接给固定回复。年份边界一律按今天现算。"""
 
 import json
+import uuid
 from datetime import date
 
-from app.agent.assembly import MINOR_INSTRUCTION, MINOR_INTAKE_LINE
+import pytest
+from sqlalchemy import update
+
+from app.agent import assembly
+from app.agent.assembly import MINOR_INSTRUCTION, MINOR_INTAKE_LINE, UNAVAILABLE
 from app.agent.loop import RISK_USER_PLACEHOLDER
-from app.agent.safety import SAFE_REPLIES
+from app.agent.safety import SAFE_REPLIES, classify_risk
 from app.auth.schemas import AGE_CONFIRM_MESSAGE
+from app.db import get_sessionmaker
+from app.nutrition.engine import NEEDS_MINOR_MESSAGE
 from app.nutrition.needs import MINOR_NOTE, estimate_needs
+from app.profile.models import Profile
 from app.profile.schemas import UNDER_AGE_MESSAGE
 from tests.agent_fake import connect, say, scripted  # noqa: F401
 from tests.helpers import ready_user
@@ -16,6 +24,8 @@ from tests.helpers import ready_user
 THIS_YEAR = date.today().year
 FRIED_CHICKEN = "dish:fried_chicken"
 WEIGHT_LOSS_QUESTION = "我想减肥，一天吃多少热量"
+# app.agent.safety._MINOR_DIET 的词表（逐个核对，词表改了这里要一起改）
+MINOR_DIET_WORDS = ("减肥", "减脂", "减重", "瘦身", "节食", "热量", "卡路里", "大卡", "千卡", "掉秤", "变瘦", "瘦下来", "控制体重")
 NUMBER_FIELDS = (
     "energy_kcal", "energy_kcal_low", "energy_kcal_high", "protein_g", "fat_g_low", "fat_g_high", "carbohydrate_g_low",
     "carbohydrate_g_high", "fiber_g_low", "fiber_g_high", "sodium_mg_max",
@@ -56,6 +66,27 @@ def test_birth_year_under_14_is_refused_with_a_clear_message(client):
     assert accepted.json()["birth_year"] == THIS_YEAR - 14
 
 
+def test_birth_year_this_year_gets_the_under_age_message_not_the_future_one(client):
+    headers = ready_user(client, "baby")
+    refused = client.patch("/api/profile", json={"birth_year": THIS_YEAR}, headers=headers)
+    assert _details(refused) == {"birth_year": UNDER_AGE_MESSAGE}
+    future = client.patch("/api/profile", json={"birth_year": THIS_YEAR + 1}, headers=headers)
+    assert _details(future) == {"birth_year": "出生年份不能晚于今年"}
+
+
+def test_an_old_under_14_profile_can_still_change_other_fields_and_stays_minor(client):
+    headers = ready_user(client, "old", _profile(30))
+    user_id = uuid.UUID(client.get("/api/auth/me", headers=headers).json()["id"])
+    with get_sessionmaker()() as db:  # 规则上线之前存下的旧档案：不满 14 周岁
+        db.execute(update(Profile).where(Profile.user_id == user_id).values(birth_year=THIS_YEAR - 10))
+        db.commit()
+    changed = client.patch("/api/profile", json={"weight_kg": 46}, headers=headers)
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["birth_year"] == THIS_YEAR - 10
+    needs = client.get("/api/nutrition/summary", headers=headers).json()["needs"]
+    assert needs["status"] == "minor" and needs["energy_kcal"] is None
+
+
 def test_registration_requires_the_age_confirmation(client):
     missing = client.post("/api/auth/register", json={"username": "amy", "password": "secret-pass-1"})
     assert _details(missing) == {"age_confirmed": "这一项必须填写"}
@@ -89,6 +120,10 @@ def test_minor_summary_and_evaluation_ignore_the_fat_loss_goal(client):
     assert summary["needs"]["energy_kcal"] is None and summary["needs"]["notes"] == [MINOR_NOTE]
     minor = client.post("/api/nutrition/evaluate", json={"food_id": FRIED_CHICKEN}, headers=headers).json()
     assert [r for r in minor["reasons"] if r["source"] == "goal"] == []
+    [intake] = [r for r in minor["reasons"] if r["source"] == "intake"]
+    assert (intake["effect"], intake["code"], intake["message"], intake["ref"]) == (
+        "info", "needs_minor", NEEDS_MINOR_MESSAGE, "needs")
+    assert "不完整" not in intake["message"]
 
     adult_year = client.patch("/api/profile", json={"birth_year": THIS_YEAR - 30}, headers=headers)
     assert adult_year.status_code == 200, adult_year.text
@@ -115,6 +150,29 @@ def test_system_prompt_for_a_minor_has_the_minor_line_and_no_daily_needs(client,
     system = scripted.requests[-1].system
     assert "估算的每日需求" in system and "目标减脂" in system
     assert MINOR_INSTRUCTION not in system and MINOR_INTAKE_LINE not in system
+
+
+def test_minor_line_falls_back_to_the_summary_when_the_profile_cannot_be_read(client, scripted, monkeypatch):
+    teen = ready_user(client, "teen", _profile(16))
+    connect(client, teen)
+
+    def unreadable(data, today):
+        raise RuntimeError("档案读取失败")
+
+    monkeypatch.setattr(assembly, "_profile", unreadable)
+    scripted.add(say("清蒸鱼配米饭。"))
+    _send(client, teen, "晚饭吃什么")
+    [request] = scripted.requests
+    assert f"档案{UNAVAILABLE}" in request.system  # 档案确实没读到
+    assert MINOR_INSTRUCTION in request.system and MINOR_INTAKE_LINE in request.system
+    assert "估算的每日需求" not in request.system
+
+
+@pytest.mark.parametrize("word", MINOR_DIET_WORDS)
+def test_every_minor_diet_word_is_caught_only_for_minors(word):
+    hit = classify_risk(word, minor=True)
+    assert hit is not None and hit.category == "minor_weight_loss", word
+    assert classify_risk(word, minor=False) is None, word
 
 
 def test_minor_weight_loss_gets_the_fixed_reply_without_calling_the_model(client, scripted):

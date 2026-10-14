@@ -16,7 +16,7 @@ import { photosHandlers } from '../../test/msw/handlers/photos'
 import { server } from '../../test/msw/server'
 
 const ANSWER = '今晚可以换成清蒸鱼或鸡胸肉，配一碗杂粮粥，蛋白质够，也清淡。'
-/** app.agent.safety.SAFE_REPLIES['minor_weight_loss'] 的开头（整段原样显示，这里只核对其中一句） */
+/** 未成年减重固定回复的示意文字（不是后端原文；界面把回复原样放进就医提示，这里只看它用哪个标题与哪些电话） */
 const MINOR_DIET_REPLY = '你正处在生长发育的阶段，身体需要足够的能量和营养。'
 const NOTICE = noticeLines([['卤猪肝', '避免动物内脏与浓肉汤（高嘌呤）']])
 

@@ -91,7 +91,7 @@ uv run uvicorn app.main:app --reload --port 8000
 
 打开 http://localhost:8000/docs，按下面顺序操作：
 
-1. 注册：`POST /api/auth/register`，点 Try it out，填 `username`（3 到 32 位，只能是字母、数字、下划线，不区分大小写）和 `password`（8 到 128 位），执行。重复注册同一用户名会返回 409 和 `username_taken`。
+1. 注册：`POST /api/auth/register`，点 Try it out，填 `username`（3 到 32 位，只能是字母、数字、下划线，不区分大小写）、`password`（8 到 128 位）和 `age_confirmed`（确认已年满 14 周岁，必填且必须为 `true`，只做校验、不入库），执行。重复注册同一用户名会返回 409 和 `username_taken`。
 2. 登录：`POST /api/auth/login`，填同样的账号密码，从返回内容里复制 `access_token`。
 3. 授权：点页面右上角的 Authorize 按钮，把令牌填进 Value 框（只填令牌本身，不要加 `Bearer ` 前缀），点 Authorize 后关闭弹窗。此后所有请求会自动带上令牌。
 4. 确认免责声明：先 `GET /api/disclaimer` 查看当前版本号和正文，再 `POST /api/disclaimer/accept`，把返回的版本号填进 `version` 后执行。未确认前，读写档案会返回 403 和 `disclaimer_not_accepted`。
