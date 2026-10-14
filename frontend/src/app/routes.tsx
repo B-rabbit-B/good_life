@@ -7,7 +7,6 @@ import { Navigate, type RouteObject } from 'react-router'
 import { ApiError } from '../api/errors'
 import { PROFILE_UPDATE_KEY, useCapabilities } from '../api/hooks/profile'
 import { qk } from '../api/keys'
-import type { ConsentKind } from '../api/types'
 import type { NavItem } from '../components/BottomNav'
 import { Field } from '../components/Field'
 import { ErrorState } from '../components/states/ErrorState'
@@ -27,12 +26,6 @@ export interface RouteHandle {
 
 type PageModule = Promise<{ default: ComponentType }>
 const page = (load: () => PageModule): RouteObject['lazy'] => async () => ({ Component: (await load()).default })
-
-/** 要先单独同意的页面（录入医嘱）：页面与同意的守门一起按需加载，未同意时显示同意面板 */
-const consentPage = (kind: ConsentKind, load: () => PageModule): RouteObject['lazy'] => async () => {
-  const [{ default: Page }, { ConsentGate }] = await Promise.all([load(), import('../features/consent')])
-  return { Component: () => <ConsentGate kind={kind}><Page /></ConsentGate> }
-}
 
 const handle = (key: PathKey, nav: RouteHandle['nav'], navKey?: NavItem['key']): RouteHandle => {
   const sensitive = isSensitivePage(key)
@@ -141,7 +134,7 @@ export const routes: RouteObject[] = [{
                       },
                       {
                         path: PATHS.medicalNew,
-                        lazy: consentPage('medical', () => import('../features/medical/MedicalNewPage')),
+                        lazy: page(() => import('../features/medical/MedicalNewPage')),
                         handle: handle('medicalNew', 'none'),
                       },
                     ],

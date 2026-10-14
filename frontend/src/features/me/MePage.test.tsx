@@ -156,6 +156,9 @@ describe('me page', () => {
     const medicalRow = () => within(list).getAllByRole('listitem')[1] as HTMLElement
     await waitFor(() => expect(medicalRow()).toHaveTextContent('已同意（2026-10-03）'))
     queryClient.setQueryData(['medical', 'reviews'], [])
+    queryClient.setQueryData(['medical', 'constraints', 'exercise_limit'], { constraints: [] })
+    queryClient.setQueryData(['fitness', 'workouts', '2026-10-08', '2026-10-14'], [])
+    queryClient.setQueryData(['agent', 'opening'], { opening: null })
 
     // 继续使用：只关闭面板，不撤回
     await user.click(within(medicalRow()).getByRole('button', { name: '撤回' }))
@@ -176,7 +179,41 @@ describe('me page', () => {
     await waitFor(() => expect(medicalRow()).toHaveTextContent('未同意'))
     expect(within(medicalRow()).queryByRole('button', { name: '撤回' })).not.toBeInTheDocument()
     expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('已同意（2026-10-02）')
-    // 医嘱的缓存随撤回清掉，不再显示旧的待处理条目
+    // 医嘱的缓存随撤回清掉，不再显示旧的待处理条目；运动限制、训练冲突与开场问候（可能带医嘱原文）同样丢掉
     expect(queryClient.getQueryData(['medical', 'reviews'])).toBeUndefined()
+    expect(queryClient.getQueryData(['medical', 'constraints', 'exercise_limit'])).toBeUndefined()
+    expect(queryClient.getQueryData(['fitness', 'workouts', '2026-10-08', '2026-10-14'])).toBeUndefined()
+    expect(queryClient.getQueryData(['agent', 'opening'])).toBeUndefined()
+  })
+
+  it('covers the consent rows but not their heading', async () => {
+    const user = userEvent.setup()
+    renderRoute('/me')
+    const list = await screen.findByRole('list', { name: '单独同意' })
+    const area = list.closest('[data-sensitive-area="consents"]') as HTMLElement
+    expect(area).not.toBeNull()
+    expect(screen.getByRole('heading', { name: '单独同意' }).closest('[data-sensitive]')).toBeNull()
+    await waitFor(() => expect(sensitiveAreaMismatch(document)).toEqual({ page: 'me', missing: [], unexpected: [] }))
+    await user.click(screen.getByRole('button', { name: '遮盖敏感内容' }))
+    expect(area).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.queryByRole('list', { name: '单独同意' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '撤回' })).not.toBeInTheDocument()
+  })
+
+  it('hides a consent row only when the module is closed and was never granted', async () => {
+    const first = renderRoute('/me', { profile: { gender: 'male' }, capabilities: { cycle: false } })
+    server.use(...consentHandlers({ granted: { cycle: false, medical: true } }).handlers)
+    const list = await screen.findByRole('list', { name: '单独同意' })
+    await waitFor(() => expect(within(list).getAllByRole('listitem').map((row) => row.querySelector('b')?.textContent))
+      .toEqual(['医嘱']))
+    first.unmount()
+
+    // 关了经期记录开关、但以前同意过：这一行留着，才能撤回
+    renderRoute('/me', { profile: { cycle_tracking_opt_out: true }, capabilities: { cycle: false } })
+    server.use(...consentHandlers().handlers)
+    const again = await screen.findByRole('list', { name: '单独同意' })
+    await waitFor(() => expect(within(again).getAllByRole('listitem')).toHaveLength(2))
+    expect(within(within(again).getAllByRole('listitem')[0] as HTMLElement).getByRole('button', { name: '撤回' }))
+      .toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
 // 录入医嘱（设计稿 07f）：照原文粘贴（1 至 5000 字）、开具日期（默认今天、不晚于今天）与可选的证据（拍照或相册，
 // 可移除，显示大小与“加密保存”）。“提取条目”先建医嘱（后端提取出待核对的条目），再逐个上传证据，全部完成后去待核对。
 // 任何一步失败都原样显示后端的说明与错误码；已经建好的医嘱不会重复提交，重试只上传还没传完的证据。
+// 医嘱未单独同意时页头照常、内容换成同意面板。
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError, asApiError } from '../../api/errors'
@@ -21,6 +22,7 @@ import { MAX_EVIDENCE_BYTES, MAX_TEXT } from '../../lib/contract'
 import { todayISO } from '../../lib/dates'
 import { fmtBytes } from '../../lib/format'
 import { useSingleFlight } from '../../lib/singleFlight'
+import { ConsentGate } from '../consent'
 import '../../styles/components/medical.css'
 import { errorsOf, FORM_ERROR } from '../../lib/formErrors'
 
@@ -47,8 +49,18 @@ function warningOf(file: File): string | null {
   return null
 }
 
+/** 录入医嘱页：页头（带返回）一直在；医嘱未单独同意时内容换成同意面板（与健康页同做法） */
 export default function MedicalNewPage() {
   useSensitivePage('medicalNew')
+  return (
+    <>
+      <PageHeader titleKey="medicalNew" variant="sub" back={PATHS.medical} />
+      <ConsentGate kind="medical"><OrderForm /></ConsentGate>
+    </>
+  )
+}
+
+function OrderForm() {
   const navigate = useNavigate()
   const [text, setText] = useState('')
   const [date, setDate] = useState<string | null>(() => todayISO())
@@ -120,7 +132,6 @@ export default function MedicalNewPage() {
 
   return (
     <>
-      <PageHeader titleKey="medicalNew" variant="sub" back={PATHS.medical} />
       <p className="t-small ink2 pad mn-lead">照你拿到的原文粘贴或拍照，不用改写。提取出的条目需要你逐条核对后才会生效。</p>
       <Sensitive area="content" className="plate mn">
         {/* 医嘱建好之后原文与日期只读：重试只上传证据，改了也不会再提交 */}

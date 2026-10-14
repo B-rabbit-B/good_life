@@ -36,7 +36,8 @@ test('a hidden control without a label fails the touch target check', async ({ p
 
 const profilePage = (extra: string) => `<main data-sensitive-page="me">
   <div data-sensitive data-sensitive-area="profile">身高</div>
-  <div data-sensitive data-sensitive-area="switches">开关</div>${extra}
+  <div data-sensitive data-sensitive-area="switches">开关</div>
+  <div data-sensitive data-sensitive-area="consents">单独同意</div>${extra}
 </main>`
 
 test('the sensitive area check passes when the page matches its registration', async ({ page }) => {

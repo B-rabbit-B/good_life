@@ -94,6 +94,7 @@ describe('app shell', () => {
         <>
           <Sensitive area="profile"><p>身高 162 厘米</p></Sensitive>
           <Sensitive area="switches"><p>经期记录 开</p></Sensitive>
+          <Sensitive area="consents"><p>医嘱 已同意</p></Sensitive>
           {extra && <Sensitive><p>没有登记的敏感区</p></Sensitive>}
         </>
       )

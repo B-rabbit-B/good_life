@@ -19,6 +19,7 @@ from app.agent.schemas import MAX_MESSAGE_CHARS
 from app.auth import service as auth_service
 from app.common.age import MIN_AGE
 from app.consents import deps as consent_deps
+from app.consents import service as consent_service
 from app.cycle.schemas import DayLogIn
 from app.disclaimer import deps as disclaimer_deps
 from app.errors import AppError
@@ -107,6 +108,7 @@ ERROR_CODES = {
     "DISCLAIMER_NOT_ACCEPTED": ("disclaimer_not_accepted", 403, disclaimer_deps),
     "RESTAURANT_LOCATION_NOT_GRANTED": ("restaurant_location_not_granted", 409, restaurant_service),
     "CONSENT_REQUIRED": ("consent_required", 403, consent_deps),
+    "CONSENT_OUTDATED": ("consent_outdated", 409, consent_service),
 }
 
 

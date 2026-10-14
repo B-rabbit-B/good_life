@@ -15,8 +15,8 @@ import { qk } from '../keys'
 import { getToken, setToken } from '../token'
 import { useLogout } from '../../app/useLogout'
 import { useLogin, useMe } from './auth'
-import { useConsents } from './consents'
-import { useMedicalReviews } from './medical'
+import { useConsents, useModuleConsent, useModuleReady } from './consents'
+import { useMedicalItems, useMedicalReviews } from './medical'
 import { useCapabilities, useUpdateProfile } from './profile'
 
 const handle: RouteHandle = { nav: 'none', sensitive: false }
@@ -126,4 +126,42 @@ describe('module hooks', () => {
     await waitFor(() => expect(result.current.reviews.isSuccess).toBe(true))
     expect(reviewRequests).toBe(1)
   })
+
+  it('keeps a module ready when a background refetch of consents fails', async () => {
+    setToken(TEST_TOKEN)
+    server.use(...consentHandlers().handlers)
+    const { wrapper } = withClient()
+    const { result } = renderHook(() => {
+      const consents = useConsents()
+      return { failed: consents.isError, refetch: consents.refetch, status: useModuleConsent('cycle') }
+    }, { wrapper })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    server.use(http.get('/api/consents', () =>
+      HttpResponse.json({ error: { code: 'internal_error', message: '服务器出错' } }, { status: 500 })))
+    await act(async () => {
+      await result.current.refetch()
+    })
+    await waitFor(() => expect(result.current.failed).toBe(true))
+    expect(result.current.status).toBe('ready')
+  })
+
+  it('refreshes consents when a module answers consent required', async () => {
+    setToken(TEST_TOKEN)
+    server.use(...consentHandlers().handlers)
+    const { wrapper } = withClient()
+    const { result } = renderHook(() => ({ ready: useModuleReady('medical'), items: useMedicalItems() }), { wrapper })
+    await waitFor(() => expect(result.current.items.isSuccess).toBe(true))
+    expect(result.current.ready).toBe(true)
+    // 在另一台设备上撤回了：医嘱接口回 403 consent_required，同意状态随之重新读取，模块不再可用
+    server.use(
+      ...consentHandlers({ granted: { medical: false } }).handlers,
+      http.get('/api/medical/items', () =>
+        HttpResponse.json({ error: { code: 'consent_required', message: '使用医嘱前，需要你单独同意处理医嘱与健康信息' } }, { status: 403 })),
+    )
+    await act(async () => {
+      await result.current.items.refetch()
+    })
+    await waitFor(() => expect(result.current.ready).toBe(false))
+  })
 })
+

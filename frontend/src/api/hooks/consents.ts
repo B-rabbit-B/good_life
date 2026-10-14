@@ -3,7 +3,7 @@
 // 对话页的待处理条经 medical.ts 用到这里：只放钩子，保持很小。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../client'
-import { invalidateDomain } from '../invalidation'
+import { discardDomain, invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
 import type { ConsentKind, ConsentOut } from '../types'
 import { useCapabilities } from './profile'
@@ -25,8 +25,9 @@ export function useModuleConsent(kind: ConsentKind): 'ready' | 'closed' | 'pendi
   const caps = useCapabilities()
   const open = caps.data?.[kind] === true
   const consents = useConsents(open)
-  if (!open || consents.isError) return 'closed'
-  if (consents.data === undefined) return 'pending'
+  if (!open) return 'closed'
+  // 已有结论时后台重取失败不改结论；从来没读到才算不可用
+  if (consents.data === undefined) return consents.isError ? 'closed' : 'pending'
   return consents.data.some((consent) => consent.kind === kind && consent.granted) ? 'ready' : 'closed'
 }
 
@@ -50,7 +51,7 @@ export function useGrantConsent() {
 
 /**
  * 撤回：后端在同一个事务里清除该模块的全部数据并关闭模块。成功后先重新取同意状态（模块的查询随之停用），
- * 再丢掉该模块缓存里的旧数据（停用的查询仍会交出缓存，对话页的待处理条就会显示已清除的条目），最后按失效表刷新跟着变的数据。
+ * 再按失效表把该域与跟着变的缓存、开场问候整个丢掉（见 invalidation.ts 的 discardDomain）。
  */
 export function useWithdrawConsent() {
   const queryClient = useQueryClient()
@@ -58,8 +59,7 @@ export function useWithdrawConsent() {
     mutationFn: (kind: ConsentKind) => api<void>(`/api/account/consents/${kind}/withdraw`, { method: 'POST' }),
     onSuccess: async (_result, kind) => {
       await queryClient.invalidateQueries({ queryKey: qk.consents })
-      queryClient.removeQueries({ queryKey: [kind] })
-      await invalidateDomain(queryClient, kind)
+      await discardDomain(queryClient, kind)
     },
   })
 }

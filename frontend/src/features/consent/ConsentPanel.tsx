@@ -12,10 +12,10 @@ import { Checkbox } from '../../components/Checkbox'
 import { Icon } from '../../components/Icon'
 import { ErrorState } from '../../components/states/ErrorState'
 import { LoadingState } from '../../components/states/LoadingState'
+import { CONSENT_OUTDATED } from '../../lib/contract'
+import { useSingleFlight } from '../../lib/singleFlight'
 import '../../styles/components/consent.css'
 import '../../styles/components/field-input.css'
-
-const OUTDATED = 'consent_outdated'
 
 /** 有上一页时退回上一页；直接打开（例如从地址栏进来）时没有上一页，去对话页 */
 function useGoBack(): () => void {
@@ -36,6 +36,8 @@ export function ConsentPanel({ kind }: { kind: ConsentKind }) {
   const goBack = useGoBack()
   const [read, setRead] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
+  // 双击时 isPending 还没来得及渲染：用单次锁守住，同一时间只提交一次
+  const flight = useSingleFlight()
   const consent = consents.data?.find((c) => c.kind === kind)
 
   if (!consent) {
@@ -45,17 +47,20 @@ export function ConsentPanel({ kind }: { kind: ConsentKind }) {
   }
 
   const agree = () => {
-    setError(null)
-    grant.mutate({ kind, version: consent.current_version }, {
-      onError: (caught) => {
+    const run = flight(async () => {
+      setError(null)
+      try {
+        await grant.mutateAsync({ kind, version: consent.current_version })
+      } catch (caught) {
         const apiError = asApiError(caught)
         setError(apiError)
-        if (apiError.code === OUTDATED) {
+        if (apiError.code === CONSENT_OUTDATED) {
           setRead(false)
           void consents.refetch()
         }
-      },
+      }
     })
+    void run
   }
 
   return (

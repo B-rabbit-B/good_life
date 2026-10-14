@@ -115,6 +115,7 @@ export const AGENT_MODEL_NOT_CONFIGURED = 'agent_model_not_configured'
 export const DISCLAIMER_NOT_ACCEPTED = 'disclaimer_not_accepted'
 export const RESTAURANT_LOCATION_NOT_GRANTED = 'restaurant_location_not_granted'
 export const CONSENT_REQUIRED = 'consent_required'
+export const CONSENT_OUTDATED = 'consent_outdated'
 
 /**
  * 会改动用户数据的智能体工具（app.sdk.tooling.agent_registry 里 level 为 write 的，加上 app.agent.assembly 的 remember_preference）

@@ -1,6 +1,7 @@
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { gate } from '../../test/chat'
 import { CONSENT_TEXTS, CONSENT_VERSION } from '../../test/fixtures/consents'
 import { consentHandlers, type ConsentOptions } from '../../test/msw/handlers/consents'
 import { server } from '../../test/msw/server'
@@ -37,11 +38,13 @@ describe('consent panel', { timeout: 15_000 }, () => {
     const { consents } = renderGated('/health/medical/new', { granted: { medical: false } })
     expect(await screen.findByRole('heading', { name: '单独同意：医嘱' })).toBeInTheDocument()
     for (const line of CONSENT_TEXTS.medical.split('\n')) expect(screen.getByText(line)).toBeInTheDocument()
-    // 同意之前录入页不出现
-    expect(screen.queryByRole('heading', { name: '录入医嘱' })).not.toBeInTheDocument()
+    // 同意之前只有页头（带返回），录入表单不出现
+    expect(screen.getByRole('heading', { name: '录入医嘱' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('医嘱原文')).not.toBeInTheDocument()
     await user.click(screen.getByRole('checkbox', { name: '我已阅读并同意' }))
     await user.click(screen.getByRole('button', { name: '同意并开始使用' }))
-    expect(await screen.findByRole('heading', { name: '录入医嘱' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('医嘱原文')).toBeInTheDocument()
     expect(consents.record.grants).toEqual([{ kind: 'medical', version: CONSENT_VERSION }])
     expect(screen.queryByRole('heading', { name: '单独同意：医嘱' })).not.toBeInTheDocument()
   })
@@ -68,5 +71,22 @@ describe('consent panel', { timeout: 15_000 }, () => {
     } finally {
       server.events.removeListener('request:start', count)
     }
+  })
+
+  it('grants only once on a double click', async () => {
+    const user = userEvent.setup()
+    // 两次按下之间没有重新渲染（按钮的 isPending 还没生效），第一次的请求也还没回来
+    const held = gate()
+    const { consents } = renderGated('/health/medical/new', { granted: { medical: false }, grantHold: held.promise })
+    await screen.findByRole('heading', { name: '单独同意：医嘱' })
+    await user.click(screen.getByRole('checkbox', { name: '我已阅读并同意' }))
+    const agree = screen.getByRole('button', { name: '同意并开始使用' })
+    act(() => {
+      fireEvent.click(agree)
+      fireEvent.click(agree)
+    })
+    held.open()
+    expect(await screen.findByLabelText('医嘱原文')).toBeInTheDocument()
+    expect(consents.record.grants).toEqual([{ kind: 'medical', version: CONSENT_VERSION }])
   })
 })

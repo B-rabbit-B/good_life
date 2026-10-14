@@ -1,5 +1,6 @@
 // 单独同意的接口：状态在内存里（默认两项都已同意）；同意时核对版本（不是当前版本回 409 consent_outdated），
-// 撤回没有有效同意的一项回 404；记下每次同意与撤回。withdrawErrors 依次用于前几次撤回，hold 兑现前撤回不返回。
+// 撤回没有有效同意的一项回 404；记下每次同意与撤回。withdrawErrors 依次用于前几次撤回，hold 兑现前撤回不返回，
+// grantHold 兑现前同意不返回。
 import { http, HttpResponse, type HttpHandler } from 'msw'
 import type { ConsentKind, ConsentOut } from '../../../api/types'
 import { consent, CONSENT_VERSION } from '../../fixtures/consents'
@@ -14,6 +15,7 @@ export interface ConsentOptions {
   granted?: Partial<Record<ConsentKind, boolean>>
   withdrawErrors?: ConsentError[]
   hold?: Promise<void>
+  grantHold?: Promise<void>
 }
 
 const KINDS: readonly ConsentKind[] = ['cycle', 'medical']
@@ -33,6 +35,7 @@ export function consentHandlers(opts: ConsentOptions = {}) {
       const kind = params.kind
       const { version } = (await request.json()) as { version: string }
       record.grants.push({ kind: String(kind), version })
+      await opts.grantHold
       if (!isKind(kind)) return HttpResponse.json({ error: { code: 'validation_error', message: '请求参数不合法' } }, { status: 422 })
       if (version !== CONSENT_VERSION) {
         return HttpResponse.json(

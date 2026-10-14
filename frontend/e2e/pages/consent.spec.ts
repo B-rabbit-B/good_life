@@ -2,9 +2,11 @@
 // （黑体标题、后端正文全文不截断、勾选行 44 高、勾选框 22 × 22，勾选“我已阅读并同意”之前同意按钮停用）；
 // 同意之后直接进入模块，刷新后不再询问；“暂不使用”不进入模块。“我的”页撤回：勾选“我知道清除后不能恢复”之前确认按钮停用，
 // 面板打开时 Tab 焦点不离开面板，“继续使用”关闭后焦点回到“撤回”按钮；撤回后再打开经期页又要同意。
-// 每个面板都查触控目标、最小字号与横向滚动。
+// “我的”页的同意两行在敏感区里。每个面板都查触控目标、最小字号与横向滚动。
 import type { Locator, Page } from '@playwright/test'
-import { expectMinFontSize, expectNoHorizontalScroll, expectTouchTargets, waitForSheet } from '../support/a11y'
+import {
+  expectCoverWorks, expectMinFontSize, expectNoHorizontalScroll, expectSensitiveAreas, expectTouchTargets, waitForSheet,
+} from '../support/a11y'
 import { createUser, openAs } from '../support/api'
 import { expect, test } from '../support/test'
 
@@ -77,6 +79,9 @@ test('asks for consent once before the cycle page and remembers it', async ({ pa
   await expect(rows.nth(0)).toContainText(/^经期记录已同意（\d{4}-\d{2}-\d{2}）/)
   await expect(rows.nth(1)).toContainText('未同意')
   await expectPageRules(page)
+  // 同意两行在敏感区 consents 里，遮盖后看不见
+  await expectSensitiveAreas(page)
+  await expectCoverWorks(page)
 })
 
 test('asks for consent before the medical page and the new order page', async ({ page, request }) => {
@@ -85,16 +90,19 @@ test('asks for consent before the medical page and the new order page', async ({
   await expectConsentPanel(page, '单独同意：医嘱')
   await expect(page.getByRole('tablist', { name: '医嘱分类' })).toHaveCount(0)
 
-  // 直接打开录入医嘱：同样先要同意；“暂不使用”不进入，直接打开时没有上一页，回到对话页
+  // 直接打开录入医嘱：页头与返回键照常，内容先是同意面板、录入表单不出现；
+  // “暂不使用”不进入，直接打开时没有上一页，回到对话页
   await page.goto('/health/medical/new')
   const panel = await expectConsentPanel(page, '单独同意：医嘱')
-  await expect(page.getByRole('heading', { name: '录入医嘱' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '录入医嘱' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '返回' })).toBeVisible()
+  await expect(page.getByLabel('医嘱原文')).toHaveCount(0)
   await panel.getByRole('button', { name: '暂不使用' }).click()
   await expect(page).toHaveURL(/\/chat$/)
 
   await page.goto('/health/medical/new')
   await agree(page.locator('section.consent'))
-  await expect(page.getByRole('heading', { name: '录入医嘱' })).toBeVisible()
+  await expect(page.getByLabel('医嘱原文')).toBeVisible()
   await page.goto('/health/medical')
   await expect(page.getByRole('tablist', { name: '医嘱分类' })).toBeVisible()
   await expect(page.locator('section.consent')).toHaveCount(0)

@@ -3,8 +3,8 @@
 ## 职责
 - Vitest 单元与组件测试的支撑，加几条守护整个前端的测试：
   - setup.ts：MSW 服务器以 onUnhandledRequest error 启动（没写处理器的请求直接让测试失败），每个测试后清理、重置处理器与 localStorage，并补上 jsdom 没有的 matchMedia、IntersectionObserver、ResizeObserver、scrollTo；
-  - render.tsx：renderWithProviders、renderRouter、renderRoute，用与 App.tsx 同序的全套 Provider 和不重试的查询客户端；
-  - msw/handlers/：按模块模拟后端，按后端的规则回错误码（例如未确认免责时档案与能力清单回 403 disclaimer_not_accepted）；fixtures/：各模块的测试数据，core 默认是档案填满、已确认免责、开放全部模块的女性用户；
+  - render.tsx：renderWithProviders、renderRouter、renderRoute，用与 App.tsx 同序的全套 Provider 和不重试的查询客户端（与应用一样，请求回 consent_required 时重新读取单独同意）；
+  - msw/handlers/：按模块模拟后端，按后端的规则回错误码（例如未确认免责时档案与能力清单回 403 disclaimer_not_accepted）；fixtures/：各模块的测试数据，core 默认是档案填满、已确认免责、开放全部模块的女性用户，consents 默认经期与医嘱两项单独同意都已给出（要“未同意”时用 consentHandlers 的 granted 覆盖）；
   - chat.ts（对话页的公共准备）、frames.ts（requestAnimationFrame 替身）；
   - boundaries.test.ts（源码分层）、deps.test.ts（依赖许可证与禁用动画库）、lint.test.ts（证明 eslint 的禁令确实会报错）。
 
