@@ -7,9 +7,15 @@ describe('as api error', () => {
     expect(asApiError(error)).toBe(error)
   })
 
-  it('turns a rejected fetch into the network error', () => {
-    expect(asApiError(new TypeError('Failed to fetch'))).toMatchObject(networkError())
-    expect(asApiError(new TypeError('Failed to fetch')).code).toBe('network_error')
+  it('keeps a programming type error out of the network error', () => {
+    for (const caught of [new TypeError('Failed to fetch'), new TypeError("Cannot read properties of undefined (reading 'x')")]) {
+      expect(asApiError(caught)).toMatchObject({ status: 0, code: 'unknown_error', message: '出了点问题，请稍后再试' })
+    }
+  })
+
+  it('leaves the network error to the callers that see the rejected fetch', () => {
+    expect(networkError()).toMatchObject({ status: 0, code: 'network_error' })
+    expect(asApiError(networkError()).code).toBe('network_error')
   })
 
   it('turns anything else into unknown_error with a chinese message', () => {

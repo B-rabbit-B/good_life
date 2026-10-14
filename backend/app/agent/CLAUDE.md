@@ -5,7 +5,7 @@
 - 一轮对话（loop.py 的 run_turn）：保存用户消息 → 风险话题（safety.py，命中直接给固定安全回复，不调模型、不调工具）→ 装配（assembly.py）→ 调模型与执行工具（最多 MAX_MODEL_CALLS 次）→ 输出检查（guard.py）→ 附医嘱提醒与健康提示 → 保存。
 - 依据只来自营养引擎（经 SDK 的 nutrition.evaluate_food），原样放在 evidence 里；模型自写的“依据”段会被去掉。
 - 风险话题按 自伤、严重症状、孕期异常、用药、极端节食 的优先级判断，未成年用户多一类未成年减重；每类固定回复都含 120 急救或就医指引。
-- clues.py 识别“医生说我好了”这类说法，只让系统指令多一句：智能体只能提出解除建议。
+- clues.py 识别“医生说我好了”这类说法，只让系统指令多一句：智能体只能提出解除建议；医嘱模块没有单独同意时这句改为引导用户先开始使用医嘱模块（没有医嘱工具可用）。
 
 ## 边界
 - 依赖：sdk（AgentCredential 加客户端名 agent，因此每次读写都有审计）、llm（调模型）、各业务模块的少量常量与读取、restaurants.amap 的 amap_configured、consents 的 CONSENT_KINDS 与 has_consent（回放时判断单独同意）。
@@ -25,7 +25,7 @@
 ## 入口
 - 路由：/api/agent 下的 conversations（含 DELETE 清空全部）、conversations/{id}/messages、preferences、settings、opening 与 opening/{id}/decline、answer（router.py），共 14 个，都经 require_disclaimer_user。
 - 实测脚本：uv run python -m app.agent.live_check 与红队脚本 uv run python -m app.agent.redteam_check（11 个注入攻击，成功率只数硬边界被突破的次数，结果写 redteam_live_result.md），都由用户本人用真实模型运行。
-- 测试：tests/test_agent_loop.py、test_agent_rules.py、test_agent_guard.py、test_agent_openings.py、test_agent_store.py、test_agent_live_check.py、test_agent_docs.py、test_minors.py、test_consents.py（未同意的模块当作未开放）、test_injection_bounds.py、test_preference_injection.py、test_redteam_check.py；模拟模型在 tests/agent_fake.py。
+- 测试：tests/test_agent_loop.py 与 test_agent_loop_history.py（流式、错误、历史；共用夹具与辅助函数在 agent_loop_support.py）、test_agent_rules.py、test_agent_guard.py、test_agent_openings.py、test_agent_store.py、test_agent_live_check.py、test_agent_docs.py、test_minors.py、test_consents.py（未同意的模块当作未开放）、test_injection_bounds.py、test_preference_injection.py、test_redteam_check.py；模拟模型在 tests/agent_fake.py。
 
 ## 禁区
 - 绝不把医嘱的确认、修改、作废、继续或解除做成工具，也不让模型声称已经替用户确认或解除；最多 propose_resolution。

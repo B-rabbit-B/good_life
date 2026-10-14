@@ -56,7 +56,7 @@ export function DeleteAccount() {
           host.close(host.nonce)
         }}
         will={[
-          { text: '立即删除账号与全部数据：档案、经期、医嘱与原件、饮食、训练、对话、照片、模型服务与密钥、外部授权。', irreversible: true },
+          { text: '立即删除账号与全部数据：档案、经期、医嘱与原件、饮食、训练、对话、偏好与开场记录、照片、模型服务与密钥、外部授权、餐厅设置、同意记录。', irreversible: true },
           { text: '这台设备随即退出登录，外部客户端的授权同时失效。' },
         ]}
         ack="我知道删除后所有数据立即清除、不能恢复"

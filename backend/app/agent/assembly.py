@@ -537,7 +537,9 @@ def _principles_section(ctx: AgentContext, resolution_clue: bool) -> list[str]:
     ]
     if ctx.capabilities.get("nutrition") and amap_configured():  # 与 select_tools 提供附近餐厅工具的条件一致
         lines.append(f"- {RESTAURANT_NOTE}")
-    if resolution_clue:
+    if resolution_clue and "medical" in ctx.not_consented:
+        lines.append("用户提到医生的新意见，但还没有开始使用医嘱模块：先引导用户开始使用医嘱模块（需要单独同意）并录入医嘱，不要调用任何医嘱工具。")
+    elif resolution_clue:
         lines.append("用户提到医生的新意见：只能用 medical_propose_resolution 提出解除建议，并告诉用户需要在应用里确认。")
     return lines
 

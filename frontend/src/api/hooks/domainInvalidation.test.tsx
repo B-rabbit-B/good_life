@@ -12,6 +12,7 @@ import { useCreatePeriod } from './cycle'
 import { useCreateWorkout, type WorkoutInput } from './fitness'
 import { useCancelProposal } from './medical'
 import { useCreateMeal, type MealInput } from './nutrition'
+import { useConfirmRecognition } from './photos'
 import { useUpdateProfile } from './profile'
 
 const OTHER_DAY = '2026-10-01'
@@ -66,6 +67,17 @@ describe('write hooks invalidate their domain', () => {
     server.use(http.post('/api/medical/items/i1/cancel-proposal', () => HttpResponse.json({ id: 'i1' })))
     const { names } = await invalidatedAfter(useCancelProposal, 'i1')
     expect(names).toEqual(['meals', 'recognitions', 'reviews', 'summary', 'workouts'])
+  })
+
+  it('confirming a recognition refreshes the nutrition domain', async () => {
+    server.use(http.post('/api/photos/recognitions/r1/confirm', () => HttpResponse.json({ id: 'r1', status: 'confirmed' })))
+    const { names, queryClient } = await invalidatedAfter(
+      () => useConfirmRecognition('r1'),
+      { eaten_on: '2026-10-13', meal_type: 'lunch' } as const,
+    )
+    // 摄入汇总与餐次是按日期的全部查询（不只确认的那一天）；返回的那条记录已经写进缓存，不再重取
+    expect(names).toEqual(['meals', 'recognitions', 'summary'])
+    expect(queryClient.getQueryData(qk.recognition('r1'))).toMatchObject({ status: 'confirmed' })
   })
 
   it('a profile update keeps the returned profile and invalidates what depends on it', async () => {

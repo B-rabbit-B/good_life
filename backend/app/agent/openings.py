@@ -25,7 +25,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.agent import settings as agent_settings
-from app.agent.assembly import CLIENT_NAME, PROFILE_FIELD_NAMES
+from app.agent.assembly import CLIENT_NAME, CONSENT_REQUIRED, PROFILE_FIELD_NAMES
 from app.agent.guard import mentioned_food_ids
 from app.agent.models import AgentOpening
 from app.agent.preferences import instruction_like
@@ -33,7 +33,7 @@ from app.common.ownership import get_owned_or_404, owned_by
 from app.errors import AppError
 from app.llm.adapters.base import ChatMessage
 from app.llm.service import AdapterFactory, complete, resolve_target
-from app.sdk import AgentCredential, GoodLife
+from app.sdk import AgentCredential, GoodLife, SdkError
 from app.sdk.tooling import agent_registry
 
 logger = logging.getLogger(__name__)
@@ -154,6 +154,10 @@ RULES: dict[str, Callable[[_Reads], dict | None]] = {
 def _evaluate(reads: _Reads, kind: str) -> dict | None:
     try:
         return RULES[kind](reads)
+    except SdkError as err:
+        if err.code != CONSENT_REQUIRED:  # 没有单独同意是正常状态：这条规则不触发，不记日志
+            logger.warning("开场规则判断失败：%s（%s）", kind, type(err).__name__)
+        return None
     except Exception as err:  # 读不到或解析不了只表示这条规则不触发，不影响别的规则
         logger.warning("开场规则判断失败：%s（%s）", kind, type(err).__name__)
         return None

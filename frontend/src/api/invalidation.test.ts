@@ -1,7 +1,7 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { createTestQueryClient } from '../test/render'
-import { discardConversations, DOMAINS, invalidateDomain, type Domain } from './invalidation'
+import { discardConversations, discardDomain, DOMAINS, invalidateDomain, type Domain } from './invalidation'
 import { qk } from './keys'
 
 const DAY = '2026-10-13'
@@ -81,6 +81,22 @@ describe('domain invalidation', () => {
     expect(queryClient.getQueryState(qk.opening)?.isInvalidated).toBe(false)
     expect(queryClient.getQueryData(qk.agentSettings)).toEqual({ seeded: true })
     expect(queryClient.getQueryData(qk.providers)).toEqual({ seeded: true })
+  })
+
+  it('empties a fetched opening on withdrawing consent instead of dropping it, so it is not requested again', async () => {
+    const queryClient = seeded()
+    queryClient.setQueryData(qk.opening, { opening: { id: 'o1', kind: 'review_due', question: '要不要现在看看？' } })
+    await discardDomain(queryClient, 'medical')
+    expect(queryClient.getQueryData(qk.opening)).toEqual({ opening: null })
+    expect(queryClient.getQueryState(qk.opening)?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryData(qk.orders)).toBeUndefined()
+    expect(queryClient.getQueryData(qk.profile)).toEqual({ seeded: true })
+  })
+
+  it('does not invent an opening on withdrawing consent when none was fetched', async () => {
+    const queryClient = seeded()
+    await discardDomain(queryClient, 'cycle')
+    expect(queryClient.getQueryState(qk.opening)).toBeUndefined()
   })
 
   it('does not invent an opening that was never fetched', () => {

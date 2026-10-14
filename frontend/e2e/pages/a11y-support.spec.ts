@@ -45,6 +45,17 @@ test('the sensitive area check passes when the page matches its registration', a
   await expectSensitiveAreas(page)
 })
 
+test('the sensitive area check waits for areas that render late', async ({ page }) => {
+  // 同意守门、数据请求等会让敏感区晚一点才出现：断言要重试，而不是读一次就判
+  await page.setContent(`<main data-sensitive-page="me"></main><script>
+    setTimeout(() => {
+      document.querySelector('main').innerHTML = ${JSON.stringify(profilePage('')
+        .replace('<main data-sensitive-page="me">', '').replace('</main>', ''))}
+    }, 600)
+  </script>`)
+  await expectSensitiveAreas(page)
+})
+
 test('the sensitive area check fails on an unregistered or missing area', async ({ page }) => {
   await page.setContent(profilePage('<div data-sensitive>没有名字</div>'))
   await expect(expectSensitiveAreas(page)).rejects.toThrow(/敏感区与登记表不一致/)

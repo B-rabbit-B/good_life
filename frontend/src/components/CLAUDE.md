@@ -8,7 +8,7 @@
 ## 边界
 - 依赖：lib、api（只取 ApiError 这类错误类型）、styles；不引用 features；引用 app 只限 shellContext 与 sensitiveAreas（test/boundaries.test.ts 守护）。
 - 被引用：features、app、dev 的组件样张页。
-- 底部面板没有拖动把手、点遮罩不关，只能用 Esc 或按钮关闭；同一子标签里同一时间只开一个（useSheetHost）。
+- 底部面板没有拖动把手、点遮罩不关，只能用 Esc 或按钮关闭；同一子标签里同一时间只开一个（useSheetHost；关闭后焦点落空时回到触发按钮，触发按钮已消失或在 inert 区域里就落到备用元素）。
 
 ## 入口
 - 单次锁：ConfirmSheet 的确认经 lib/singleFlight 的 useSingleFlight，双击或连按时第二次直接跳过；按钮的 isPending 要等下一次渲染才生效，不能只靠它。

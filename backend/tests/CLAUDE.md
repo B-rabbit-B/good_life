@@ -1,11 +1,12 @@
 # backend/tests 目录说明书
 
 ## 职责
-- 后端全部自动化测试（pytest）：单元、接口、交叉用户（越权矩阵、金丝雀扫描与缺口补测：test_isolation_*.py）、提示词注入（test_injection_bounds.py 让 ScriptedModel 扮演完全听从注入的模型，只断言硬边界；test_preference_injection.py 是偏好过滤与持久化注入链）、迁移、文档核对（各步骤的 *_docs.py 核对交付文档与代码一致）、前端契约（test_frontend_contract.py 逐字核对 frontend/src/lib/contract.ts）、接口快照（test_openapi_snapshot.py）与目录说明书（test_directory_manuals.py）；test_ci_workflow.py 按文本核对 .github/workflows/ci.yml 的结构（本机无法运行工作流），test_step12_ops_docs.py 核对备份与依赖故障预案、新人复现记录与 README 第 23 至 26 节。
+- 后端全部自动化测试（pytest）：单元、接口、交叉用户（越权矩阵、金丝雀扫描与缺口补测：test_isolation_*.py）、提示词注入（test_injection_bounds.py 让 ScriptedModel 扮演完全听从注入的模型，只断言硬边界；test_preference_injection.py 是偏好过滤与持久化注入链）、迁移、文档核对（各步骤的 *_docs.py 核对交付文档与代码一致）、前端契约（test_frontend_contract.py 逐字核对 frontend/src/lib/contract.ts）、接口快照（test_openapi_snapshot.py）与目录说明书（test_directory_manuals.py）、依赖方向（test_import_boundaries.py：ast 扫描 app 的跨包引用，按 LAYERS 分层）与文件行数（test_engineering_rules.py：源码文件不超过 800 行）；test_ci_workflow.py 按文本核对 .github/workflows/ci.yml 的结构（本机无法运行工作流），test_step12_ops_docs.py 核对备份与依赖故障预案、新人复现记录与 README 第 23 至 26 节。
 - 夹具与助手：
   - conftest.py：导入 app 之前把数据库固定成测试库 goodlife_test、换上固定的测试密钥并放开模型服务的内网地址；会话开始迁移到最新；每个测试结束清空全部表并清零登录与密码复核的失败计数（reset_login_limits，计数在进程内）；client 夹具是全新的 TestClient。
   - helpers.py：register_and_login、accept_disclaimer、grant_consents、ready_user（注册、登录、确认免责，默认同时给出经期与医嘱两项单独同意，可选写档案）；需要未同意状态时显式传 consents=False，之后可用 grant_consents 只给出其中一项。
   - agent_fake.py：基于 MockTransport 的脚本化模拟模型（say、call、echo、fail），scripted 夹具替换适配器工厂，connect 为用户配好对话模型。
+  - agent_loop_support.py：对话循环测试共用的 client 夹具、常量与辅助函数（test_agent_loop.py 与 test_agent_loop_history.py 都从这里引入）；拆文件时共用部分放这里，不要让一个测试文件引用另一个的私有名字（test_nutrition_engine_real.py 与 test_nutrition_training.py 引用 test_nutrition_engine.py 的夹具是已有的例外）。
   - amap_fake.py：模拟高德（FakeAmap，固定的一组店）与 fake 夹具；不经 client 夹具时直接用 FakeAmap 加 use_transport。
   - db_inspect.py：直接查 pg_catalog（不读模型定义）：user_tables（全部带 user_id 的表）、cascade_problems（user_id 没有级联指向 users(id) 的表）、row_counts（某用户在每张表与 users 的行数）、user_fingerprint（某用户全部行的摘要，判断“数据未变”）；都可传入一个之后回滚的连接。
   - full_user.py：fill_every_table 经真实接口把一个用户的全部业务表都填上至少一行（每处文字带 marker，医嘱原件与照片都大于 1 MB），返回以路径参数名为键的编号，外加 grant_token；新增带 user_id 的表时要在这里补一步，否则 test_cascade_guard.py 失败。
@@ -33,4 +34,4 @@
 - 测试名用英文蛇形命名；断言要真的检查行为，不写恒真断言，不用固定 sleep 等待。
 - 不把 -W error 下出现的警告压掉了事；先找出警告的来源。
 - 文档核对测试引用的测试名要与文件里逐字一致；移动或改名测试时同步改交付文档里的引用。
-- 每个测试文件不超过 800 行；现有的 test_agent_loop.py 与 test_nutrition_engine.py 超出，由步骤 12 任务 10 拆分，拆之前不要再往里加测试。
+- 每个测试文件不超过 800 行；test_agent_loop.py 与 test_nutrition_engine.py 已拆出 test_agent_loop_history.py 与 test_nutrition_engine_real.py（共用部分在 agent_loop_support.py），由 test_engineering_rules.py 守护。

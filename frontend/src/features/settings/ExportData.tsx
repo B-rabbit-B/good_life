@@ -78,7 +78,7 @@ export function ExportData() {
         key={host.nonce}
         isOpen={host.open} onClose={close} title="导出我的数据"
         will={[
-          { text: '下载一个压缩包：档案、经期、医嘱、饮食、训练、对话、拍照识别、模型服务、授权与同意记录各一份数据文件，医嘱原件与保留的照片，以及一份中文说明。' },
+          { text: '下载一个压缩包：账号、档案、经期、医嘱、饮食、训练、对话、偏好与开场记录、拍照识别、模型服务、外部授权、餐厅设置、免责与同意记录各一份数据文件，医嘱原件与保留的照片，以及一份中文说明。' },
           { text: '模型服务的密钥只含掩码，不导出原文；也不含你的密码。' },
         ]}
         confirmLabel="导出并下载" confirmDisabled={password === ''} onConfirm={onConfirm} error={wrongPassword ? null : error}

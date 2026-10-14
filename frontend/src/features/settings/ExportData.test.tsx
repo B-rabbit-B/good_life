@@ -43,6 +43,15 @@ beforeAll(async () => {
 }, 60_000)
 
 describe('export data', { timeout: 15_000 }, () => {
+  it('lists every kind of data the archive holds, matching the thirteen files the backend exports', async () => {
+    const user = userEvent.setup()
+    renderExport()
+    const dialog = await openSheet(user)
+    for (const kind of ['账号', '偏好与开场记录', '餐厅设置', '免责与同意记录']) {
+      expect(within(dialog).getByText(kind, { exact: false }), kind).toBeInTheDocument()
+    }
+  })
+
   it('asks for the password before exporting', async () => {
     const user = userEvent.setup()
     const { account } = renderExport()

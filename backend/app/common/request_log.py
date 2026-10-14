@@ -71,18 +71,21 @@ class RequestLogMiddleware:
                 status = message["status"]
             await send(message)
 
+        failed: str | None = None
         try:
-            await self.app(scope, receive, recording_send)
-        except Exception as exc:  # 未处理的异常到此为止，不再抛给服务器；只记类名
-            logger.error("未处理的异常：%s %s %s", type(exc).__name__, scope["method"],
-                         route_template(self.fastapi_app, scope))
-            if status is None:
-                status = 500
-                await send({"type": "http.response.start", "status": 500, "headers": [
-                    (b"content-type", b"application/json"),
-                    (b"content-length", str(len(_INTERNAL_ERROR)).encode()),
-                ]})
-                await send({"type": "http.response.body", "body": _INTERNAL_ERROR})
+            try:
+                await self.app(scope, receive, recording_send)
+            except Exception as exc:  # 未处理的异常到此为止，不再抛给服务器；这里只置标志，日志与响应都在 except 之外
+                failed = type(exc).__name__
+            if failed is not None:
+                logger.error("未处理的异常：%s %s %s", failed, scope["method"], route_template(self.fastapi_app, scope))
+                if status is None:
+                    status = 500
+                    await send({"type": "http.response.start", "status": 500, "headers": [
+                        (b"content-type", b"application/json"),
+                        (b"content-length", str(len(_INTERNAL_ERROR)).encode()),
+                    ]})
+                    await send({"type": "http.response.body", "body": _INTERNAL_ERROR})
         finally:
             access_logger.info("%s %s %s", scope["method"], route_template(self.fastapi_app, scope),
                                status if status is not None else "-")
@@ -94,9 +97,10 @@ class _DropAll(logging.Filter):
 
 
 def install_log_hygiene() -> None:
-    """幂等：丢弃 uvicorn.access 的全部记录；把 sqlalchemy 的引擎与连接池记录器钉在 WARNING（DEBUG 时会记结果行）。"""
+    """幂等：丢弃 uvicorn.access 的全部记录；把 sqlalchemy 的引擎与连接池记录器、PIL 记录器钉在 WARNING
+    （sqlalchemy 在 DEBUG 时记结果行，Pillow 在 DEBUG 时记 EXIF 标签与值）。"""
     uvicorn_access = logging.getLogger("uvicorn.access")
     if not any(isinstance(item, _DropAll) for item in uvicorn_access.filters):
         uvicorn_access.addFilter(_DropAll())
-    for name in ("sqlalchemy.engine", "sqlalchemy.pool"):
+    for name in ("sqlalchemy.engine", "sqlalchemy.pool", "PIL"):
         logging.getLogger(name).setLevel(logging.WARNING)

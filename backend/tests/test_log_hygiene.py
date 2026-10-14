@@ -4,19 +4,24 @@
 它不是被测对象，断言前去掉；全部日志出口的真实服务器测试见 test_log_canaries.py。
 """
 
+import io
 import logging
 import re
+import sys
 from datetime import date
 
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
+from PIL import Image
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 
 from app.common.clock import get_today
 from app.common.request_log import ACCESS_LOGGER, UNMATCHED, route_template
 from app.main import create_app
+from app.photos.images import prepare_image
 from app.sdk import AgentGrantToken, GoodLife, SdkError
 from app.sdk.registry import Capability, NoParams, build_registry
 from tests.helpers import ready_user
@@ -187,3 +192,85 @@ def test_sqlalchemy_logs_stay_quiet_under_debug_root(client, debug_log):
     assert logging.getLogger().isEnabledFor(logging.DEBUG)
     assert [record for record in debug_log.records if record.name.startswith("sqlalchemy")] == []
     assert PERIOD_DATE not in _app_text(debug_log)
+
+
+class _PgError(Exception):
+    """模拟数据库驱动抛出的错误：只带 sqlstate 与约束名（文字里带键值，必须不出现在日志与响应里）。"""
+
+    def __init__(self, sqlstate: str, constraint: str | None):
+        super().__init__(f"Key (start_date)=({PERIOD_DATE}) {CANARY}")
+        self.sqlstate = sqlstate
+        self.diag = type("Diag", (), {"constraint_name": constraint})()
+
+
+def _integrity_route(app: FastAPI, path: str, sqlstate: str, constraint: str | None) -> None:
+    @app.get(path)
+    def fail() -> dict[str, str]:
+        raise IntegrityError("INSERT ...", {}, _PgError(sqlstate, constraint))
+
+
+def test_only_unique_violations_become_409_other_integrity_errors_are_500(debug_log):
+    app = create_app()
+    _integrity_route(app, "/api/_test/unique", "23505", "uq_test")
+    _integrity_route(app, "/api/_test/not-null", "23502", "nn_test")
+    with TestClient(app) as client:
+        unique = client.get("/api/_test/unique")
+        not_null = client.get("/api/_test/not-null")
+    assert unique.status_code == 409
+    assert not_null.status_code == 500 and not_null.json() == INTERNAL
+    assert "未处理的异常：IntegrityError GET /api/_test/not-null" in [
+        record.getMessage() for record in debug_log.records if record.levelno >= logging.ERROR]
+    text = _app_text(debug_log)
+    assert CANARY not in text and PERIOD_DATE not in text and "nn_test" not in text and not_null.text.count(CANARY) == 0
+
+
+@pytest.mark.anyio
+async def test_error_response_and_access_log_are_written_outside_the_except_block():
+    app = create_app()
+
+    @app.get("/api/_test/boom")
+    def boom() -> dict[str, str]:
+        raise RuntimeError(CANARY)
+
+    seen: dict[str, list[BaseException | None]] = {"send": [], "access": []}
+
+    class Probe(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            seen["access"].append(sys.exception())
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        seen["send"].append(sys.exception())
+
+    probe, access = Probe(), logging.getLogger(ACCESS_LOGGER)
+    access.addHandler(probe)
+    previous = access.level
+    access.setLevel(logging.INFO)
+    scope = {"type": "http", "method": "GET", "path": "/api/_test/boom", "raw_path": b"/api/_test/boom",
+             "query_string": b"", "headers": [], "scheme": "http", "server": ("testserver", 80),
+             "client": ("127.0.0.1", 1), "http_version": "1.1", "root_path": "", "app": app}
+    try:
+        await app(scope, receive, send)
+    finally:
+        access.removeHandler(probe)
+        access.setLevel(previous)
+    assert len(seen["send"]) == 2 and len(seen["access"]) == 1
+    assert seen["send"] + seen["access"] == [None, None, None]
+
+
+def test_pillow_debug_records_never_carry_exif_values(debug_log):
+    exif = Image.Exif()
+    exif[270] = "canary-exif-desc-77"
+    exif[274] = 6
+    gps = exif.get_ifd(0x8825)
+    gps[1], gps[2] = "N", (39.123456, 54.0, 27.0)
+    buffer = io.BytesIO()
+    Image.new("RGB", (100, 80), (200, 120, 40)).save(buffer, format="JPEG", exif=exif)
+    content = buffer.getvalue()
+    debug_log.clear()
+    prepare_image(content)
+    assert [record for record in debug_log.records if record.name.startswith("PIL")] == []
+    text = _app_text(debug_log)
+    assert "canary-exif-desc-77" not in text and "39.123456" not in text

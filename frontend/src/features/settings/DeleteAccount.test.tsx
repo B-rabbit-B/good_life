@@ -29,6 +29,15 @@ beforeAll(async () => {
 }, 60_000)
 
 describe('delete account', { timeout: 15_000 }, () => {
+  it('lists every kind of data that is deleted', async () => {
+    const user = userEvent.setup()
+    renderDelete()
+    const dialog = await openSheet(user)
+    for (const kind of ['偏好与开场记录', '餐厅设置', '同意记录']) {
+      expect(within(dialog).getByText(kind, { exact: false }), kind).toBeInTheDocument()
+    }
+  })
+
   it('keeps delete disabled until the password and the acknowledgement are given', async () => {
     const user = userEvent.setup()
     const { account } = renderDelete()

@@ -158,7 +158,7 @@ describe('me page', () => {
     queryClient.setQueryData(['medical', 'reviews'], [])
     queryClient.setQueryData(['medical', 'constraints', 'exercise_limit'], { constraints: [] })
     queryClient.setQueryData(['fitness', 'workouts', '2026-10-08', '2026-10-14'], [])
-    queryClient.setQueryData(['agent', 'opening'], { opening: null })
+    queryClient.setQueryData(['agent', 'opening'], { opening: { id: 'o1', kind: 'review_due', question: '医嘱“忌食辛辣”要不要现在看看？' } })
 
     // 继续使用：只关闭面板，不撤回
     await user.click(within(medicalRow()).getByRole('button', { name: '撤回' }))
@@ -182,11 +182,11 @@ describe('me page', () => {
     await waitFor(() => expect(medicalRow()).toHaveTextContent('未同意'))
     expect(within(medicalRow()).queryByRole('button', { name: '撤回' })).not.toBeInTheDocument()
     expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('已同意（2026-10-02）')
-    // 医嘱的缓存随撤回清掉，不再显示旧的待处理条目；运动限制、训练冲突与开场问候（可能带医嘱原文）同样丢掉
+    // 医嘱的缓存随撤回清掉，不再显示旧的待处理条目；运动限制、训练冲突丢掉，开场问候（可能带医嘱原文）改成没有开场（不丢掉，免得对话页重新请求、后端再生成一张卡片）
     expect(queryClient.getQueryData(['medical', 'reviews'])).toBeUndefined()
     expect(queryClient.getQueryData(['medical', 'constraints', 'exercise_limit'])).toBeUndefined()
     expect(queryClient.getQueryData(['fitness', 'workouts', '2026-10-08', '2026-10-14'])).toBeUndefined()
-    expect(queryClient.getQueryData(['agent', 'opening'])).toBeUndefined()
+    expect(queryClient.getQueryData(['agent', 'opening'])).toEqual({ opening: null })
   })
 
   it('covers the consent rows but not their heading', async () => {

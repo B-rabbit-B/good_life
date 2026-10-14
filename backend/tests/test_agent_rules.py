@@ -502,6 +502,16 @@ def test_active_orders_are_listed_one_by_one(client):
     _assert_never_user_confirmed(ctx)
 
 
+def test_resolution_clue_without_medical_consent_points_to_starting_the_module(client):
+    ready_user(client, "mona", {"gender": "male"}, consents=False)
+    ctx = _context("mona")
+    assert "medical" in ctx.not_consented
+    prompt = build_system_prompt(ctx, resolution_clue=True)
+    assert "先引导用户开始使用医嘱模块" in prompt
+    assert "medical_propose_resolution" not in prompt
+    assert not any(name.startswith("medical_") for name in _names(ctx))
+
+
 def test_prompt_core_sections_and_preferences(client):
     headers = ready_user(client, "ivy", {"gender": "male", "birth_year": 1990, "height_cm": 175, "weight_kg": 70,
                                         "activity_level": "moderate"})

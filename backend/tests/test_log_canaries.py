@@ -35,9 +35,10 @@ LOG_DATE = "2023-02-17"
 MODEL_KEY = "sk-canary-model-9b2e4f7a1c"
 PASSWORD = "canary-pass-6a3d9e"
 LNG, LAT = "116.471357", "39.918264"
-PLACE = "金丝雀胡同七号院"
+PLACE_MARK = "canary-place-3c8a"
+PLACE = f"金丝雀胡同七号院 {PLACE_MARK}"
 FIXED_CANARIES = (ORDER_TEXT, "榴莲酥", "canary-order-5d1c", PERIOD_START, AGENT_PERIOD, LOG_DATE, MODEL_KEY,
-                  PASSWORD, LNG, LAT, PLACE, quote(PLACE), KEY)
+                  PASSWORD, LNG, LAT, PLACE, PLACE_MARK, quote(PLACE), KEY)
 PATHS = ("normal", "error", "validation", "conflict")
 
 

@@ -22,11 +22,11 @@ export function networkError(): ApiError {
 }
 
 /**
- * 把捕获到的任何东西变成 ApiError 交给界面：ApiError 原样返回；fetch 被拒绝（TypeError）给网络错误；
- * 其余给 unknown_error（说明用中文，不显示原始异常文字）。
+ * 把捕获到的任何东西变成 ApiError 交给界面：ApiError 原样返回；其余给 unknown_error（说明用中文，不显示原始异常文字）。
+ * 网络失败由看见 fetch 被拒绝的调用处（client.ts、sse.ts、upload.ts）显式产生 networkError，这里不按异常类型猜：
+ * 任何 TypeError（包括程序错误）都会被当成断网，用户会白白重试。
  */
 export function asApiError(caught: unknown): ApiError {
   if (caught instanceof ApiError) return caught
-  if (caught instanceof TypeError) return networkError()
   return new ApiError(0, 'unknown_error', UNKNOWN_MESSAGE)
 }

@@ -51,7 +51,7 @@ export function useGrantConsent() {
 
 /**
  * 撤回：后端在同一个事务里清除该模块的全部数据并关闭模块。成功后先重新取同意状态（模块的查询随之停用），
- * 再按失效表把该域与跟着变的缓存、开场问候整个丢掉（见 invalidation.ts 的 discardDomain）。
+ * 再按失效表把该域与跟着变的缓存丢掉、已取过的开场问候改成“没有开场”（见 invalidation.ts 的 discardDomain）。
  */
 export function useWithdrawConsent() {
   const queryClient = useQueryClient()

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
 import { api, apiBlob } from '../client'
-import { invalidateRecognitionRecords } from '../invalidation'
+import { invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
 import type { PhotoItemIn, RecognitionOut, RecognitionSummaryOut } from '../types'
 import type { MealType } from '../../lib/labels'
@@ -45,20 +45,15 @@ export function useUpdateRecognitionItems(id: string) {
   })
 }
 
-/** 确认入库：写入那一天的饮食记录，所以那一天的汇总与记录也要重新取 */
+/** 确认入库：写入饮食记录，按饮食域失效（各日期的汇总与记录、识别记录；返回的这一条已写进缓存，不重取） */
 export function useConfirmRecognition(id: string) {
   const store = useStoreRecognition(id)
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (body: { eaten_on: string; meal_type: MealType }) =>
       api<RecognitionOut>(`${base}/${id}/confirm`, { method: 'POST', json: body }),
-    onSuccess: async (record, { eaten_on }) => {
-      await Promise.all([
-        store(record),
-        invalidateRecognitionRecords(queryClient, record.id),
-        queryClient.invalidateQueries({ queryKey: qk.summary(eaten_on) }),
-        queryClient.invalidateQueries({ queryKey: qk.meals(eaten_on) }),
-      ])
+    onSuccess: async (record) => {
+      await Promise.all([store(record), invalidateDomain(queryClient, 'nutrition', { recognition: record.id })])
     },
   })
 }

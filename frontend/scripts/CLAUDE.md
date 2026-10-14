@@ -19,5 +19,5 @@
 ## 禁区
 - 不放宽 check-budget.mjs 的上限来让构建通过；超了就减小对话路由的代码或改成按需加载。
 - 不提交 .font-cache、dist、dist-e2e；字体许可证全文在 public/fonts/OFL.txt，生成的子集不能用保留字体名。
-- 步骤 12 任务 10 要给 subset-fonts.mjs 调用的 fonttools 钉确切版本；在那之前改字体脚本先确认缓存里的版本。
+- subset-fonts.mjs 调用的 fonttools 已钉确切版本 4.66.1（src/test/deps.test.ts 守护）；换版本前先核对子集结果，并同步依赖许可证文档。
 - 字体源文件由用户本人准备；uv 取 fonttools 时缓存里没有就会联网下载，Claude 运行前先报告文件名、来源与大小并等用户同意。

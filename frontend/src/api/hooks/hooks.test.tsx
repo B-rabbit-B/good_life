@@ -17,7 +17,7 @@ import { useLogout } from '../../app/useLogout'
 import { useLogin, useMe } from './auth'
 import { useConsents, useModuleConsent, useModuleReady } from './consents'
 import { useMedicalItems, useMedicalReviews } from './medical'
-import { useCapabilities, useUpdateProfile } from './profile'
+import { useCapabilities, useProfile, useUpdateProfile } from './profile'
 
 const handle: RouteHandle = { nav: 'none', sensitive: false }
 
@@ -56,6 +56,28 @@ describe('auth and profile hooks', () => {
     expect(queryClient.getQueryData(qk.capabilities)).toMatchObject({ cycle: false })
     await waitFor(() => expect(result.current.caps.data?.cycle).toBe(false))
     expect(queryClient.getQueryData(qk.profile)).toMatchObject({ gender: 'male' })
+  })
+
+  it('refreshes the profile once after an update', async () => {
+    setToken(TEST_TOKEN)
+    let profileReads = 0
+    server.use(
+      http.get('/api/profile', () => {
+        profileReads += 1
+        return HttpResponse.json(completeProfile({ gender: 'male' }))
+      }),
+      http.patch('/api/profile', () => HttpResponse.json(completeProfile({ gender: 'male' }))),
+    )
+    const { wrapper } = withClient()
+    const { result } = renderHook(() => ({ profile: useProfile(), update: useUpdateProfile() }), { wrapper })
+    await waitFor(() => expect(result.current.profile.data?.gender).toBe('male'))
+    expect(profileReads).toBe(1)
+    await act(async () => {
+      await result.current.update.mutateAsync({ gender: 'male' })
+    })
+    await waitFor(() => expect(result.current.profile.isFetching).toBe(false))
+    // 修改的响应本身就是新档案：已经写进缓存，不需要再请求；只有一次是第一次读取
+    expect(profileReads).toBe(1)
   })
 
   it('logs out to login without the expired notice even when the token was revoked', async () => {

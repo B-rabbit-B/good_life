@@ -9,7 +9,7 @@
 
 ## 边界
 - 每个文件不超过 800 行（生成的 schema.d.ts、openapi.json、manifest.json 与数据文件除外）；快到上限就按职责拆。
-- 依赖只能从上层指向下层：后端分层表见 backend/CLAUDE.md（任务 10 起由 test_import_boundaries.py 守护），前端由 frontend/src/test/boundaries.test.ts 守护；只有登记过原因的例外可以反向。
+- 依赖只能从上层指向下层：后端分层表见 backend/CLAUDE.md（由 test_import_boundaries.py 守护），前端由 frontend/src/test/boundaries.test.ts 守护；只有登记过原因的例外可以反向。
 - 前后端只靠生成的类型对接；前端写死的只有标签映射、流程文案和集中在 frontend/src/lib/contract.ts 的后端文案副本（后端测试逐字核对）。
 - “绝不能出错”的规则不只写在代码里：同时写进交付文档并有测试守护（医嘱确认只能本人、风险话题固定回复、密钥只存密文、别人的数据与不存在一样 404）。
 - 模型输出要有第二来源或人工兜底，并留审核入口：医嘱提取只产出待确认条目；看图只认菜名与克数，热量营养由营养库算；智能体回答经输出检查，依据只来自营养引擎；SDK 每次调用记审计。

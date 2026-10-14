@@ -15,7 +15,7 @@
 ## 入口
 - 路由：/api/nutrition 下的 foods/search、foods/{id}、tags、meals、summary、needs、evaluate、evaluate-meal（router.py）。
 - 演示数据：uv run python -m app.nutrition.demo。数据文件在 data/，标签与词汇表加载时校验引用。
-- 测试：tests/test_nutrition_engine.py、test_nutrition_catalog.py、test_nutrition_data.py、test_nutrition_meals.py、test_nutrition_needs.py、test_nutrition_evaluate.py、test_nutrition_training.py、test_nutrition_raw_cold.py、test_nutrition_demo.py、test_nutrition_docs.py。
+- 测试：tests/test_nutrition_engine.py、test_nutrition_engine_real.py（真实营养库的回归，沿用前者的夹具）、test_nutrition_catalog.py、test_nutrition_data.py、test_nutrition_meals.py、test_nutrition_needs.py、test_nutrition_evaluate.py、test_nutrition_training.py、test_nutrition_raw_cold.py、test_nutrition_demo.py、test_nutrition_docs.py。
 
 ## 禁区
 - 引擎不读数据库、时间或随机数；需要的东西都由 context.py 准备后传入。

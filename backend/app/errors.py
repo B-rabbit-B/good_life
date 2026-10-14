@@ -23,6 +23,8 @@ class AppError(Exception):
         self.message = message
 
 
+UNIQUE_VIOLATION = "23505"  # PostgreSQL 的 unique_violation
+
 VALIDATION_FALLBACK = "输入内容不符合要求，请检查后重试"
 
 _CJK = re.compile(r"[一-鿿]")
@@ -134,9 +136,12 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(IntegrityError)
     async def handle_integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
+        orig = getattr(exc, "orig", None)
+        if getattr(orig, "sqlstate", None) != UNIQUE_VIOLATION:
+            # 非唯一约束的冲突（非空、外键、检查约束）是程序错误：按未处理的异常记类名，返回 500。
+            raise exc
         # 并发写入撞上唯一约束：异常文字带数据库的 DETAIL（键值原样出现），只记约束名。
-        diag = getattr(getattr(exc, "orig", None), "diag", None)
-        constraint = getattr(diag, "constraint_name", None) or "unknown"
+        constraint = getattr(getattr(orig, "diag", None), "constraint_name", None) or "unknown"
         logger.warning("数据冲突：%s %s（%s）", request.method, route_template(request.app, request.scope), constraint)
         return JSONResponse(status_code=409, content=_body("conflict", "数据刚刚被修改过，请刷新后重试"))
 

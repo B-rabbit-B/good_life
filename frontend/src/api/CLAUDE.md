@@ -11,14 +11,14 @@
 ## 边界
 - 依赖：只引用 lib 与自己；不引用 app、components、features（test/boundaries.test.ts 守护）。
 - 被引用：app、components（只取 ApiError 类型等）、features、test。
-- hooks/consents.ts 是单独同意（状态、同意、撤回）与 useModuleReady（能力清单开放且已同意）；经期与医嘱的读取查询都以它为 enabled，未同意时不发请求（后端会回 403 consent_required）。撤回成功后用 invalidation.ts 的 discardDomain 把该域、跟着变的查询与开场问候整个丢掉（停用的查询仍交出旧数据，只失效的话对话页、运动限制条会显示已清除的内容）。任何请求回 403 consent_required 时，查询客户端的统一出错处理（app/queryClient.ts 的 consentCaches，调用 invalidation.ts 的 refreshConsentsOnRequired）重新读取同意状态，页面回到同意面板。
+- hooks/consents.ts 是单独同意（状态、同意、撤回）与 useModuleReady（能力清单开放且已同意）；经期与医嘱的读取查询都以它为 enabled，未同意时不发请求（后端会回 403 consent_required）。撤回成功后用 invalidation.ts 的 discardDomain 把该域与跟着变的查询丢掉、已取过的开场问候改成“没有开场”（不丢掉：重新取会让后端再生成一张卡片；停用的查询仍交出旧数据，只失效的话对话页、运动限制条会显示已清除的内容）。任何请求回 403 consent_required 时，查询客户端的统一出错处理（app/queryClient.ts 的 consentCaches，调用 invalidation.ts 的 refreshConsentsOnRequired）重新读取同意状态，页面回到同意面板。
 - hooks/account.ts 是数据可控（导出、删除账号的请求、清空全部对话），只有隐私与数据页用；导出与删除的请求体有密码，变更 gcTime 0、页面每次提交后 reset。清空对话成功后用 invalidation.ts 的 discardConversations 丢掉会话缓存，今天已取过的开场改成“没有开场”（不失效：重新取会让后端再生成一张卡片、再调一次模型）。删除账号成功后的清理不在这里，见 app/useDeleteAccount.ts。
 - hooks/ 按模块分文件；只有医嘱页用的钩子放 hooks/medicalPage.ts，对话页也用的放 hooks/medical.ts，免得医嘱页的代码进对话页首屏（vite.config.ts 的 common 分组也按这个分）。
 
 ## 入口
 - 页面要读写后端：用 hooks/ 下对应模块的钩子；没有就在该模块的钩子文件里加（只有医嘱页用的放 medicalPage.ts），查询键加在 keys.ts。
-- 普通 JSON 请求：经 client.ts；流式对话：经 sse.ts；带进度的上传：经 upload.ts；三者错误与 401 处理一致，不另写 fetch。
-- 写操作成功后要刷新别的页面：调用 invalidation.ts 的 invalidateDomain，改依赖关系就改那张表。
+- 普通 JSON 请求：经 client.ts；流式对话：经 sse.ts；带进度的上传：经 upload.ts；三者错误与 401 处理一致，不另写 fetch。网络失败只由看见 fetch 被拒绝的这三处显式产生 networkError；errors.ts 的 asApiError 不按异常类型猜（任何 TypeError 都当成断网会掩盖程序错误），其余一律给 unknown_error。
+- 写操作成功后要刷新别的页面：调用 invalidation.ts 的 invalidateDomain，改依赖关系就改那张表。写操作的响应已经写进缓存的那一条（修改档案返回的新档案、确认识别返回的记录）用第三个参数告诉它不要重取。
 - 需要接口类型：从 types.ts 取别名，没有就在那里按生成的 schema 加一个。
 - 生成：在 frontend 运行 pnpm api:gen，提交 openapi.json 与 schema.d.ts；schema.test.ts 检查生成结果是最新的。
 - 测试：client.test.ts、errors.test.ts、sse.test.ts、upload.test.ts、keys.test.ts、invalidation.test.ts、hooks/hooks.test.tsx、hooks/domainInvalidation.test.tsx、itemContext/dueReason.test.ts。
