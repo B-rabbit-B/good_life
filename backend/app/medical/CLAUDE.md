@@ -6,9 +6,10 @@
 - 生效中与待复核的条目都是硬约束（HARD_CONSTRAINT_STATUSES）：待复核期间、用户确认解除之前仍按原要求执行。
 
 ## 边界
-- 依赖：auth、common、db、disclaimer、errors、profile、security。不引用 llm：提取至今是规则提取器（get_extractor），接模型提取时也只能产出待确认条目。
+- 依赖：auth、common、consents、db、disclaimer、errors、profile、security。不引用 llm：提取至今是规则提取器（get_extractor），接模型提取时也只能产出待确认条目。
 - 被引用：fitness（运动限制冲突）、nutrition（忌口是硬约束）、restaurants、sdk 的 medical 能力、agent；common/body_limit.py 只取 MAX_EVIDENCE_BYTES。
-- 门槛：deps.require_medical_user（免责 → 模块开放 → 每次请求前刷新到期状态）；sdk 复用它。步骤 12 起这里还要加单独同意的检查（任务 3a）。
+- 门槛：deps.require_medical_user（免责 → 模块开放 → 单独同意，403 consent_required → 每次请求前刷新到期状态）；sdk 复用它。
+- 撤回医嘱同意时，account 包删除本人的全部医嘱单，原件、条目与事件随外键级联删除；新增不挂在医嘱单下的医嘱表要同步改 account/clearing.py。
 
 ## 入口
 - 路由：/api/medical 下的 orders、orders/{id}/items、orders/{id}/evidence、evidence/{id}、items 与 items/{id} 的 confirm、void、continue、propose-resolution、cancel-proposal、resolve、events，以及 events、constraints、reviews（router.py）。

@@ -68,7 +68,7 @@ uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_
 uv run alembic upgrade head
 ```
 
-该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）以及 `custom_exercises`、`workouts`、`strength_sets`、`cardio_entries`（步骤 05 健身模块）以及 `agent_grants`、`sdk_call_audits`（步骤 06 的智能体授权与调用审计）以及 `llm_providers`、`llm_models`、`llm_assignments`（步骤 07 的模型服务、模型与用途分配）以及 `agent_conversations`、`agent_messages`、`agent_preferences`、`agent_openings`、`agent_settings`（步骤 08 的智能体会话、消息、偏好、开场记录与设置）以及 `photo_recognitions`（步骤 09 的拍照识别记录）以及 `restaurant_settings`（步骤 10 的附近餐厅设置）共二十八张表。营养库与内置动作库都不入数据库，随程序从数据文件加载。
+该命令按迁移脚本在开发库 `goodlife` 中创建 `users`、`disclaimer_acceptances`、`profiles`、`profile_changes`（步骤 01）和 `cycle_periods`、`cycle_day_logs`、`cycle_settings`（步骤 02 经期模块）以及 `medical_orders`、`medical_evidence`、`medical_items`、`medical_item_events`（步骤 03 医嘱模块）以及 `meal_entries`（步骤 04 饮食记录）以及 `custom_exercises`、`workouts`、`strength_sets`、`cardio_entries`（步骤 05 健身模块）以及 `agent_grants`、`sdk_call_audits`（步骤 06 的智能体授权与调用审计）以及 `llm_providers`、`llm_models`、`llm_assignments`（步骤 07 的模型服务、模型与用途分配）以及 `agent_conversations`、`agent_messages`、`agent_preferences`、`agent_openings`、`agent_settings`（步骤 08 的智能体会话、消息、偏好、开场记录与设置）以及 `photo_recognitions`（步骤 09 的拍照识别记录）以及 `restaurant_settings`（步骤 10 的附近餐厅设置）以及 `sensitive_consents`（步骤 12 的经期与医嘱单独同意）共二十九张表。营养库与内置动作库都不入数据库，随程序从数据文件加载。
 
 ## 6. 运行测试
 

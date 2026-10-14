@@ -1,5 +1,25 @@
 // 由 pnpm api:gen 生成，不要手改
 export interface paths {
+    "/api/account/consents/{kind}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw Consent
+         * @description 撤回单独同意：同一个事务里清除该模块的全部数据并记下撤回时间，模块随即关闭。
+         */
+        post: operations["withdraw_consent_api_account_consents__kind__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent-grants": {
         parameters: {
             query?: never;
@@ -279,6 +299,40 @@ export interface paths {
         put?: never;
         /** Register */
         post: operations["register_api_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Consents */
+        get: operations["list_consents_api_consents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/consents/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grant Consent */
+        post: operations["grant_consent_api_consents__kind__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1981,6 +2035,11 @@ export interface components {
             /** Sample Models */
             sample_models: string[];
         };
+        /** ConsentGrant */
+        ConsentGrant: {
+            /** Version */
+            version: string;
+        };
         /** ConsentIn */
         ConsentIn: {
             /**
@@ -1988,6 +2047,28 @@ export interface components {
              * @enum {string}
              */
             consent: "granted" | "denied";
+        };
+        /** ConsentOut */
+        ConsentOut: {
+            /** Current Version */
+            current_version: string;
+            /** Granted */
+            granted: boolean;
+            /** Granted At */
+            granted_at: string | null;
+            /** Granted Version */
+            granted_version: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cycle" | "medical";
+            /** Text */
+            text: string;
+            /** Title */
+            title: string;
+            /** Withdrawn At */
+            withdrawn_at: string | null;
         };
         /** ConstraintOut */
         ConstraintOut: {
@@ -4011,6 +4092,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    withdraw_consent_api_account_consents__kind__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "cycle" | "medical";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_grants_api_agent_grants_get: {
         parameters: {
             query?: never;
@@ -4577,6 +4687,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_consents_api_consents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentOut"][];
+                };
+            };
+        };
+    };
+    grant_consent_api_consents__kind__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "cycle" | "medical";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsentGrant"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentOut"];
                 };
             };
             /** @description Validation Error */

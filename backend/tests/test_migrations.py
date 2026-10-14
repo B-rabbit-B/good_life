@@ -46,3 +46,20 @@ def test_status_encryption_migration_converts_existing_rows():
         assert _status_of(user_id) == "pregnant"
     finally:
         command.upgrade(cfg, "head")
+
+
+def _has_table(name: str) -> bool:
+    with get_engine().connect() as conn:
+        return conn.execute(text("SELECT to_regclass(:name) IS NOT NULL"), {"name": name}).scalar_one()
+
+
+def test_consent_migration_downgrades_and_upgrades():
+    cfg = Config(str(BACKEND_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
+    assert _has_table("sensitive_consents")
+    command.downgrade(cfg, "0016_restaurants")
+    try:
+        assert not _has_table("sensitive_consents")
+    finally:
+        command.upgrade(cfg, "head")
+    assert _has_table("sensitive_consents")

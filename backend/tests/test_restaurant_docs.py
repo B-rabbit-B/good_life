@@ -99,7 +99,8 @@ def test_criteria_1_and_2_depend_on_the_users_live_run_and_the_others_do_not():
 
 def test_acceptance_record_counts_match_the_code():
     record = _read("验收记录.md")
-    assert len(Base.metadata.tables) == 28  # 二十八张表按实际的模型数出来，不只看文档
+    # 二十八张表按实际的模型数出来，不只看文档；步骤 12 新增的 sensitive_consents 不算在步骤 10 的记录里
+    assert len(set(Base.metadata.tables) - {"sensitive_consents"}) == 28
     assert "迁移版本到 0016" in record and "共二十八张表" in record and RestaurantSettings.__tablename__ in record
     assert f"新增 {len(_routes())} 个接口" in record
     assert f"共 {len(REGISTRY)} 项能力" in record and f"{len(exposed_capabilities(REGISTRY))} 个工具" in record
@@ -215,7 +216,7 @@ def test_scenario_record_lists_the_live_scenarios_and_waits_for_the_user():
 def test_readme_and_overview_record_step_10_status():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "## 20. 附近餐厅推荐" in readme and "### 运行附近餐厅实测脚本" in readme
-    assert "共二十八张表" in readme and RestaurantSettings.__tablename__ in readme
+    assert "共二十九张表" in readme and RestaurantSettings.__tablename__ in readme
     assert "uv run python -m app.restaurants.live_check" in readme and "restaurant_live_result.md" in readme
     assert "AMAP_KEY" in readme and "步骤 10" in readme.split("定位声明")[0]
     overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8")

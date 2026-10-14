@@ -18,6 +18,7 @@ from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES
 from app.agent.schemas import MAX_MESSAGE_CHARS
 from app.auth import service as auth_service
 from app.common.age import MIN_AGE
+from app.consents import deps as consent_deps
 from app.cycle.schemas import DayLogIn
 from app.disclaimer import deps as disclaimer_deps
 from app.errors import AppError
@@ -105,6 +106,7 @@ ERROR_CODES = {
     "AGENT_MODEL_NOT_CONFIGURED": ("agent_model_not_configured", 409, agent_loop),
     "DISCLAIMER_NOT_ACCEPTED": ("disclaimer_not_accepted", 403, disclaimer_deps),
     "RESTAURANT_LOCATION_NOT_GRANTED": ("restaurant_location_not_granted", 409, restaurant_service),
+    "CONSENT_REQUIRED": ("consent_required", 403, consent_deps),
 }
 
 

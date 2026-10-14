@@ -127,7 +127,7 @@ def request(base_url: str, method: str, path: str, body: Any = None,
 
 
 def prepare_user(base_url: str, username: str, password: str) -> dict[str, str]:
-    """注册、登录、确认免责声明，返回带登录令牌的请求头。"""
+    """注册、登录、确认免责声明并给出经期与医嘱两项单独同意，返回带登录令牌的请求头。"""
     status, body = request(base_url, "POST", "/api/auth/register",
                            {"username": username, "password": password, "age_confirmed": True})
     assert status == 201, body
@@ -138,4 +138,10 @@ def prepare_user(base_url: str, username: str, password: str) -> dict[str, str]:
     assert status == 200, body
     status, body = request(base_url, "POST", "/api/disclaimer/accept", {"version": body["version"]}, headers)
     assert status == 200, body
+    status, body = request(base_url, "GET", "/api/consents", None, headers)
+    assert status == 200, body
+    for consent in body:
+        status, granted = request(base_url, "POST", f"/api/consents/{consent['kind']}",
+                                  {"version": consent["current_version"]}, headers)
+        assert status == 200, granted
     return headers

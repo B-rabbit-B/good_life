@@ -4,10 +4,10 @@
 - 后端全部自动化测试（pytest）：单元、接口、交叉用户、迁移、文档核对（各步骤的 *_docs.py 核对交付文档与代码一致）、前端契约（test_frontend_contract.py 逐字核对 frontend/src/lib/contract.ts）、接口快照（test_openapi_snapshot.py）与目录说明书（test_directory_manuals.py）。
 - 夹具与助手：
   - conftest.py：导入 app 之前把数据库固定成测试库 goodlife_test、换上固定的测试密钥并放开模型服务的内网地址；会话开始迁移到最新；每个测试结束清空全部表；client 夹具是全新的 TestClient。
-  - helpers.py：register_and_login、accept_disclaimer、ready_user（注册、登录、确认免责，可选写档案）；任务 3a 起 ready_user 默认同时给出经期与医嘱两项单独同意，需要未同意状态时显式传 consents=False。
+  - helpers.py：register_and_login、accept_disclaimer、grant_consents、ready_user（注册、登录、确认免责，默认同时给出经期与医嘱两项单独同意，可选写档案）；需要未同意状态时显式传 consents=False，之后可用 grant_consents 只给出其中一项。
   - agent_fake.py：基于 MockTransport 的脚本化模拟模型（say、call、echo、fail），scripted 夹具替换适配器工厂，connect 为用户配好对话模型。
   - amap_fake.py：模拟高德（FakeAmap，固定的一组店）与 fake 夹具；不经 client 夹具时直接用 FakeAmap 加 use_transport。
-  - live_server.py：LiveServer 在线程里起真实的 uvicorn 服务器，把全部日志出口调到 DEBUG 并抓取格式化文本（含堆栈）；request 用标准库 urllib 发请求（它不写日志），prepare_user 注册、登录并确认免责。
+  - live_server.py：LiveServer 在线程里起真实的 uvicorn 服务器，把全部日志出口调到 DEBUG 并抓取格式化文本（含堆栈）；request 用标准库 urllib 发请求（它不写日志），prepare_user 注册、登录、确认免责并给出两项单独同意。
 
 ## 边界
 - 测试只连 127.0.0.1:5433 的 goodlife_test（由 deploy/db-init 的建库脚本在数据库容器首次启动时建立）；与 Playwright 的端到端服务器共用这个库（它启动时清空全部表），所以后端全量 pytest 与 Playwright 绝不同时运行。

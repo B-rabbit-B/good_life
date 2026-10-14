@@ -10,8 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 BACKEND_PACKAGES = (
-    "agent", "agent_grants", "auth", "common", "cycle", "disclaimer", "fitness", "llm", "mcp_server", "medical",
-    "nutrition", "photos", "profile", "restaurants", "sdk", "security",
+    "account", "agent", "agent_grants", "auth", "common", "consents", "cycle", "disclaimer", "fitness", "llm",
+    "mcp_server", "medical", "nutrition", "photos", "profile", "restaurants", "sdk", "security",
 )
 FRONTEND_SRC_DIRS = ("api", "app", "components", "dev", "features", "lib", "styles", "test")
 

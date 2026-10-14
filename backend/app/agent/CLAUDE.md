@@ -12,12 +12,12 @@
 - 不被任何业务包引用；main 挂载 router；frontend/src/lib/contract.ts 抄了这里的固定文案（tests/test_frontend_contract.py 逐字核对）。
 - 工具只来自 sdk.tooling.agent_registry（已去掉 user_confirmed 能力）加 remember_preference；工具调用只认本轮发给模型的声明。
 - 用户自己写的文字（档案偏好与忌口、医嘱内容、偏好记忆）放进【用户资料】资料块，压平换行并替换【】，不能冒充指令或另起一节。
-- 经期未开放（或未单独同意，步骤 12 任务 3a 起）时，工具与系统指令里都不出现“经期”。
+- 经期未开放或用户没有单独同意时，工具与系统指令里都不出现“经期”。装配读经期阶段或医嘱约束遇到 consent_required 时，本轮把该模块当作未开放（不提供工具、不记为读不到）；医嘱未同意时约束一节写 MEDICAL_NOT_CONSENTED，没有饮食医嘱，输出检查不会因此重写。
 
 ## 入口
 - 路由：/api/agent 下的 conversations、conversations/{id}/messages、preferences、settings、opening 与 opening/{id}/decline、answer（router.py），都经 require_disclaimer_user。
 - 实测脚本：uv run python -m app.agent.live_check，由用户本人用真实模型运行。
-- 测试：tests/test_agent_loop.py、test_agent_rules.py、test_agent_guard.py、test_agent_openings.py、test_agent_store.py、test_agent_live_check.py、test_agent_docs.py、test_minors.py；模拟模型在 tests/agent_fake.py。
+- 测试：tests/test_agent_loop.py、test_agent_rules.py、test_agent_guard.py、test_agent_openings.py、test_agent_store.py、test_agent_live_check.py、test_agent_docs.py、test_minors.py、test_consents.py（未同意的模块当作未开放）；模拟模型在 tests/agent_fake.py。
 
 ## 禁区
 - 绝不把医嘱的确认、修改、作废、继续或解除做成工具，也不让模型声称已经替用户确认或解除；最多 propose_resolution。

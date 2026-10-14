@@ -6,9 +6,10 @@
 - 阶段提示来自 tips_rules.json，回答里总带 TIPS_DISCLAIMER：预测与提示不能用于避孕或诊断。
 
 ## 边界
-- 依赖：auth、common、db、disclaimer、errors、profile、security。
+- 依赖：auth、common、consents、db、disclaimer、errors、profile、security。
 - 被引用：nutrition（经期阶段是饮食引擎的软约束）、sdk 的 cycle 能力、agent（工具与系统指令）。
-- 门槛：deps.require_cycle_user，建在免责门槛上，再按 compute_capabilities 判断经期是否开放（403 cycle_not_available）；sdk 的模块准入复用同一个函数。步骤 12 起这里还要加单独同意的检查（任务 3a）。
+- 门槛：deps.require_cycle_user，建在免责门槛上，再按 compute_capabilities 判断经期是否开放（403 cycle_not_available），最后经 consents 的 require_consent 检查单独同意（403 consent_required）；sdk 的模块准入复用同一个函数。
+- 撤回经期同意时，account 包清除本人的经期记录、每日记录与经期状态；新增经期表要同步改 account/clearing.py。
 - 暂停状态下预测给 paused、阶段给 unknown，不做推算。
 
 ## 入口

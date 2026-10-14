@@ -6,9 +6,9 @@
 
 ## 边界
 - 分层（数字小的在底层，只能引用同层或更低层；任务 10 起由 tests/test_import_boundaries.py 守护）：
-  0 config、db、errors、security、common → 1 auth → 2 disclaimer（步骤 12 起加 consents）→ 3 profile →
+  0 config、db、errors、security、common → 1 auth → 2 disclaimer、consents → 3 profile →
   4 cycle、medical、llm、agent_grants → 5 fitness → 6 nutrition → 7 photos、restaurants → 8 sdk → 9 agent →
-  10 mcp_server、main 与 app 根下的入口模块（步骤 12 起加 account）。唯一的反向引用：common/body_limit.py 从 medical 与 photos 只取两个上传上限常量。
+  10 mcp_server、account、main 与 app 根下的入口模块。唯一的反向引用：common/body_limit.py 从 medical 与 photos 只取两个上传上限常量。
 - 每个业务路由都要经免责声明门槛（或建在它上面的模块门槛），tests/test_route_guards.py 逐条检查；所有用户数据查询从 common/ownership 的 owned_by 开始，别人的记录与不存在的一样 404；健康相关的明文字段用 security/crypto 的加密列存。
 
 ## 入口
@@ -16,9 +16,9 @@
 - 接口变化后在 frontend 运行 pnpm api:gen 并提交生成结果；SDK 能力的输入输出变化后运行 uv run python -m app.sdk.manifest。
 - 说明书索引（包内子目录如 data、adapters、capabilities 没有单独说明书，以所在包的为准）：
   - 底层：app/security/CLAUDE.md（密码、令牌、字段加密）、app/common/CLAUDE.md（归属、日期、年龄、上传上限）
-  - 账号与门槛：app/auth/CLAUDE.md、app/disclaimer/CLAUDE.md、app/profile/CLAUDE.md（模块开放）
+  - 账号与门槛：app/auth/CLAUDE.md、app/disclaimer/CLAUDE.md、app/consents/CLAUDE.md（经期与医嘱的单独同意）、app/profile/CLAUDE.md（模块开放）
   - 业务模块：app/cycle/CLAUDE.md、app/medical/CLAUDE.md、app/fitness/CLAUDE.md、app/nutrition/CLAUDE.md、app/llm/CLAUDE.md、app/photos/CLAUDE.md、app/restaurants/CLAUDE.md、app/agent_grants/CLAUDE.md
-  - 上层：app/sdk/CLAUDE.md、app/mcp_server/CLAUDE.md、app/agent/CLAUDE.md
+  - 上层：app/sdk/CLAUDE.md、app/mcp_server/CLAUDE.md、app/agent/CLAUDE.md、app/account/CLAUDE.md（撤回同意并清除模块数据）
   - tests/CLAUDE.md（测试、夹具与测试库）、migrations/CLAUDE.md（迁移）
 
 ## 禁区

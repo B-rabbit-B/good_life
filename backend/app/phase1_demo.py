@@ -21,6 +21,8 @@ from sqlalchemy import delete, select
 from app.agent_grants import service as grants
 from app.auth.models import User
 from app.auth.service import register_user
+from app.consents import service as consents_service
+from app.consents.content import CONSENT_KINDS, CONSENT_VERSION
 from app.db import get_sessionmaker
 from app.disclaimer import service as disclaimer_service
 from app.disclaimer.content import DISCLAIMER_VERSION
@@ -54,6 +56,8 @@ def prepare_account(today: date) -> tuple[str, str]:
         db.commit()
         user = register_user(db, DEMO_USERNAME, DEMO_PASSWORD)
         disclaimer_service.accept(db, user.id, DISCLAIMER_VERSION)
+        for kind in CONSENT_KINDS:
+            consents_service.grant(db, user.id, kind, CONSENT_VERSION)
         update_profile(db, user.id, PROFILE)
         _, grant_token = grants.create_grant(db, user.id, CLIENT_NAME, "read_write", 1, grants.now())
         user = db.scalar(select(User).where(User.id == user.id))

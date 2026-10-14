@@ -4,7 +4,7 @@
 - 进程内 SDK（版本 1.2）：把各业务模块的能力封装成“能力名 module.action + 级别 + 输入模型 + 输出类型 + 处理函数”，供站内智能体与 MCP 服务调用。网页接口不经 SDK，SDK 也不挂 HTTP 路由。
 - GoodLife.call 的顺序固定：认证凭证 → 查能力 → 级别检查 → 免责门槛 → 模块准入（复用各模块的 require_*_user）→ 校验参数 → 执行 → 按声明类型序列化 → 写审计。用户身份只来自凭证，能力不接受用户编号。
 - 三种凭证（credentials.py）：智能体授权令牌（AgentGrantToken，按授权给只读或读写）、站内智能体的服务端凭证（AgentCredential，只能在服务端代码里构造）、用户本人的登录令牌（UserAccessToken，唯一能调用 user_confirmed 级别的凭证）。
-- 错误统一成稳定的类别（errors.py 的 ERROR_KINDS）加原业务错误码，并附给智能体的提示。
+- 错误统一成稳定的类别（errors.py 的 ERROR_KINDS）加原业务错误码，并附给智能体的提示。403 里只有 disclaimer_not_accepted（DISCLAIMER_HINT）与单独同意缺失的 consent_required（CONSENT_HINT）归为 needs_user_confirmation，让模型如实告诉用户去应用里完成；以 _not_available 结尾的是 module_unavailable，其余 403 是 forbidden（不要换着方式重试）。新增需要用户本人在应用里完成的 403 要在 from_app_error 里单独归类。
 
 ## 边界
 - 依赖：agent_grants、auth、cycle、db、disclaimer、errors、fitness、medical、nutrition、profile、restaurants、security。不引用 agent、mcp_server、llm。

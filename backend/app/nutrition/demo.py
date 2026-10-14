@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import User
 from app.auth.service import register_user
+from app.consents import service as consents_service
+from app.consents.content import CONSENT_KINDS, CONSENT_VERSION
 from app.cycle import records
 from app.db import get_sessionmaker
 from app.disclaimer import service as disclaimer_service
@@ -68,6 +70,8 @@ def seed(db: Session, today: date) -> list[str]:
             continue
         user = register_user(db, username, DEMO_PASSWORD)
         disclaimer_service.accept(db, user.id, DISCLAIMER_VERSION)
+        for kind in CONSENT_KINDS:
+            consents_service.grant(db, user.id, kind, CONSENT_VERSION)
         update_profile(db, user.id, profile)
         if username in EXTRA_SETUP:
             EXTRA_SETUP[username](db, user, today)

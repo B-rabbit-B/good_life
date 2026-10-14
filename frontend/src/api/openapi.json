@@ -621,6 +621,20 @@
         "title": "ConnectionReportOut",
         "type": "object"
       },
+      "ConsentGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "ConsentGrant",
+        "type": "object"
+      },
       "ConsentIn": {
         "additionalProperties": false,
         "properties": {
@@ -637,6 +651,81 @@
           "consent"
         ],
         "title": "ConsentIn",
+        "type": "object"
+      },
+      "ConsentOut": {
+        "properties": {
+          "current_version": {
+            "title": "Current Version",
+            "type": "string"
+          },
+          "granted": {
+            "title": "Granted",
+            "type": "boolean"
+          },
+          "granted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted At"
+          },
+          "granted_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted Version"
+          },
+          "kind": {
+            "enum": [
+              "cycle",
+              "medical"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "withdrawn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn At"
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "text",
+          "current_version",
+          "granted",
+          "granted_at",
+          "granted_version",
+          "withdrawn_at"
+        ],
+        "title": "ConsentOut",
         "type": "object"
       },
       "ConstraintOut": {
@@ -7036,6 +7125,51 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/account/consents/{kind}/withdraw": {
+      "post": {
+        "description": "撤回单独同意：同一个事务里清除该模块的全部数据并记下撤回时间，模块随即关闭。",
+        "operationId": "withdraw_consent_api_account_consents__kind__withdraw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "cycle",
+                "medical"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Withdraw Consent",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/agent-grants": {
       "get": {
         "operationId": "list_grants_api_agent_grants_get",
@@ -7861,6 +7995,97 @@
         "summary": "Register",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/consents": {
+      "get": {
+        "operationId": "list_consents_api_consents_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentOut"
+                  },
+                  "title": "Response List Consents Api Consents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Consents",
+        "tags": [
+          "consents"
+        ]
+      }
+    },
+    "/api/consents/{kind}": {
+      "post": {
+        "operationId": "grant_consent_api_consents__kind__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "cycle",
+                "medical"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentGrant"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Grant Consent",
+        "tags": [
+          "consents"
         ]
       }
     },
