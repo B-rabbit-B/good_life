@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { LOW_CONFIDENCE } from '../lib/contract'
+import { LOW_CONFIDENCE, REFERENCE_LABEL } from '../lib/contract'
 import { CONCLUSION_LABELS } from '../lib/labels'
 import { ConfidenceCells } from './ConfidenceCells'
 import { RefTag } from './RefTag'
@@ -12,6 +12,11 @@ describe('marks', () => {
     const tag = screen.getByText('仅供参考')
     expect(tag.tagName).toBe('SPAN')
     expect(tag).toHaveClass('ref')
+  })
+
+  it('renders the reference label from the contract', () => {
+    render(<RefTag />)
+    expect(screen.getByText(REFERENCE_LABEL)).toHaveClass('ref')
   })
 
   it('renders the four verdict shapes with default words', () => {

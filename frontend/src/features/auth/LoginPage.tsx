@@ -15,7 +15,7 @@ import { AuthNeededState } from '../../components/states/AuthNeededState'
 import { TextField } from '../../components/TextField'
 import { Title } from '../../components/Title'
 import '../../styles/components/login.css'
-import { MIN_AGE } from '../../lib/contract'
+import { MIN_AGE, POSITIONING_STATEMENT } from '../../lib/contract'
 import { errorsOf, otherErrors, useFocusFirstInvalid } from '../../lib/formErrors'
 import { FormError } from '../../components/FormError'
 
@@ -113,7 +113,7 @@ export default function LoginPage() {
         </div>
         {registering && <p className="t-cap login-next">下一步会请你阅读并确认免责声明，确认后才能开始使用。</p>}
       </form>
-      <p className="foot-note">只提供生活方式建议，不做医疗诊断，不替代医生。</p>
+      <p className="foot-note">{POSITIONING_STATEMENT}</p>
     </div>
   )
 }
