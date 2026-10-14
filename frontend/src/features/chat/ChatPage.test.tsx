@@ -12,6 +12,7 @@ import {
 } from '../../test/fixtures/agent'
 import { dueItem, proposalItem, proposedEvent, reviewDueEvent } from '../../test/fixtures/medical'
 import { recognition } from '../../test/fixtures/photos'
+import { consentHandlers } from '../../test/msw/handlers/consents'
 import { photosHandlers } from '../../test/msw/handlers/photos'
 import { server } from '../../test/msw/server'
 
@@ -159,6 +160,14 @@ describe('chat page', () => {
     await screen.findByRole('textbox', { name: '给助手发消息' })
     await waitFor(() => expect(document.querySelector('.msgs')).not.toBeNull())
     expect(screen.queryByRole('heading', { name: '还没有可用的对话模型' })).not.toBeInTheDocument()
+  })
+
+  it('shows the chat without the review strip when medical is not consented', async () => {
+    renderChat({ assignments: [], reviews: [dueItem()] })
+    server.use(...consentHandlers({ granted: { medical: false } }).handlers)
+    // 不等永远不会请求的待处理列表：消息流照常画出（这里是没有模型的提示），也没有待处理条
+    expect(await screen.findByRole('heading', { name: '还没有可用的对话模型' })).toBeInTheDocument()
+    expect(document.querySelector('[data-sensitive-area="reviewBar"]')).toBeNull()
   })
 
   it('hides the medical quick action without the medical module', async () => {

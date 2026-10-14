@@ -7,6 +7,7 @@ import { getToken } from '../../api/token'
 import { completeProfile } from '../../test/fixtures/core'
 import { agentSettings, chatAssignment, provider } from '../../test/fixtures/profile'
 import { agentHandlers } from '../../test/msw/handlers/agent'
+import { consentHandlers } from '../../test/msw/handlers/consents'
 import { profileStore } from '../../test/msw/handlers/auth'
 import { llmHandlers } from '../../test/msw/handlers/llm'
 import { server } from '../../test/msw/server'
@@ -131,5 +132,51 @@ describe('me page', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'), { timeout: 3000 })
     expect(getToken()).toBeNull()
     await waitFor(() => expect(queryClient.getQueryCache().getAll()).toHaveLength(0))
+  })
+
+  it('lists both consents with their dates', async () => {
+    renderRoute('/me')
+    server.use(...consentHandlers({ granted: { cycle: true, medical: false } }).handlers)
+    const list = await screen.findByRole('list', { name: '单独同意' })
+    expect(screen.getByRole('heading', { name: '单独同意' })).toHaveClass('sec-l')
+    const rows = within(list).getAllByRole('listitem')
+    expect(rows.map((row) => row.querySelector('b')?.textContent)).toEqual(['经期记录', '医嘱'])
+    expect(rows[0]).toHaveTextContent('已同意（2026-10-02）')
+    expect(within(rows[0] as HTMLElement).getByRole('button', { name: '撤回' })).toBeInTheDocument()
+    expect(rows[1]).toHaveTextContent('未同意')
+    expect(within(rows[1] as HTMLElement).queryByRole('button', { name: '撤回' })).not.toBeInTheDocument()
+  })
+
+  it('withdraws only after the acknowledgement and offers to keep using', async () => {
+    const user = userEvent.setup()
+    const { queryClient } = renderRoute('/me')
+    const consents = consentHandlers()
+    server.use(...consents.handlers)
+    const list = await screen.findByRole('list', { name: '单独同意' })
+    const medicalRow = () => within(list).getAllByRole('listitem')[1] as HTMLElement
+    await waitFor(() => expect(medicalRow()).toHaveTextContent('已同意（2026-10-03）'))
+    queryClient.setQueryData(['medical', 'reviews'], [])
+
+    // 继续使用：只关闭面板，不撤回
+    await user.click(within(medicalRow()).getByRole('button', { name: '撤回' }))
+    let sheet = await screen.findByRole('dialog', { name: '撤回医嘱的单独同意' })
+    const confirm = within(sheet).getByRole('button', { name: '撤回并清除医嘱数据' })
+    expect(confirm).toBeDisabled()
+    await user.click(within(sheet).getByRole('button', { name: '继续使用' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(consents.record.withdrawn).toEqual([])
+
+    await user.click(within(medicalRow()).getByRole('button', { name: '撤回' }))
+    sheet = await screen.findByRole('dialog', { name: '撤回医嘱的单独同意' })
+    await user.click(within(sheet).getByRole('button', { name: '撤回并清除医嘱数据' }))
+    expect(consents.record.withdrawn).toEqual([])
+    await user.click(within(sheet).getByRole('checkbox', { name: '我知道清除后不能恢复' }))
+    await user.click(within(sheet).getByRole('button', { name: '撤回并清除医嘱数据' }))
+    await waitFor(() => expect(consents.record.withdrawn).toEqual(['medical']))
+    await waitFor(() => expect(medicalRow()).toHaveTextContent('未同意'))
+    expect(within(medicalRow()).queryByRole('button', { name: '撤回' })).not.toBeInTheDocument()
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('已同意（2026-10-02）')
+    // 医嘱的缓存随撤回清掉，不再显示旧的待处理条目
+    expect(queryClient.getQueryData(['medical', 'reviews'])).toBeUndefined()
   })
 })

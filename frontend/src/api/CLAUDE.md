@@ -10,6 +10,7 @@
 ## 边界
 - 依赖：只引用 lib 与自己；不引用 app、components、features（test/boundaries.test.ts 守护）。
 - 被引用：app、components（只取 ApiError 类型等）、features、test。
+- hooks/consents.ts 是单独同意（状态、同意、撤回）与 useModuleReady（能力清单开放且已同意）；经期与医嘱的读取查询都以它为 enabled，未同意时不发请求（后端会回 403 consent_required）。撤回成功后除了按失效表刷新，还要丢掉该模块的缓存：停用的查询仍交出旧数据，对话页会显示已清除的条目。
 - hooks/ 按模块分文件；只有医嘱页用的钩子放 hooks/medicalPage.ts，对话页也用的放 hooks/medical.ts，免得医嘱页的代码进对话页首屏（vite.config.ts 的 common 分组也按这个分）。
 
 ## 入口

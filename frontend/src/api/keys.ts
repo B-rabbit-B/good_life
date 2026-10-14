@@ -5,6 +5,8 @@ export const qk = {
   disclaimerStatus: ['disclaimer', 'status'] as const,
   profile: ['profile'] as const,
   capabilities: ['capabilities'] as const,
+  /** 经期与医嘱的单独同意（GET /api/consents） */
+  consents: ['consents'] as const,
 
   conversations: ['agent', 'conversations'] as const,
   conversation: (id: string) => ['agent', 'conversations', id] as const,

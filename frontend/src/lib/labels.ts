@@ -19,6 +19,7 @@ export type ItemConfidence = NonNull<S['app__medical__schemas__ItemOut']['confid
 export type ActivityLevel = NonNull<S['ProfileOut']['activity_level']>
 export type Goal = NonNull<S['ProfileOut']['goal']>
 export type Gender = NonNull<S['ProfileOut']['gender']>
+export type ConsentKind = S['ConsentOut']['kind']
 export type Flow = NonNull<S['DayLogIn']['flow']>
 export type Mood = NonNull<S['DayLogIn']['mood']>
 export type Phase = S['PhaseOut']['phase']
@@ -63,6 +64,9 @@ export const ACTIVITY_HINTS: Record<ActivityLevel, string> = {
 export const GOAL_LABELS: Record<Goal, string> = { lose_fat: '减脂', gain_muscle: '增肌', maintain: '维持', none: '不设' }
 
 export const GENDER_LABELS: Record<Gender, string> = { female: '女', male: '男', other: '其他' }
+
+/** 单独同意的两类数据（撤回按钮写“撤回并清除某某数据”） */
+export const CONSENT_KIND_LABELS: Record<ConsentKind, string> = { cycle: '经期', medical: '医嘱' }
 
 // 经期的流量、心情与阶段标题在 cycleLabels.ts，训练的部位与器械在 fitnessLabels.ts（只有那两块页面用；
 // 这个文件在对话页首屏的块里，放在这里会让它们进首屏）

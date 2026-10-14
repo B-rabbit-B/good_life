@@ -8,12 +8,15 @@ import { describe, expect, it } from 'vitest'
 import { AppShell } from '../../app/AppShell'
 import type { RouteHandle } from '../../app/routes'
 import { completeProfile, TEST_TOKEN } from '../../test/fixtures/core'
+import { consentHandlers } from '../../test/msw/handlers/consents'
 import { server } from '../../test/msw/server'
 import { createTestQueryClient, renderRouter } from '../../test/render'
 import { qk } from '../keys'
 import { getToken, setToken } from '../token'
 import { useLogout } from '../../app/useLogout'
 import { useLogin, useMe } from './auth'
+import { useConsents } from './consents'
+import { useMedicalReviews } from './medical'
 import { useCapabilities, useUpdateProfile } from './profile'
 
 const handle: RouteHandle = { nav: 'none', sensitive: false }
@@ -96,5 +99,31 @@ describe('auth and profile hooks', () => {
     expect(getToken()).toBeNull()
     await waitFor(() => expect(queryClient.getQueryCache().getAll()).toHaveLength(0))
     expect(unauthenticatedCalls).toBe(0)
+  })
+})
+
+describe('module hooks', () => {
+  it('does not request medical reviews without consent', async () => {
+    setToken(TEST_TOKEN)
+    const consents = consentHandlers({ granted: { medical: false } })
+    let reviewRequests = 0
+    server.use(...consents.handlers, http.get('/api/medical/reviews', () => {
+      reviewRequests += 1
+      return HttpResponse.json([])
+    }))
+    const { wrapper } = withClient()
+    const { result } = renderHook(() => ({ consents: useConsents(), caps: useCapabilities(), reviews: useMedicalReviews() }), { wrapper })
+    await waitFor(() => expect(result.current.consents.data).toHaveLength(2))
+    expect(result.current.caps.data?.medical).toBe(true)
+    expect(result.current.reviews.fetchStatus).toBe('idle')
+    expect(reviewRequests).toBe(0)
+
+    // 同意之后才请求
+    server.use(...consentHandlers().handlers)
+    await act(async () => {
+      await result.current.consents.refetch()
+    })
+    await waitFor(() => expect(result.current.reviews.isSuccess).toBe(true))
+    expect(reviewRequests).toBe(1)
   })
 })

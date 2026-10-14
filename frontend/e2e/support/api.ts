@@ -56,12 +56,12 @@ export function e2eInfo(request: APIRequestContext): Promise<E2EInfo> {
   return call<E2EInfo>(request, 'GET', '/__e2e/info')
 }
 
-/** 新注册一个用户并登录；默认女性、已接受免责声明、档案已填满。 */
+/** 新注册一个用户并登录；默认女性、已接受免责声明、已单独同意经期与医嘱、档案已填满。 */
 export async function createUser(
   request: APIRequestContext,
-  opts: { gender?: 'female' | 'male'; disclaimer?: boolean; profile?: 'complete' | 'empty' } = {},
+  opts: { gender?: 'female' | 'male'; disclaimer?: boolean; consents?: boolean; profile?: 'complete' | 'empty' } = {},
 ): Promise<TestUser> {
-  const { gender = 'female', disclaimer = true, profile = 'complete' } = opts
+  const { gender = 'female', disclaimer = true, consents = true, profile = 'complete' } = opts
   const stamp = Date.now().toString(36)
   const random = Math.random().toString(36).slice(2, 8)
   const username = `u${stamp}_${random}` // 小写字母、数字与下划线，不超过 32 位
@@ -72,6 +72,12 @@ export async function createUser(
   if (disclaimer) {
     const { version } = await call<Schemas['DisclaimerOut']>(request, 'GET', '/api/disclaimer', { token })
     await call(request, 'POST', '/api/disclaimer/accept', { token, data: { version } })
+    // 单独同意要在确认免责之后才能给出；按后端返回的当前版本同意两项
+    if (consents) {
+      for (const consent of await call<Schemas['ConsentOut'][]>(request, 'GET', '/api/consents', { token })) {
+        await call(request, 'POST', `/api/consents/${consent.kind}`, { token, data: { version: consent.current_version } })
+      }
+    }
   }
   if (profile === 'complete') {
     await call(request, 'PATCH', '/api/profile', { token, data: { ...COMPLETE_PROFILE, gender } })

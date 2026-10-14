@@ -11,7 +11,7 @@
   - components 不引用 features，也不引用 app（例外：app/shellContext、app/sensitiveAreas）；
   - 一个功能目录引用另一个功能目录只能经它的 index（例外：对话页按需加载 medical/ContinueSheet，只能写在 lazy 动态引入里）。
 - 测试没有约束的方向照现状保持：features 会引用 app 的 paths、AppShell 的登记钩子、nav 等；app 的 routes 按需加载 features 与 dev；lib 不引用 components、features、app。新增例外要写进测试的 ALLOWED 并写明原因，过期的例外会让测试失败。
-- 界面不做业务规则判断：模块是否开放看 /api/me/capabilities，结论与错误原样显示后端的 message 与 code。
+- 界面不做业务规则判断：模块是否开放看 /api/me/capabilities，经期与医嘱另外要有单独同意（/api/consents，能力清单不反映同意，入口与查询都用 api/hooks/consents 的 useModuleReady）；结论与错误原样显示后端的 message 与 code。
 
 ## 入口
 - 路由表 app/routes.tsx：每个页面按需加载；对话页是首屏，受首屏预算约束。

@@ -12,6 +12,7 @@
 - profile.ts 的“建档是否填完”是流程判断（后端没有这个字段），不是业务规则。
 
 ## 入口
+- 要先单独同意的页面（录入医嘱）用 routes.tsx 的 consentPage：页面与 features/consent 的守门一起按需加载，守门不进首屏块。
 - 新页面：在 routes.tsx 加按需加载的路由与 handle（导航、外壳形态、敏感页键），路径加进 paths.ts；有敏感内容就在 sensitiveAreas.ts 登记区域名，并在页面里调用登记钩子。
 - 测试：AppShell.test.tsx、guards.test.tsx、routes.test.tsx、nav.test.ts、profile.test.ts、queryClient.test.ts。
 

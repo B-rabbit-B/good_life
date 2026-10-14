@@ -1,0 +1,14 @@
+/* 单独同意：面板（黑体标题、后端正文分段、单独勾选、同意与暂不使用两个按钮）与“我的”页的同意两行 */
+.consent{padding-top:16px;padding-bottom:16px}
+.cs-h{margin:0;font-size:var(--fs-18);font-weight:600;line-height:1.45}
+.cs-text{margin-top:8px}
+.cs-text p{margin:0;font-size:.9375rem;line-height:1.75;overflow-wrap:anywhere}
+.cs-text p+p{margin-top:8px}
+.consent .chk{margin-top:8px}
+.cs-acts{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+
+.cs-rows{list-style:none;margin:0;padding:0}
+.cs-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:56px;padding:6px 0;border-bottom:1px solid var(--line)}
+.cs-row:last-child{border-bottom:0}
+.cs-row b{display:block;font-size:.9375rem;font-weight:600}
+.cs-row .t-cap{display:block;color:var(--ink-2)}

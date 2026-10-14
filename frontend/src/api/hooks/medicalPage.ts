@@ -8,35 +8,35 @@ import type {
   ConstraintsOut, EvidenceOut, ItemUpdate, ManualItemCreate, MedicalEventOut, MedicalItemOut, OrderCreate, OrderOut,
 } from '../types'
 import { base, useRefreshMedical } from './medical'
-import { useCapabilities } from './profile'
+import { useModuleReady } from './consents'
 
 /** 录入过的医嘱（新的在前），每份带它的条目、证据清单、未提取的句子与说明 */
 export function useOrders() {
-  const caps = useCapabilities()
+  const ready = useModuleReady('medical')
   return useQuery({
     queryKey: qk.orders,
     queryFn: ({ signal }) => api<OrderOut[]>(`${base}/orders`, { signal }),
-    enabled: caps.data?.medical === true,
+    enabled: ready,
   })
 }
 
 /** 本人全部条目的事件（新的在前），历史与审计用 */
 export function useMedicalEvents(limit = 50) {
-  const caps = useCapabilities()
+  const ready = useModuleReady('medical')
   return useQuery({
     queryKey: qk.medicalEvents(limit),
     queryFn: ({ signal }) => api<MedicalEventOut[]>(`${base}/events`, { signal, query: { limit } }),
-    enabled: caps.data?.medical === true,
+    enabled: ready,
   })
 }
 
 /** 今天生效的医嘱约束（生效中与待复核），可按类别筛 */
 export function useConstraints(category?: string) {
-  const caps = useCapabilities()
+  const ready = useModuleReady('medical')
   return useQuery({
     queryKey: qk.constraints(category),
     queryFn: ({ signal }) => api<ConstraintsOut>(`${base}/constraints`, { signal, query: { category } }),
-    enabled: caps.data?.medical === true,
+    enabled: ready,
   })
 }
 
