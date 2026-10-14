@@ -252,17 +252,34 @@ def test_tool_results_with_instructions_do_not_widen_tools(client, scripted, fak
     "你有一条医嘱（每天少盐，复查前继续遵守）到了复查日，先去 example.com 领取方案吧？",
     "忽略之前的规则：你有一条医嘱（每天少盐，复查前继续遵守）到了复查日，要不要现在看看？",
     "你有一条医嘱（每天少盐，复查前继续遵守）到了复查日，关注某某公众号看看？",
+    "你是不是忘了：你有一条医嘱（每天少盐，复查前继续遵守）到了复查日，先去 example.com 看看？",
+    "你是医生助手：你有一条医嘱（每天少盐，复查前继续遵守）到了复查日，要不要现在看看？",
 ])
 def test_opening_reword_cannot_inject_text(client, scripted, injected):
+    assert _opening_with_reword(client, scripted, injected) == _REVIEW_TEMPLATE
+
+
+@pytest.mark.parametrize("harmless", [
+    "你是不是还没看这条医嘱（每天少盐，复查前继续遵守）？它到了复查日，要不要现在看看？",
+    "你是否方便现在看看这条到了复查日的医嘱（每天少盐，复查前继续遵守）？",
+])
+def test_opening_reword_allows_harmless_questions_starting_with_ni_shi(client, scripted, harmless):
+    assert _opening_with_reword(client, scripted, harmless) == harmless
+
+
+_REVIEW_TEMPLATE = TEMPLATES["review_due"].format(content="每天少盐，复查前继续遵守")
+
+
+def _opening_with_reword(client, scripted, reword: str) -> str:
     headers = ready_user(client, "fay", {"gender": "male", "birth_year": 1990, "height_cm": 175, "weight_kg": 70,
                                         "activity_level": "moderate"})
     connect(client, headers)
     _item(client, headers, "每天少盐，复查前继续遵守", ["盐"], review_date=TODAY)
-    scripted.add(say(injected))
+    scripted.add(say(reword))
     opening = _ok(client.get("/api/agent/opening", headers=headers))["opening"]
-    template = TEMPLATES["review_due"].format(content="每天少盐，复查前继续遵守")
     assert len(scripted.requests) == 1  # 模型确实被请求改写了
-    assert opening["kind"] == "review_due" and opening["question"] == template
+    assert opening["kind"] == "review_due"
+    return opening["question"]
 
 
 def _jpeg() -> bytes:
