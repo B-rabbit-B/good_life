@@ -1,5 +1,5 @@
 // 经期（设计稿 06）：除两个记录按钮外，全部内容在一块敏感区里。阶段大标题加“仅供参考”、本周期第几天与后端的第一条提示；
-// 周期刻度与预测同在一块面板（数据不足或已暂停时换成“数据不足”，正文是后端的说明）；月历；最后是“记录经期开始”
+// 周期刻度与预测同在一块面板（数据不足或已暂停时换成“数据不足”，正文是后端的说明）；月历；已记录的经期（可删除）；最后是“记录经期开始”
 // （最近一次经期还没结束时是“记录经期结束”）与“记录今天”。全页只用海军蓝、灰与钴蓝，文案中性。
 // 这个文件连同月历（React Aria Calendar）由健康页按需加载，只在经期这一段出现。
 import { asApiError } from '../../api/errors'
@@ -21,9 +21,14 @@ import { useSheetHost } from '../../components/useSheetHost'
 import { CycleCalendar } from './CycleCalendar'
 import { cycleTicksModel, predictedPeriodDays, type CycleTicksModel } from './cyclePanel'
 import { DayLogSheet } from './DayLogSheet'
+import { DeletePeriodSheet } from './DeletePeriodSheet'
 import { PeriodSheet, type PeriodMode } from './PeriodSheet'
+import { RecordedPeriods } from './RecordedPeriods'
 
-type SheetState = { kind: 'period'; mode: PeriodMode; period?: PeriodOut } | { kind: 'day'; date: string }
+type SheetState =
+  | { kind: 'period'; mode: PeriodMode; period?: PeriodOut }
+  | { kind: 'day'; date: string }
+  | { kind: 'delete'; id: string }
 
 const ticksLabel = (m: CycleTicksModel) =>
   `周期刻度：共约 ${m.length} 天，第 1 到 ${m.periodDays} 天为经期，今天第 ${m.today} 天，`
@@ -109,6 +114,7 @@ export function CycleView() {
           today={today}
           onPick={(date) => host.show({ kind: 'day', date })}
         />
+        <RecordedPeriods periods={periods.data} onDelete={(p) => host.show({ kind: 'delete', id: p.id })} />
       </Sensitive>
     )
   } else if (queries.some((q) => q.isError && !q.data)) {
@@ -138,6 +144,7 @@ export function CycleView() {
       {sheet?.kind === 'period' && (
         <PeriodSheet key={host.nonce} mode={sheet.mode} period={sheet.period} isOpen={host.open} onClose={close} />
       )}
+      {sheet?.kind === 'delete' && <DeletePeriodSheet key={host.nonce} periodId={sheet.id} isOpen={host.open} onClose={close} />}
       {sheet?.kind === 'day' && <DayLogSheet key={host.nonce} date={sheet.date} isOpen={host.open} onClose={close} />}
     </>
   )

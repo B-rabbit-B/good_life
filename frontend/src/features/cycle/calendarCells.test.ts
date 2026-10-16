@@ -32,8 +32,8 @@ describe('calendar cells', () => {
 
   it('marks recorded, predicted, range, logged days and today', () => {
     const cells = calendarCells('2026-10', PERIODS, PREDICTED, RANGE, LOGS, TODAY)
-    expect(pick(cells, 'recorded')).toEqual(['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03'])
-    expect(pick(cells, 'predicted')).toEqual(PREDICTED)
+    expect(pick(cells, 'recorded')).toEqual(['2026-10-01', '2026-10-02', '2026-10-03'])
+    expect(pick(cells, 'predicted')).toEqual(PREDICTED.slice(0, 4))
     expect(pick(cells, 'inWindow')).toEqual(['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30'])
     expect(pick(cells, 'logged')).toEqual(['2026-10-02', '2026-10-05', '2026-10-08', '2026-10-10', '2026-10-11'])
     expect(pick(cells, 'today')).toEqual([TODAY])
@@ -47,6 +47,24 @@ describe('calendar cells', () => {
   it('does not mark a recorded day as predicted', () => {
     const cells = calendarCells('2026-10', [period('2026-10-27', null)], PREDICTED, RANGE, [], '2026-10-28')
     expect(pick(cells, 'recorded')).toEqual(['2026-10-27', '2026-10-28'])
-    expect(pick(cells, 'predicted')).toEqual(['2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01'])
+    expect(pick(cells, 'predicted')).toEqual(['2026-10-29', '2026-10-30', '2026-10-31'])
+  })
+
+  it('leaves the padding cells of the neighbouring months without any state', () => {
+    const cells = calendarCells('2026-10', [period('2026-09-28', '2026-10-02')], PREDICTED, { earliest: '2026-10-30', latest: '2026-11-02' }, [dayLog('2026-09-30'), dayLog('2026-11-01')], '2026-11-01')
+    for (const cell of cells.filter((c) => !c.inMonth)) {
+      expect(cell).toMatchObject({ recorded: false, predicted: false, inWindow: false, logged: false, today: false })
+    }
+    expect(pick(cells, 'recorded')).toEqual(['2026-10-01', '2026-10-02'])
+    expect(pick(cells, 'logged')).toEqual([])
+    expect(pick(cells, 'today')).toEqual([])
+  })
+
+  it('shows each month its own part of a period that crosses the month', () => {
+    const crossing = [period('2026-09-28', '2026-10-02')]
+    const september = calendarCells('2026-09', crossing, [], null, [], TODAY)
+    const october = calendarCells('2026-10', crossing, [], null, [], TODAY)
+    expect(pick(september, 'recorded')).toEqual(['2026-09-28', '2026-09-29', '2026-09-30'])
+    expect(pick(october, 'recorded')).toEqual(['2026-10-01', '2026-10-02'])
   })
 })

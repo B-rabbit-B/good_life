@@ -39,6 +39,15 @@ export function useUpdatePeriod() {
   })
 }
 
+/** 删除一次经期（后端只删这条经期，当天的每日记录不动；预测与统计随之重算） */
+export function useDeletePeriod() {
+  const refresh = useRefreshCycle()
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`${base}/periods/${id}`, { method: 'DELETE' }),
+    onSuccess: refresh,
+  })
+}
+
 /** 一段日期里的每日记录（含两端） */
 export function useDayLogs(start: string, end: string) {
   const enabled = useModuleReady('cycle')

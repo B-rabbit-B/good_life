@@ -8,7 +8,7 @@ import { server } from '../../test/msw/server'
 import { createTestQueryClient } from '../../test/render'
 import { qk } from '../keys'
 import { setToken } from '../token'
-import { useCreatePeriod } from './cycle'
+import { useCreatePeriod, useDeletePeriod } from './cycle'
 import { useCreateWorkout, type WorkoutInput } from './fitness'
 import { useCancelProposal } from './medical'
 import { useCreateMeal, type MealInput } from './nutrition'
@@ -60,6 +60,12 @@ describe('write hooks invalidate their domain', () => {
   it('recording a period invalidates cycle, nutrition and the recognitions', async () => {
     server.use(http.post('/api/cycle/periods', () => HttpResponse.json({ id: 'p1' })))
     const { names } = await invalidatedAfter(useCreatePeriod, { start_date: OTHER_DAY })
+    expect(names).toEqual(['meals', 'prediction', 'recognitions', 'summary'])
+  })
+
+  it('deleting a period invalidates the same cycle domain', async () => {
+    server.use(http.delete('/api/cycle/periods/p1', () => new HttpResponse(null, { status: 204 })))
+    const { names } = await invalidatedAfter(useDeletePeriod, 'p1')
     expect(names).toEqual(['meals', 'prediction', 'recognitions', 'summary'])
   })
 

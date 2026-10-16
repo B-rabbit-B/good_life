@@ -1,4 +1,4 @@
-// 经期月历（设计稿 06）：React Aria Calendar（周一开头、中文），只在经期这一块按需加载。格高 44、格内 36 圆角 12 的方块：
+// 经期月历（设计稿 06）：React Aria Calendar（周一开头、中文），只在经期这一块按需加载。格高 44、格内 36 圆角 12 的方块（相邻月份补齐整周的格子留空占位：无数字、无标记、不可点、不可聚焦、读屏不可见）：
 // 已记录是海军蓝实块，预计是虚线框，预计开始范围在格子下方画虚线，有当天记录的右上一个小点，今天是钴蓝内描边。
 // 点今天或更早的一天，打开那一天的记录面板（今天以后的日子不可选，但仍能翻到以后的月份看预计）。每格的状态另写在一段只给读屏的说明里（格子的读屏名称由 React Aria 生成）。
 import { parseDate } from '@internationalized/date'
@@ -90,7 +90,7 @@ export function CycleCalendar({ periods, predictedDays, predictedRange, today, o
             <CalendarGridBody>
               {(date) => (
                 <CalendarCell date={date} data-date={date.toString()} className={cellClass(byDate.get(date.toString()))}>
-                  <span>{date.day}</span>
+                  {({ isOutsideMonth }) => <span>{isOutsideMonth ? null : date.day}</span>}
                 </CalendarCell>
               )}
             </CalendarGridBody>
