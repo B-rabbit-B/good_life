@@ -163,7 +163,7 @@ describe('cycle view', { timeout: 15_000 }, () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('marks the calendar days and opens a day log from a cell', async () => {
+  it('marks the calendar days and selects a day instead of opening the day log', async () => {
     const user = userEvent.setup()
     renderCycle(deck({ periods: [period(today, null)], dayLogs: [dayLog(today)] }))
     const grid = await screen.findByRole('grid')
@@ -175,7 +175,8 @@ describe('cycle view', { timeout: 15_000 }, () => {
     expect(screen.getByText('预计开始范围')).toBeInTheDocument()
     expect(screen.getByText('有当天记录')).toBeInTheDocument()
     await user.click(cellOf(today))
-    expect(await screen.findByRole('dialog', { name: '记录今天' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '选中日期' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('leaves the cells of the neighbouring months empty and unfocusable', async () => {

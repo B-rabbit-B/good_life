@@ -13,6 +13,11 @@ export interface Cell {
   today: boolean
 }
 
+/** 包含这一天的已记录经期（没结束的算到今天） */
+export function periodContaining(periods: readonly PeriodOut[], date: string, today: string): PeriodOut | undefined {
+  return periods.find((p) => date >= p.start_date && date <= (p.end_date ?? today))
+}
+
 /** 月历这一页从哪天到哪天（周一开头、补齐整周）；month 是 YYYY-MM（或这个月里的任何一天） */
 export function gridRange(month: string): [string, string] {
   const first = `${month.slice(0, 7)}-01`
@@ -40,7 +45,7 @@ export function calendarCells(
       cells.push({ date, inMonth: false, recorded: false, predicted: false, inWindow: false, logged: false, today: false })
       continue
     }
-    const recorded = periods.some((p) => date >= p.start_date && date <= (p.end_date ?? today))
+    const recorded = periodContaining(periods, date, today) !== undefined
     cells.push({
       date,
       inMonth: true,

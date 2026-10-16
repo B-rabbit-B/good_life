@@ -3,19 +3,17 @@
 // 日期是否合理（重叠、太长、早于开始日）都由后端判断，说明与错误码原样显示。
 // 保存中按钮不能再按，取消与 Esc 都不关面板；失败（含断网）之后恢复可操作、可关闭。日期在敏感区里，按钮在外面。
 import { useRef, useState } from 'react'
-import { ApiError } from '../../api/errors'
 import { useCreatePeriod, useUpdatePeriod } from '../../api/hooks/cycle'
 import type { PeriodOut } from '../../api/types'
 import { Button } from '../../components/Button'
 import { DateField } from '../../components/DateField'
-import { Icon } from '../../components/Icon'
 import { Sensitive } from '../../components/Sensitive'
 import { Sheet } from '../../components/Sheet'
 import { useToast } from '../../components/Toast'
-import { MAX_PERIOD_DAYS } from '../../lib/contract'
-import { addDays, todayISO } from '../../lib/dates'
+import { todayISO } from '../../lib/dates'
 import { useSingleFlight } from '../../lib/singleFlight'
 import { errorsOf, FORM_ERROR } from '../../lib/formErrors'
+import { EndDateField, PeriodAlert } from './PeriodFields'
 
 export type PeriodMode = 'start' | 'end'
 
@@ -39,7 +37,6 @@ function PeriodBody({ mode, period, onClose, onBusyChange }: {
   const done = useRef(false) // 记下之后、面板关上之前不再提交
   const errors = errorsOf(error)
   const fieldError = errors.start_date ?? errors.end_date
-  const pastWithoutEnd = mode === 'start' && end === null && date <= addDays(today, -MAX_PERIOD_DAYS)
   const formError = errors[FORM_ERROR] ?? (fieldError ? undefined : Object.values(errors)[0])
 
   const save = () => {
@@ -72,21 +69,10 @@ function PeriodBody({ mode, period, onClose, onBusyChange }: {
           onChange={(value) => setDate(value ?? today)}
         />
         {mode === 'start' && (
-          <>
-            <DateField
-              label="结束日期（还没结束可以留空）" value={end} min={date} max={today} readOnly={pending} error={errors.end_date}
-              onChange={setEnd}
-            />
-            {pastWithoutEnd && <span className="fld-h">补记以前的经期，请同时填写结束日期</span>}
-          </>
+          <EndDateField start={date} end={end} today={today} readOnly={pending} error={errors.end_date} onChange={setEnd} />
         )}
       </Sensitive>
-      {formError && (
-        <div className="err" role="alert">
-          <Icon name="alert" size={18} />
-          <span>{formError}{error instanceof ApiError && <small>错误码 {error.code}</small>}</span>
-        </div>
-      )}
+      <PeriodAlert message={formError} error={error} />
       <div className="sheet-foot">
         <Button variant="primary" block isPending={pending} onPress={save}>保存</Button>
         <Button variant="quiet" block isDisabled={pending} onPress={onClose}>取消</Button>
