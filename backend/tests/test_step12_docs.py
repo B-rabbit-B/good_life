@@ -572,9 +572,10 @@ def test_step_11_record_no_longer_promises_a_database_lock():
 
 def test_readme_and_overview_record_step_12():
     overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert "| 12 | 合规、安全与作品集收尾 | 12-合规安全与作品集收尾.md | 全部 | 待验收 |" in overview
-    assert "| 第三阶段（11 至 12） | 进行中（步骤 11 有条件通过，步骤 12 待验收） |" in overview
+    assert "| 12 | 合规、安全与作品集收尾 | 12-合规安全与作品集收尾.md | 全部 | 有条件通过（" in overview
+    assert "真实模型红队与不看稿讲解待用户补做" in overview
+    assert "| 第三阶段（11 至 12） | 进行中（步骤 11、12 都有条件通过" in overview
     opening = (ROOT / "README.md").read_text(encoding="utf-8").split("定位声明")[0]
-    assert "步骤 12" in opening and "待验收" in opening
+    assert "步骤 12" in opening and "已有条件通过" in opening
     for name in ("安全审查记录", "已知问题与限制清单", "验收记录"):
         assert name in opening, name
