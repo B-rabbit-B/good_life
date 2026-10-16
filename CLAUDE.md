@@ -8,7 +8,7 @@
 - 每份说明书四节固定：职责、边界、入口、禁区；只写代码里看不出来的东西（为什么这样分、不能做什么、从哪里进），不写函数清单，不写时间估计。
 
 ## 边界
-- 每个文件不超过 800 行（生成的 schema.d.ts、openapi.json、manifest.json 与数据文件除外）；快到上限就按职责拆。
+- 每个源码文件（py、ts、tsx、mjs、css）不超过 800 行，由 backend/tests/test_engineering_rules.py 守护（生成的 schema.d.ts 除外；json、数据文件与 Markdown 文档不在守护范围）；快到上限就按职责拆。
 - 依赖只能从上层指向下层：后端分层表见 backend/CLAUDE.md（由 test_import_boundaries.py 守护），前端由 frontend/src/test/boundaries.test.ts 守护；只有登记过原因的例外可以反向。
 - 前后端只靠生成的类型对接；前端写死的只有标签映射、流程文案和集中在 frontend/src/lib/contract.ts 的后端文案副本（后端测试逐字核对）。
 - “绝不能出错”的规则不只写在代码里：同时写进交付文档并有测试守护（医嘱确认只能本人、风险话题固定回复、密钥只存密文、别人的数据与不存在一样 404）。

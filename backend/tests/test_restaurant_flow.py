@@ -25,7 +25,7 @@ from app.restaurants.needs import MODEL_PROMPT, load_needs, match_rules
 from app.restaurants.schemas import SearchIn
 from app.security.crypto import decrypt_value
 from tests.agent_fake import connect, fail, say, scripted  # noqa: F401
-from tests.amap_fake import BASE, CITY_LEVEL, KEY, POIS, _settings, fake  # noqa: F401
+from tests.amap_fake import BASE, CITY_LEVEL, KEY, POIS, fake, settings  # noqa: F401
 from tests.helpers import ready_user
 
 URL = "/api/restaurants"
@@ -498,7 +498,7 @@ def test_unknown_need_key_is_rejected_before_any_network_call(client, fake):
 
 
 def test_missing_amap_key_is_503(client, fake, monkeypatch):
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings())
+    monkeypatch.setattr(amap, "get_settings", lambda: settings())
     headers = ready_user(client, "ned")
     response = _search(client, headers, place="国贸")
     assert response.status_code == 503

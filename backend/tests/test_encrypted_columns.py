@@ -26,10 +26,11 @@ def _raw(value) -> bytes:
     return value.encode("utf-8") if isinstance(value, str) else bytes(value)
 
 
-def test_the_model_has_the_expected_number_of_encrypted_columns():
+def test_the_model_still_has_at_least_the_known_encrypted_columns():
+    """只守下界，防止列清单被悄悄扫空；具体是哪些列由安全审查记录的逐列表与文档测试按集合核对。"""
     columns = encrypted_columns()
-    assert len(columns) == 26
-    assert len({table for table, _column in columns}) == 17
+    assert len(columns) >= 26
+    assert len({table for table, _column in columns}) >= 17
 
 
 def test_every_encrypted_column_holds_only_ciphertext_after_every_table_is_filled(client, scripted, fake):  # noqa: F811

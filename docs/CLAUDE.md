@@ -14,7 +14,7 @@
 
 ## 入口
 - 读一个步骤：先读 NN-名称.md 的验收标准，再读 NN-交付物/验收记录.md；改代码前读对应的规格与计划。
-- 步骤 12 的交付文档放在 12-交付物/（共 17 份文档加一张架构图，目录内容由 backend/tests/test_step12_docs.py 守护，它还核对安全审查记录、已知问题与限制清单与验收记录；备份与恢复预案、依赖故障预案、新人复现记录由 test_step12_ops_docs.py 检查，持续集成工作流 .github/workflows/ci.yml 由 test_ci_workflow.py 检查）。
+- 步骤 12 的交付文档放在 12-交付物/（共 17 份文档加一张架构图，目录内容由 backend/tests/test_step12_docs.py 守护，它还核对安全审查记录、已知问题与限制清单与验收记录；备份与恢复预案、依赖故障预案、新人复现记录由 test_step12_ops_docs.py 检查，项目介绍、架构说明与架构图、创新点说明、取舍记录、演示脚本、面试追问清单、开源使用说明由 test_step12_portfolio_docs.py 检查，持续集成工作流 .github/workflows/ci.yml 由 test_ci_workflow.py 检查）。
 - 前端设计依据：superpowers/design/step11/DESIGN.md 与 index.html（端到端可视比对直接打开它）。
 
 ## 禁区

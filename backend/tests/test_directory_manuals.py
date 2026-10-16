@@ -141,6 +141,35 @@ def test_root_manual_indexes_the_top_level_manuals_and_stays_short():
     assert len(root.splitlines()) <= ROOT_MAX_LINES
 
 
+# 说明书里写到的后端 Python 文件：backend/ 起头的完整路径、app/ 或 tests/ 起头的相对路径，以及裸的 test_*.py（在 backend/tests 下）
+_PY_PATH = re.compile(r"(?<![\w/.*])((?:backend/)?(?:app|tests|migrations)/[\w/]*\w\.py|test_\w+\.py)", re.ASCII)
+
+
+def _py_path_candidates(token: str) -> list[Path]:
+    if token.startswith("backend/"):
+        return [ROOT / token]
+    if token.startswith(("app/", "tests/", "migrations/")):
+        return [ROOT / "backend" / token]
+    if token.startswith("test_"):
+        return [ROOT / "backend" / "tests" / token]
+    return [ROOT / token]
+
+
+def test_python_paths_named_in_manuals_exist():
+    missing = []
+    for directory in MANUAL_DIRS:
+        for token in sorted(set(_PY_PATH.findall(_read(directory)))):
+            if not any(path.is_file() for path in _py_path_candidates(token)):
+                missing.append(f"{directory or '.'}: {token}")
+    assert missing == []
+
+
+def test_python_path_pattern_matches_the_documented_shapes():
+    text = "见 backend/tests/test_x.py、app/agent/live_check.py、tests/amap_fake.py 与 test_y.py；test_isolation_*.py 与 common/x.py 不算"
+    assert _PY_PATH.findall(text) == ["backend/tests/test_x.py", "app/agent/live_check.py", "tests/amap_fake.py",
+                                      "test_y.py"]
+
+
 def test_time_estimate_pattern_catches_typical_estimates():
     for sample in ("约 3 天", "预计2小时", "大约 1 至 2 周", "2 周", "3 个工作日", "5 人天", "约两天", "预计一周",
                    "需要 3 天", "1-2 天", "两个工作日", "3~5 天"):

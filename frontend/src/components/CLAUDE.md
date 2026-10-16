@@ -20,6 +20,6 @@
 
 ## 禁区
 - 不放业务判断与业务文案（例如“医嘱”“经期”专用的逻辑）；只有一个功能用的零件留在那个功能目录。
-- 本步骤不新增 titleKey 与 titles.json 的键（宋体子集余量极小）：新面板用 title，新区块用 sec-l 小标题，都是黑体。
+- 宋体子集余量约 96 字节，新增 titleKey 与 titles.json 的键之前先确认余量：新面板用 title，新区块用 sec-l 小标题，都是黑体。
 - 不用动画库；动效用 CSS 与 lib/motion，并尊重减少动效的设置。
 - 不绕开 Sensitive 自己做遮盖，也不给 Sensitive 写未登记的 area。

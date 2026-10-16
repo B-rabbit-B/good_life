@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 790" width="1000" height="790" role="img" aria-labelledby="t d">
   <title id="t">好生活架构图：数据工具层、智能体层、体验层</title>
-  <desc id="d">体验层通过网页接口与流式接口访问后端；智能体层按风险话题、装配、模型与工具循环、输出检查、收尾的顺序处理一次对话，并经 SDK 调用数据工具层；外部 MCP 客户端也经 SDK 调用同一套能力。</desc>
+  <desc id="d">体验层通过网页接口与流式接口访问后端；智能体层按风险话题、装配、模型与工具循环、输出检查、收尾的顺序处理一次对话，并经 SDK 调用数据工具层；网页接口不经智能体层，直接到数据工具层；外部 MCP 客户端也经 SDK 调用同一套能力。</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#3b4856"/>
@@ -78,6 +78,11 @@
   <text class="mid" x="501" y="414">多模型适配层：OpenAI 兼容、Claude、Gemini 三种协议</text>
   <text class="mid note" x="501" y="434">密钥加密保存、只显示掩码；每次出站前复查服务地址不是内网</text>
 
+  <!-- 体验层到数据工具层：网页接口不经智能体，从智能体层左侧绕过 -->
+  <path class="flow" d="M140,111 L120,111 L120,512 L140,512" marker-end="url(#arrow)"/>
+  <text class="note" x="10" y="300">网页接口</text>
+  <text class="note" x="10" y="316">不经智能体</text>
+
   <!-- 智能体层到数据工具层 -->
   <path class="flow" d="M500,465 L500,493" marker-end="url(#arrow)"/>
   <text class="note" x="512" y="484">智能体凭证，经 SDK 调用</text>
@@ -108,8 +113,8 @@
 
   <rect class="box" x="154" y="680" width="340" height="80" rx="6"/>
   <text class="mid" x="324" y="705">PostgreSQL 16</text>
-  <text class="mid note" x="324" y="725">29 张表，健康相关字段是加密列</text>
-  <text class="mid note" x="324" y="745">全部带用户编号并级联删除</text>
+  <text class="mid note" x="324" y="725">健康相关字段是加密列</text>
+  <text class="mid note" x="324" y="745">除用户表外 28 张表带用户编号并级联</text>
   <rect class="box" x="508" y="680" width="340" height="80" rx="6"/>
   <text class="mid" x="678" y="705">门槛与归属</text>
   <text class="mid note" x="678" y="725">免责声明、模块开放、单独同意</text>

@@ -11,7 +11,7 @@
 
 ## 入口
 - 应用迁移：在 backend 目录运行 uv run alembic upgrade head；回退一步 uv run alembic downgrade -1。
-- 新迁移：文件名与 revision 都写成“四位编号_简短英文名”（例如 0017_sensitive_consents），down_revision 指向当前最新；步骤 12 只新增了 0017_sensitive_consents。
+- 新迁移：文件名与 revision 都写成“四位编号_简短英文名”（例如 0017_sensitive_consents），down_revision 指向当前最新；当前最新是 0017_sensitive_consents。
 - 测试：tests/test_migrations.py（与模型一致、加密转换迁移与 0017 的升降级）。
 
 ## 禁区

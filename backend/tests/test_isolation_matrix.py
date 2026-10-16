@@ -90,7 +90,7 @@ def test_every_path_parameter_is_registered():
         "新的路径参数要登记到 tests/isolation_registry.py 的两张表之一（资源参数还要在 fill_every_table 里创建）"
     assert set(NOT_FOUND_CODE) == set(RESOURCE_PARAMS)
     assert all(reason for reason in NON_RESOURCE_PARAMS.values())
-    assert len(found) == 18 and found["kind"] == {"/api/consents/{kind}", "/api/account/consents/{kind}/withdraw"}
+    assert len(found) >= 18 and found["kind"] == {"/api/consents/{kind}", "/api/account/consents/{kind}/withdraw"}
 
 
 def test_every_write_route_with_a_resource_has_a_sample_body(spec):

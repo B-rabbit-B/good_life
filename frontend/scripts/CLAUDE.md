@@ -10,7 +10,7 @@
 ## 边界
 - 被 package.json 与 playwright.config.ts 调用；不被 src 引用。Python 脚本经 uv 临时安装 fonttools 运行，不进后端的依赖。
 - gen-api 会调用后端目录的 uv；后端接口变了才需要运行，结果两份文件一起提交。
-- 字体子集只覆盖 src/lib/titles.json 的标题加 SERIF_EXTRA；宋体子集余量极小，本步骤不新增标题。
+- 字体子集只覆盖 src/lib/titles.json 的标题加 SERIF_EXTRA；宋体子集余量约 96 字节，新增标题前先确认余量。
 
 ## 入口
 - 在 frontend 下运行 pnpm build:check、pnpm api:gen、pnpm fonts；e2e-server.mjs 由 pnpm e2e 系列命令自动启动，不手动运行。

@@ -4,7 +4,7 @@ import io
 import json
 import re
 import zipfile
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from sqlalchemy import select, text
@@ -121,7 +121,6 @@ def test_export_matches_every_read_endpoint(client, owner):
         "disclaimer": get("/api/disclaimer/status"),
         "consents": get("/api/consents"),
     }
-    sampled_at = datetime.now(UTC)
     entries = _unzip(_export(client, headers))
 
     assert _json(entries, "account.json") == sample["account"]
@@ -149,9 +148,8 @@ def test_export_matches_every_read_endpoint(client, owner):
     grants = _json(entries, "agent_grants.json")
     assert grants == sample["agent_grants"]
     after = _audits(client, headers)
-    own = [row for row in after if row["capability"] == "account.export"
-           and datetime.fromisoformat(row["created_at"]) > sampled_at]
-    assert len(own) == 1
+    own = [row for row in after if row not in sample["agent_grants"]["audits"]]  # 集合差，不比较时钟
+    assert [row["capability"] for row in own] == ["account.export"]
     assert [row for row in after if row not in own] == grants["audits"]
 
     # 接口没有的部分与数据库比较：对话的工具调用与工具结果、开场记录

@@ -18,7 +18,7 @@
 - 测试：titles.test.ts、formErrors.test.ts、singleFlight.test.tsx、dates.test.ts、format.test.ts、motion.test.tsx、photoHandoff.test.tsx。
 
 ## 禁区
-- 步骤 12 不在 titles.json 新增任何键：新面板与新区块的标题一律用黑体（面板用 SheetTitle 的 title，区块用 sec-l 小标题）。
+- 宋体子集余量约 96 字节（上限 40 KiB，现 40864 字节）：往 titles.json 新增标题或键之前先确认余量；新面板用 SheetTitle 的 title、新区块用 sec-l 小标题，都是黑体，不占宋体余量。
 - 不在 contract.ts 之外抄后端文案或常量；不把副本改写成“意思差不多”的文字。
 - 不把业务规则写成工具函数（例如按性别判断经期、按数值判断能不能吃）。
 - photoHandoff 不写任何浏览器存储；照片不落地。

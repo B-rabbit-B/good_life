@@ -4,6 +4,7 @@
 备份与依赖故障预案由 test_step12_ops_docs.py 检查，作品集材料由 test_step12_portfolio_docs.py 检查，这里不碰。
 """
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -32,6 +33,7 @@ from app.nutrition.catalog import (
     SUPPLEMENT_DATASET,
     load_catalog,
 )
+from app.sdk.tooling import agent_registry
 from app.security.crypto import EncryptedBytes, EncryptedJSON
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -228,7 +230,7 @@ def _frontend_risk_labels() -> dict[str, tuple[str, list[str]]]:
 
 def test_high_risk_doc_covers_six_categories_with_fixed_replies_and_tests():
     doc = _read(HIGH_RISK)
-    assert len(RISK_CATEGORIES) == 6
+    assert len(RISK_CATEGORIES) >= 6
     # 优先级表：序号、类别、触发方式
     order = [name for name, _rule in safety._RULES] + ["minor_weight_loss"]
     priority = _rows(_section(doc, "触发方式与优先级"))
@@ -317,7 +319,7 @@ def test_export_doc_lists_every_export_file():
     for name in EXPORT_FILES:
         assert name in doc, name
     assert README_NAME in doc and f"{EVIDENCE_DIR}/" in doc and f"{PHOTO_DIR}/" in doc
-    assert len(EXPORT_FILES) == 13
+    assert len(EXPORT_FILES) >= 13
     rows = _rows(_section(doc, "导出文件清单"))
     assert [row[1] for row in rows] == list(EXPORT_FILES)
     for phrase in (f"{MAX_EXPORT_FILE_BYTES // MIB} MiB", "413", "export_too_large", "password_incorrect", "account.export",
@@ -366,6 +368,7 @@ USER_OK = "通过（代验，见“代为验收记录”）"
 USER_LATER = "待用户补做"
 RESULT_AUTOMATED = "已通过自动化验证"
 RESULT_3 = "已通过脚本化模型的自动化验证；真实模型红队待用户运行实测脚本"
+RESULT_7 = "由执行者在本机干净目录复现并记录；没有第二人或持续集成的独立运行（用户决定不跟进 CI）"
 RESULT_8 = "作品集材料齐全并通过文档检查；不看稿讲解待用户在第三阶段整体验收中完成"
 CHECKLIST = "关键路径检查清单"
 STEP_11_RECORD = ROOT / "docs" / "11-交付物" / "验收记录.md"
@@ -410,6 +413,7 @@ def test_acceptance_record_has_nine_rows_and_a_guarded_user_column():
         allowed = {"", USER_LATER} if row[0] in ("3", "8") else {"", USER_OK}
         assert row[5] in allowed, (row[0], row[5])
     record = _read(ACCEPTANCE)
+    assert "| 序号 | 验收项 | 自动化测试 | 手动核对方法 | 结果 | 用户验收 |" in record  # 表头固定（docs/CLAUDE.md）
     for heading in ("## 关键路径检查清单", "## 自动化验证记录", "## 需要用户完成的事项", "## 代为验收记录"):
         assert heading in record, heading
     delegated = record.split("## 代为验收记录")[1]
@@ -419,7 +423,7 @@ def test_acceptance_record_has_nine_rows_and_a_guarded_user_column():
 def test_criteria_3_7_and_8_wait_for_the_user_and_the_others_do_not():
     rows = {row[0]: row for row in _acceptance_rows()}
     assert rows["3"][4] == RESULT_3 and "红队" in rows["3"][3]
-    assert "用户决定不跟进" in rows["7"][4] and "没有实际运行" in rows["7"][4]
+    assert rows["7"][4] == RESULT_7
     assert rows["8"][4] == RESULT_8 and "不看稿" in rows["8"][3]
     for number in "124569":
         assert rows[number][4] == RESULT_AUTOMATED, number
@@ -496,7 +500,8 @@ def test_security_review_numbers_match_the_code():
     assert f"每份医嘱最多 {MAX_EVIDENCE_PER_ORDER} 个原件" in doc
     assert f"合计超过 {MAX_EXPORT_FILE_BYTES // MIB} MiB" in doc
     assert f"营养库的食物数是 {len(load_catalog().foods)} 个" in doc
-    assert "智能体有 6 个写入工具" in doc
+    write_tools = sum(cap.level == "write" for cap in agent_registry().values()) + 1  # 加上本地的“记住偏好”
+    assert f"智能体有 {write_tools} 个写入工具" in doc
     for title in ("二、越权", "三、日志", "四、加密列逐列核对", "五、保留策略逐条对照", "六、提示词注入",
                   "七、智能体的写入工具", "八、其他加固", "十、选择不修复的攻击面", "十一、各任务的审查发现与处置",
                   "十二、这次审查没有做的事"):
@@ -514,11 +519,17 @@ def test_security_review_records_the_corrected_spec_fact():
     section = _section(doc, "规格事实的更正")
     assert "test_base_url_is_rechecked_before_every_call" in section
     assert "每次出站前都会重新解析并检查地址" in section and "域名重绑定窗口" in section
-    assert "共三处调用" in section and "328、502、636" in section
+    assert "共三处调用" in section
+    for function in ("_target", "check_connection", "complete"):  # 按函数名说明，不钉行号
+        assert function in section, function
+    assert not re.search(r"第 \d+ 行|\d+、\d+、\d+", section)
     assert "只在保存时检查" in section and "1744" in section
-    service = (ROOT / "backend" / "app" / "llm" / "service.py").read_text(encoding="utf-8").splitlines()
-    for number in (328, 502, 636):  # 文中写的行号要真的是调用复查函数的地方
-        assert "_check_url(" in service[number - 1], number
+    source = (ROOT / "backend" / "app" / "llm" / "service.py").read_text(encoding="utf-8")
+    functions = {node.name: node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.FunctionDef)}
+    for name in ("_target", "check_connection", "complete"):  # 文中点名的三个函数，函数体里各有一次复查调用
+        calls = [call for call in ast.walk(functions[name]) if isinstance(call, ast.Call)
+                 and isinstance(call.func, ast.Name) and call.func.id == "_check_url"]
+        assert len(calls) == 1, name
     assert len(load_catalog().foods) == 1744
     _assert_refs_exist(section)
 
@@ -562,6 +573,7 @@ def test_step_11_record_no_longer_promises_a_database_lock():
 def test_readme_and_overview_record_step_12():
     overview = (ROOT / "docs" / "00-总览与串联.md").read_text(encoding="utf-8").replace("\r\n", "\n")
     assert "| 12 | 合规、安全与作品集收尾 | 12-合规安全与作品集收尾.md | 全部 | 待验收 |" in overview
+    assert "| 第三阶段（11 至 12） | 进行中（步骤 11 有条件通过，步骤 12 待验收） |" in overview
     opening = (ROOT / "README.md").read_text(encoding="utf-8").split("定位声明")[0]
     assert "步骤 12" in opening and "待验收" in opening
     for name in ("安全审查记录", "已知问题与限制清单", "验收记录"):

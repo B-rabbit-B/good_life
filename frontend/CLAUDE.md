@@ -15,7 +15,7 @@
 - 安装与开发：pnpm install、pnpm dev（或 pnpm dev:lan）。
 - 每次改前端都跑：pnpm lint、pnpm typecheck、pnpm test 三项零错误，再跑 pnpm build:check。
 - 端到端：pnpm e2e（iPhone 13 与 Pixel 7 两种设备的验收流程）、pnpm e2e:pages（390 与 360 宽的页面级检查）、pnpm visual（与设计稿并排截图）。
-- 接口变了：pnpm api:gen 并提交两份生成文件；改了固定标题：pnpm fonts 重新生成字体子集（本步骤不新增标题，见 src/lib/CLAUDE.md）。
+- 接口变了：pnpm api:gen 并提交两份生成文件；改了固定标题：pnpm fonts 重新生成字体子集（宋体子集余量约 96 字节，新增标题前先确认余量，见 src/lib/CLAUDE.md）。
 
 ## 禁区
 - 不提交 node_modules、dist、dist-e2e、test-results、playwright-report、blob-report、.font-cache、e2e/.fixtures 与截图。

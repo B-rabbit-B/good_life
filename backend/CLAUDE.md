@@ -25,7 +25,7 @@
 - 不读、不改、不提交 .env 与 llm_keys.local.env；任何 *_live_result.md 与 photo_eval 目录不提交。
 - 各包的 live_check、photos/eval_check、agent/redteam_check 是用户本人用真实密钥运行的实测脚本，自动化测试只用模拟服务驱动它们，Claude 不运行真实实测。
 - 日志只记方法、路由模板、状态码、能力名、错误码与异常类名；不记请求或响应内容、路径参数、查询串、异常文字与堆栈。
-  现状：访问日志与未处理异常由 common/request_log.py 统一记（只记方法、路由模板、状态码与异常类名，uvicorn 自带的访问日志整条丢弃），只有唯一约束冲突（sqlstate 23505）在 errors.py 转成 409 且只记约束名，其余完整性错误（非空、外键、检查约束）是程序错误，按未处理的异常记类名回 500；不用 logger.exception，也不在日志里写 request.url。tests/test_log_canaries.py 起真实服务器、全部日志出口调到 DEBUG 守护这条规则。
+  访问日志与未处理异常由 common/request_log.py 统一记（只记方法、路由模板、状态码与异常类名，uvicorn 自带的访问日志整条丢弃），只有唯一约束冲突（sqlstate 23505）在 errors.py 转成 409 且只记约束名，其余完整性错误（非空、外键、检查约束）是程序错误，按未处理的异常记类名回 500；不用 logger.exception，也不在日志里写 request.url。tests/test_log_canaries.py 起真实服务器、全部日志出口调到 DEBUG 守护这条规则。
 - 不在路由函数里写业务规则：规则放在各包的 service、engine 一类模块里，SDK 与网页才能共用同一套。
 - 不引入 import-linter 之类的新依赖做检查；依赖方向用自写的 ast 扫描测试。
 - 后端 pytest（全量或单文件）与前端 Playwright 不同时运行（共用 goodlife_test，都会清表）。

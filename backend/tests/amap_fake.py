@@ -19,20 +19,20 @@ KEY = "amap-flow-key-0123456789abcdef"
 BASE = "https://amap.example.com"
 
 
-def _poi(poi_id, name, typecode, distance, rating, lng, lat, address):
+def poi(poi_id, name, typecode, distance, rating, lng, lat, address):
     return {"id": poi_id, "name": name, "location": f"{lng},{lat}", "typecode": typecode,
             "type": "餐饮服务", "address": address, "distance": distance,
             "business": {"rating": rating} if rating else []}
 
 
 POIS = [
-    _poi("B001", "老川菜馆", "050102", "120", "4.6", 116.462, 39.910, "建国路 1 号"),
-    _poi("B002", "张记粥铺", "050100", "300", "4.2", 116.463, 39.911, "建国路 2 号"),
-    _poi("B003", "绿叶轻食", "050000", "450", "4.8", 116.464, 39.912, "建国路 3 号"),
-    _poi("B004", "老码头火锅", "050117", "200", "4.5", 116.465, 39.913, "建国路 4 号"),
-    _poi("B005", "杨记麻辣烫", "050000", "150", "4.0", 116.466, 39.914, "建国路 5 号"),
-    _poi("B006", "张姐面馆", "050100", "600", "", 116.467, 39.915, "建国路 6 号"),
-    _poi("B007", "某某餐厅", "050000", "80", "", 116.468, 39.916, "建国路 7 号"),
+    poi("B001", "老川菜馆", "050102", "120", "4.6", 116.462, 39.910, "建国路 1 号"),
+    poi("B002", "张记粥铺", "050100", "300", "4.2", 116.463, 39.911, "建国路 2 号"),
+    poi("B003", "绿叶轻食", "050000", "450", "4.8", 116.464, 39.912, "建国路 3 号"),
+    poi("B004", "老码头火锅", "050117", "200", "4.5", 116.465, 39.913, "建国路 4 号"),
+    poi("B005", "杨记麻辣烫", "050000", "150", "4.0", 116.466, 39.914, "建国路 5 号"),
+    poi("B006", "张姐面馆", "050100", "600", "", 116.467, 39.915, "建国路 6 号"),
+    poi("B007", "某某餐厅", "050000", "80", "", 116.468, 39.916, "建国路 7 号"),
 ]
 GUOMAO = {"formatted_address": "北京市朝阳区国贸", "district": "朝阳区", "adcode": "110105", "city": [],
           "province": "北京市", "location": "116.458000,39.908000"}
@@ -77,14 +77,14 @@ class FakeAmap:
         return [params for request_path, params in self.requests if request_path == path]
 
 
-def _settings(**overrides) -> Settings:
+def settings(**overrides) -> Settings:
     return Settings(_env_file=None, database_url="postgresql+psycopg://u:p@localhost:5433/db", jwt_secret="x" * 32,
                     field_encryption_key="MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=", **overrides)
 
 
 @pytest.fixture
 def fake(client, monkeypatch):
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings(amap_key=KEY, amap_base_url=BASE))
+    monkeypatch.setattr(amap, "get_settings", lambda: settings(amap_key=KEY, amap_base_url=BASE))
     restaurant_service.reset_rate_limit()
     model = FakeAmap()
     with use_transport(httpx2.MockTransport(model)):

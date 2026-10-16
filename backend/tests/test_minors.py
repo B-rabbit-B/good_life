@@ -21,7 +21,8 @@ from app.profile.schemas import UNDER_AGE_MESSAGE
 from tests.agent_fake import connect, say, scripted  # noqa: F401
 from tests.helpers import ready_user
 
-THIS_YEAR = date.today().year
+FIXED_TODAY = date(2031, 1, 1)  # 与真实日期（UTC 与本地）都不同年份，证明年龄判断只认 get_today
+THIS_YEAR = FIXED_TODAY.year
 FRIED_CHICKEN = "dish:fried_chicken"
 WEIGHT_LOSS_QUESTION = "我想减肥，一天吃多少热量"
 # app.agent.safety._MINOR_DIET 的词表（逐个核对，词表改了这里要一起改）
@@ -36,6 +37,18 @@ NUMBER_FIELDS = (
     "energy_kcal", "energy_kcal_low", "energy_kcal_high", "protein_g", "fat_g_low", "fat_g_high", "carbohydrate_g_low",
     "carbohydrate_g_high", "fiber_g_low", "fiber_g_high", "sodium_mg_max",
 )
+
+
+class _FixedDate(date):
+    @classmethod
+    def today(cls):
+        return FIXED_TODAY
+
+
+@pytest.fixture(autouse=True)
+def fixed_today(monkeypatch):
+    """get_today 是全部年龄判断与需求估算共用的“今天”；固定它，测试不依赖真实日期。"""
+    monkeypatch.setattr("app.common.clock.date", _FixedDate)
 
 
 def _profile(age: int, goal: str = "lose_fat") -> dict:
@@ -80,6 +93,20 @@ def test_birth_year_this_year_gets_the_under_age_message_not_the_future_one(clie
     assert _details(future) == {"birth_year": "出生年份不能晚于今年"}
 
 
+def test_age_check_and_needs_estimate_agree_on_the_local_year(client):
+    """档案的年龄校验与需求估算同用 get_today 的本地日期：本地已跨年而 UTC 年份不同时，两者的结论一致。"""
+    headers = ready_user(client, "newyear")
+    accepted = client.patch("/api/profile", json={**_profile(14), "goal": "none"}, headers=headers)
+    assert accepted.status_code == 200, accepted.text
+    needs = client.get("/api/nutrition/summary", headers=headers).json()["needs"]
+    assert needs["status"] == "minor"  # 同一个“今天”下，14 岁既通过校验、也被需求估算当作未成年
+    refused = client.patch("/api/profile", json={"birth_year": THIS_YEAR - 13}, headers=headers)
+    assert _details(refused) == {"birth_year": UNDER_AGE_MESSAGE}
+    adult = client.patch("/api/profile", json={"birth_year": THIS_YEAR - 18}, headers=headers)
+    assert adult.status_code == 200, adult.text
+    assert client.get("/api/nutrition/summary", headers=headers).json()["needs"]["status"] != "minor"
+
+
 def test_an_old_under_14_profile_can_still_change_other_fields_and_stays_minor(client):
     headers = ready_user(client, "old", _profile(30))
     user_id = uuid.UUID(client.get("/api/auth/me", headers=headers).json()["id"])
@@ -106,7 +133,7 @@ def test_registration_requires_the_age_confirmation(client):
 
 
 def test_needs_for_a_minor_have_no_energy_numbers():
-    today = date.today()
+    today = FIXED_TODAY
     for age in (15, 17):
         needs = estimate_needs(gender="female", birth_year=THIS_YEAR - age, height_cm=150, weight_kg=45,
                                activity_level="light", goal="lose_fat", today=today)

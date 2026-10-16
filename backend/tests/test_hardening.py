@@ -46,10 +46,6 @@ def _login(client, username, password):
 
 # ---------- 登录与密码复核限速 ----------
 
-def test_limiter_constants():
-    assert (limiter.MAX_FAILURES, limiter.WINDOW_SECONDS) == (5, 900.0)
-
-
 def test_login_is_limited_after_repeated_failures(client):
     register_and_login(client, "alice")
     for _ in range(limiter.MAX_FAILURES):

@@ -24,7 +24,7 @@ from app.restaurants import service as restaurant_service
 from app.restaurants.amap import use_transport
 from app.sdk import AgentGrantToken, GoodLife
 from tests.agent_fake import MODEL_IDS, ScriptedModel, call, say
-from tests.amap_fake import BASE, GUOMAO, KEY, FakeAmap, _settings
+from tests.amap_fake import BASE, GUOMAO, KEY, FakeAmap, settings
 from tests.live_server import LiveServer, prepare_user, request
 
 TODAY = date(2026, 10, 7)
@@ -77,7 +77,7 @@ def live(monkeypatch):
     def factory(kind, base_url, api_key):
         return make_adapter(kind, base_url, api_key, transport=httpx2.MockTransport(model))
     app.dependency_overrides[llm_service.get_adapter_factory] = lambda: factory
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings(amap_key=KEY, amap_base_url=BASE))
+    monkeypatch.setattr(amap, "get_settings", lambda: settings(amap_key=KEY, amap_base_url=BASE))
     restaurant_service.reset_rate_limit()
     fake = FakeAmap()
     fake.geocodes[PLACE] = [GUOMAO]

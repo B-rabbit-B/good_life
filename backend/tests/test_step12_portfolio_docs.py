@@ -28,6 +28,11 @@ def _read(name: str) -> str:
     return (DOCS / name).read_text(encoding="utf-8")
 
 
+def _write_tool_count() -> int:
+    """智能体的写入工具数：注册表里 write 级别的能力，加上本地的“记住偏好”。"""
+    return sum(cap.level == "write" for cap in agent_registry().values()) + 1
+
+
 def _section(text: str, heading: str, level: str = "## ") -> str:
     """某个标题到下一个同级标题之间的正文。"""
     assert f"\n{level}{heading}" in "\n" + text, heading
@@ -97,7 +102,7 @@ def test_intro_has_a_paragraph_and_a_one_pager():
     assert f"{_operation_count()} 个接口" in numbers
     assert f"{capabilities} 项能力" in numbers  # 暴露给智能体与 MCP 的能力，不含需本人确认的 6 项
     assert f"{capabilities} 个 MCP 工具" in numbers
-    assert "6 个写入工具" in numbers
+    assert f"{_write_tool_count()} 个写入工具" in numbers
     match = re.search(r"后端自动化测试 (\d+) 个以上", numbers)
     assert match and int(match.group(1)) >= 2900  # 数字是撰写时 pytest 收集到的数量取整，只增不减
     assert "医疗诊断" in text
@@ -112,7 +117,10 @@ def test_architecture_doc_embeds_the_svg_diagram():
     shown = "".join(root.itertext())
     for word in ("数据工具层", "智能体层", "体验层", "输出检查", "风险话题", "营养引擎", "MCP", "SDK"):
         assert word in shown, word
+    assert f"除用户表外 {len(Base.metadata.tables) - 1} 张表带用户编号并级联" in shown
+    assert "不经智能体" in shown  # 网页接口从体验层直达数据工具层的那条线
     text = _read("架构说明.md")
+    assert f"除用户表外的 {len(Base.metadata.tables) - 1} 张表都带用户编号并级联" in text
     assert "![" in text and "架构图.svg)" in text
     for heading in ("三层结构", "数据流", "核心取舍与理由"):
         assert f"\n## {heading}" in "\n" + text, heading
@@ -159,9 +167,9 @@ def test_tradeoffs_say_what_was_given_up():
 def test_tradeoffs_admit_six_write_tools():
     text = _read("取舍记录.md")
     expected = {tool_name(cap.name) for cap in agent_registry().values() if cap.level == "write"} | {"remember_preference"}
-    assert len(expected) == 6
+    assert expected
     entry = next(item for item in re.split(r"\n## (?=取舍)", "\n" + text) if "需本人确认的动作不暴露给模型" in item.splitlines()[0])
-    assert "6 个写入工具" in entry
+    assert f"{len(expected)} 个写入工具" in entry
     known = {tool_name(name) for name in agent_registry()} | {"remember_preference"}
     mentioned = {word for word in re.findall(r"[a-z]+_[a-z_]+", entry) if word in known}
     assert mentioned == expected
