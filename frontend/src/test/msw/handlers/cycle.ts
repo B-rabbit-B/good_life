@@ -3,7 +3,7 @@
 // hold 里的 Promise 兑现之前那个动作的请求一直不返回（测试“请求进行中”）。
 import { http, HttpResponse, type HttpHandler } from 'msw'
 import type {
-  CycleStatsOut, DayLogIn, DayLogOut, PeriodOut, PhaseOut, PredictionOut, TipsOut,
+  CycleStatsOut, DayLogIn, DayLogOut, PeriodCreate, PeriodOut, PhaseOut, PredictionOut, TipsOut,
 } from '../../../api/types'
 import { insufficientPrediction, phase as phaseFixture, stats as statsFixture, tips as tipsFixture } from '../../fixtures/cycle'
 
@@ -62,7 +62,7 @@ export function cycleHandlers(opts: CycleOptions = {}) {
   const handlers: HttpHandler[] = [
     http.get('/api/cycle/periods', () => HttpResponse.json(sorted())),
     http.post('/api/cycle/periods', async ({ request }) => {
-      const body = await request.json() as { start_date: string }
+      const body = await request.json() as PeriodCreate
       record.created.push(body)
       await opts.hold?.createPeriod
       if (failNetwork('createPeriod')) return HttpResponse.error()
@@ -71,7 +71,7 @@ export function cycleHandlers(opts: CycleOptions = {}) {
       counter += 1
       const created: PeriodOut = {
         id: `50000000-0000-4000-8000-${String(counter).padStart(12, '0')}`,
-        start_date: body.start_date, end_date: null, created_at: new Date().toISOString(),
+        start_date: body.start_date, end_date: body.end_date ?? null, created_at: new Date().toISOString(),
       }
       periods = [...periods, created]
       return HttpResponse.json(created, { status: 201 })

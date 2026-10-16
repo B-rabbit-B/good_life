@@ -20,6 +20,7 @@ from app.auth import service as auth_service
 from app.common.age import MIN_AGE
 from app.consents import deps as consent_deps
 from app.consents import service as consent_service
+from app.cycle.records import MAX_PERIOD_DAYS
 from app.cycle.schemas import DayLogIn
 from app.disclaimer import deps as disclaimer_deps
 from app.disclaimer.content import POSITIONING_STATEMENT, REFERENCE_LABEL
@@ -205,6 +206,7 @@ def test_contract_limits_and_error_codes_match_the_backend():
         "MAX_TEXT": _max_length(OrderCreate.model_fields["text"].metadata),
         "MIN_AGE": MIN_AGE,
         "MAX_EVIDENCE_FILES": MAX_EVIDENCE_PER_ORDER,
+        "MAX_PERIOD_DAYS": MAX_PERIOD_DAYS,
     }
     assert {name: scalars.get(name) for name in limits} == {name: str(value) for name, value in limits.items()}, HINT
     assert "MAX_EVIDENCE_BYTES" in scalars, f"{HINT}：找不到 MAX_EVIDENCE_BYTES"

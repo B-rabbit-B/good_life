@@ -48,6 +48,7 @@ export type PhotoItemIn = S['ItemIn']
 export type PhotoEvaluationOut = S['app__photos__schemas__EvaluationOut']
 
 export type PeriodOut = S['PeriodOut']
+export type PeriodCreate = S['PeriodCreate']
 export type DayLogOut = S['DayLogOut']
 export type DayLogIn = S['DayLogIn']
 export type PredictionOut = S['PredictionOut']

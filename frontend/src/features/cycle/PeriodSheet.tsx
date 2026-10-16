@@ -1,4 +1,5 @@
-// 记录经期开始或结束：只问一个日期（默认今天，不晚于今天）。开始是 POST，结束是给最近一次经期 PATCH 结束日期；
+// 记录经期开始或结束：开始是 POST（开始日期默认今天，另有一个可留空的结束日期，补记以前的经期要一起填），
+// 结束是给最近一次经期 PATCH 结束日期（只问一个日期）；开始日比今天早很多又没填结束日期时只给一行提示，不拦截；
 // 日期是否合理（重叠、太长、早于开始日）都由后端判断，说明与错误码原样显示。
 // 保存中按钮不能再按，取消与 Esc 都不关面板；失败（含断网）之后恢复可操作、可关闭。日期在敏感区里，按钮在外面。
 import { useRef, useState } from 'react'
@@ -11,7 +12,8 @@ import { Icon } from '../../components/Icon'
 import { Sensitive } from '../../components/Sensitive'
 import { Sheet } from '../../components/Sheet'
 import { useToast } from '../../components/Toast'
-import { todayISO } from '../../lib/dates'
+import { MAX_PERIOD_DAYS } from '../../lib/contract'
+import { addDays, todayISO } from '../../lib/dates'
 import { useSingleFlight } from '../../lib/singleFlight'
 import { errorsOf, FORM_ERROR } from '../../lib/formErrors'
 
@@ -27,6 +29,7 @@ function PeriodBody({ mode, period, onClose, onBusyChange }: {
 }) {
   const today = todayISO()
   const [date, setDate] = useState(today)
+  const [end, setEnd] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const create = useCreatePeriod()
@@ -36,6 +39,7 @@ function PeriodBody({ mode, period, onClose, onBusyChange }: {
   const done = useRef(false) // 记下之后、面板关上之前不再提交
   const errors = errorsOf(error)
   const fieldError = errors.start_date ?? errors.end_date
+  const pastWithoutEnd = mode === 'start' && end === null && date <= addDays(today, -MAX_PERIOD_DAYS)
   const formError = errors[FORM_ERROR] ?? (fieldError ? undefined : Object.values(errors)[0])
 
   const save = () => {
@@ -45,7 +49,7 @@ function PeriodBody({ mode, period, onClose, onBusyChange }: {
       setError(null)
       onBusyChange(true)
       if (mode === 'end' && period) return update.mutateAsync({ id: period.id, end_date: date })
-      return create.mutateAsync({ start_date: date })
+      return create.mutateAsync(end ? { start_date: date, end_date: end } : { start_date: date })
     })
     run?.then(() => {
       done.current = true
@@ -63,9 +67,19 @@ function PeriodBody({ mode, period, onClose, onBusyChange }: {
     <>
       <Sensitive area="content">
         <DateField
-          label={mode === 'start' ? '开始日期' : '结束日期'} value={date} max={today} readOnly={pending} error={fieldError}
+          label={mode === 'start' ? '开始日期' : '结束日期'} value={date} max={today} readOnly={pending}
+          error={mode === 'start' ? errors.start_date : fieldError}
           onChange={(value) => setDate(value ?? today)}
         />
+        {mode === 'start' && (
+          <>
+            <DateField
+              label="结束日期（还没结束可以留空）" value={end} min={date} max={today} readOnly={pending} error={errors.end_date}
+              onChange={setEnd}
+            />
+            {pastWithoutEnd && <span className="fld-h">补记以前的经期，请同时填写结束日期</span>}
+          </>
+        )}
       </Sensitive>
       {formError && (
         <div className="err" role="alert">
