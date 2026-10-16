@@ -203,3 +203,27 @@ test('records a workout from search to save', async ({ page, request }) => {
   await expect(page.getByText('已记下')).toBeVisible()
   await expect(page.locator('.trw-h b', { hasText: '深蹲' }).first()).toBeVisible()
 })
+
+test('records a past period with its end date and shows it on the calendar', async ({ page, request }) => {
+  const { token } = await createUser(request)
+  const start = localDate(-20)
+  const end = localDate(-15)
+  await openAs(page, token, '/health/cycle')
+  await page.getByRole('button', { name: '记录经期开始' }).last().click()
+  const sheet = page.getByRole('dialog', { name: '记录经期开始' })
+  await waitForSheet(page)
+  await sheet.getByLabel('开始日期').fill(start)
+  await expect(sheet.getByText('补记以前的经期，请同时填写结束日期')).toBeVisible()
+  await sheet.getByLabel('结束日期（还没结束可以留空）').fill(end)
+  await expect(sheet.getByText('补记以前的经期，请同时填写结束日期')).toHaveCount(0)
+  await sheet.getByRole('button', { name: '保存' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(page.getByText('已记下')).toBeVisible()
+  const grid = page.getByRole('grid')
+  for (const date of [end, start]) { // 由近到远，只往前翻
+    // 日期不在当前显示的月份时翻到上个月
+    const cell = page.locator(`.cal-g .d:not(.out)[data-date="${date}"]`)
+    if (await cell.count() === 0) await page.getByRole('button', { name: '上个月' }).click()
+    await expect(grid.locator(`.d:not(.out)[data-date="${date}"]`)).toHaveClass(/\brec\b/)
+  }
+})

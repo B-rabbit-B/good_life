@@ -112,6 +112,8 @@ export const MIN_AGE = 14
 export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
 /** app.medical.orders.MAX_EVIDENCE_PER_ORDER：每份医嘱最多上传的原件份数 */
 export const MAX_EVIDENCE_FILES = 10
+/** app.cycle.records.MAX_PERIOD_DAYS：单次经期最多的天数（没有结束日期时，开始日比今天早 N 天及以上后端就要求补结束日期） */
+export const MAX_PERIOD_DAYS = 15
 
 /** 界面按错误码分支的几个接口错误码（后端没有常量，test_frontend_contract.py 按抛出处的源码原文核对） */
 export const STILL_DUE = 'still_due'

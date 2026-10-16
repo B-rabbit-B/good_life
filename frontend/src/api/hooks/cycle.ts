@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../client'
 import { invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
-import type { CycleStatsOut, DayLogIn, DayLogOut, PeriodOut, PhaseOut, PredictionOut, TipsOut } from '../types'
+import type { CycleStatsOut, DayLogIn, DayLogOut, PeriodCreate, PeriodOut, PhaseOut, PredictionOut, TipsOut } from '../types'
 import { useModuleReady } from './consents'
 
 const base = '/api/cycle'
@@ -20,11 +20,11 @@ export function usePeriods() {
   return useQuery({ queryKey: qk.periods, queryFn: ({ signal }) => api<PeriodOut[]>(`${base}/periods`, { signal }), enabled })
 }
 
-/** 记录一次经期开始 */
+/** 记录一次经期开始（补记以前的经期时一起带上结束日期，不带则为还没结束） */
 export function useCreatePeriod() {
   const refresh = useRefreshCycle()
   return useMutation({
-    mutationFn: (body: { start_date: string }) => api<PeriodOut>(`${base}/periods`, { method: 'POST', json: body }),
+    mutationFn: (body: PeriodCreate) => api<PeriodOut>(`${base}/periods`, { method: 'POST', json: body }),
     onSuccess: refresh,
   })
 }
