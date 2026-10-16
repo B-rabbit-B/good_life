@@ -2,13 +2,11 @@
 // 日期写完整的年月日；还没结束的写“至 今”。没有记录时整块不显示。删除的确认在 DeletePeriodSheet（由经期页持有）。
 import type { PeriodOut } from '../../api/types'
 import { Button } from '../../components/Button'
-import { addDays } from '../../lib/dates'
+import { addDays, formatFullDate as full } from '../../lib/dates'
 import '../../styles/components/sec-head.css'
 
 /** 最多列出的条数，更早的不列 */
 export const MAX_LISTED_PERIODS = 12
-
-const full = (iso: string) => iso.replace(/^(\d+)-(\d+)-(\d+)$/, (_, y: string, m: string, d: string) => `${y}年${Number(m)}月${Number(d)}日`)
 
 function dayCount(start: string, end: string): number {
   let n = 1

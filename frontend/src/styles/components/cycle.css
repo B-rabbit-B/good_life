@@ -29,6 +29,12 @@
 .cal-g .d.win::after{content:"";position:absolute;left:4px;right:4px;bottom:1px;height:3px;border-radius:var(--r-pill);background:repeating-linear-gradient(90deg,var(--ink-3) 0 3px,transparent 3px 6px)}
 .cal-g .d.today span{color:var(--accent);font-weight:600;box-shadow:inset 0 0 0 2px var(--accent)}
 .cal-g .d.rec.today span{color:#fff}
+/* 点中已记录经期里的一天：方块外再画一圈 3 宽的钴蓝框（今天的内描边照旧；360 视口下每格约 44.6 宽，36+2×3 放得下） */
+.cal-g .d.sb{background:var(--accent-wash)}
+.cal-g .d.ss span,.cal-g .d.se span{background:var(--accent);color:#fff;box-shadow:none}
+.cal-g .d.dim{opacity:.35}
+.cal-g .d.sel span{box-shadow:0 0 0 3px var(--accent)}
+.cal-g .d.sel.today span{box-shadow:inset 0 0 0 2px var(--accent),0 0 0 3px var(--accent)}
 .cal-g .d.log span::before{content:"";position:absolute;top:5px;right:calc(50% - 16px);width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
 /* 相邻月份补齐整周的格子：只占位（高 44、方块 36 不变），不显示、不可点、不可聚焦、读屏不可见 */
 .cal-g .d.out{visibility:hidden;pointer-events:none}
@@ -41,6 +47,14 @@
 .cal-leg .l-prd{outline:1.5px dashed var(--ink-2);outline-offset:-1.5px}
 .cal-leg .l-win{height:3px;background:repeating-linear-gradient(90deg,var(--ink-3) 0 3px,transparent 3px 6px)}
 .cal-leg .l-log{width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+
+.sel-day{padding:14px var(--gutter) 6px}
+.sel-x{margin:0;font-size:var(--fs-14);line-height:1.6;color:var(--ink)}
+.sel-day .err{margin-top:10px}
+.sel-acts{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+.sel-acts.two{grid-template-columns:1fr 1fr}
+.sel-log{margin:6px 0 0}
+.sel-log .btn-txt{margin-left:-8px;white-space:normal;text-align:left}
 
 .cyc-list{padding:4px var(--gutter) 6px}
 .cyc-list ul{list-style:none;margin:0;padding:0}
@@ -59,6 +73,10 @@
   .cal-g .d.prd span{outline-color:CanvasText}
   .cal-g .d.today span{color:Highlight;box-shadow:inset 0 0 0 2px Highlight}
   .cal-g .d.rec.today span{color:Canvas}
+  .cal-g .d.sb{forced-color-adjust:none;background:Canvas;box-shadow:inset 0 2px 0 Highlight,inset 0 -2px 0 Highlight}
+  .cal-g .d.ss span,.cal-g .d.se span{background:Highlight;color:HighlightText;box-shadow:none}
+  .cal-g .d.sel span{box-shadow:0 0 0 3px Highlight}
+  .cal-g .d.sel.today span{box-shadow:inset 0 0 0 2px Highlight,0 0 0 3px Highlight}
   .cal-g .d.win::after{background:repeating-linear-gradient(90deg,CanvasText 0 3px,transparent 3px 6px)}
   .cal-g .d[data-focus-visible] span,.cal-g .d.prd[data-focus-visible] span{outline:2px solid Highlight;outline-offset:2px}
   .cal-g .d.log span::before{background:CanvasText}

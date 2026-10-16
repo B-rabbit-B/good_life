@@ -48,6 +48,12 @@ export function formatMonthDay(iso: string): string {
   return `${m}月${d}日`
 }
 
+/** “2026年10月12日” */
+export function formatFullDate(iso: string): string {
+  const [y, m, d] = parts(iso)
+  return `${y}年${m}月${d}日`
+}
+
 /** “周一” */
 export function formatWeekday(iso: string): string {
   return WEEKDAYS[toUtc(iso).getUTCDay()] ?? ''

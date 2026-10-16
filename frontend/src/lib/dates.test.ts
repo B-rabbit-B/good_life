@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addDays, addMonths, dayLabel, defaultMealType, formatMonthDay, formatStamp, formatTime, formatWeekday, mondayOf, todayISO,
+  addDays, addMonths, dayLabel, defaultMealType, formatFullDate, formatMonthDay, formatStamp, formatTime, formatWeekday, mondayOf, todayISO,
 } from './dates'
 
 // 本地时间的时刻（测试不依赖运行机器的时区）
@@ -37,6 +37,11 @@ describe('dates', () => {
   it('formats month and day', () => {
     expect(formatMonthDay('2026-10-12')).toBe('10月12日')
     expect(formatMonthDay('2026-01-05')).toBe('1月5日')
+  })
+
+  it('formats the full date', () => {
+    expect(formatFullDate('2026-09-27')).toBe('2026年9月27日')
+    expect(formatFullDate('2026-01-05')).toBe('2026年1月5日')
   })
 
   it('formats the weekday', () => {
