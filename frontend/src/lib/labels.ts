@@ -19,6 +19,7 @@ export type ItemConfidence = NonNull<S['app__medical__schemas__ItemOut']['confid
 export type ActivityLevel = NonNull<S['ProfileOut']['activity_level']>
 export type Goal = NonNull<S['ProfileOut']['goal']>
 export type Gender = NonNull<S['ProfileOut']['gender']>
+export type ConsentKind = S['ConsentOut']['kind']
 export type Flow = NonNull<S['DayLogIn']['flow']>
 export type Mood = NonNull<S['DayLogIn']['mood']>
 export type Phase = S['PhaseOut']['phase']
@@ -64,6 +65,9 @@ export const GOAL_LABELS: Record<Goal, string> = { lose_fat: '减脂', gain_musc
 
 export const GENDER_LABELS: Record<Gender, string> = { female: '女', male: '男', other: '其他' }
 
+/** 单独同意的两类数据（撤回按钮写“撤回并清除某某数据”） */
+export const CONSENT_KIND_LABELS: Record<ConsentKind, string> = { cycle: '经期', medical: '医嘱' }
+
 // 经期的流量、心情与阶段标题在 cycleLabels.ts，训练的部位与器械在 fitnessLabels.ts（只有那两块页面用；
 // 这个文件在对话页首屏的块里，放在这里会让它们进首屏）
 
@@ -83,6 +87,7 @@ export const RISK_TITLE_KEYS: Record<RiskCategory, TitleKey> = {
   self_harm: 'careSelfHarm',
   medication: 'careMedication',
   extreme_diet: 'careDiet',
+  minor_weight_loss: 'careDiet',
 }
 
 /** 就医提示里可拨打的电话 */
@@ -92,6 +97,7 @@ export const RISK_PHONES: Record<RiskCategory, ('120' | '12356')[]> = {
   self_harm: ['120', '12356'],
   medication: ['120'],
   extreme_diet: ['120', '12356'],
+  minor_weight_loss: ['120', '12356'],
 }
 
 /** 档案“健康状况”一项下面的提示（引导到医嘱页；录入向导与编辑档案共用） */

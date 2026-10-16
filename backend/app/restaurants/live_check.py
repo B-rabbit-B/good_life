@@ -27,6 +27,8 @@ from sqlalchemy import delete
 
 from app.auth.models import User
 from app.auth.service import register_user
+from app.consents import service as consents_service
+from app.consents.content import CONSENT_KINDS, CONSENT_VERSION
 from app.db import get_sessionmaker
 from app.disclaimer import service as disclaimer_service
 from app.disclaimer.content import DISCLAIMER_VERSION
@@ -111,6 +113,8 @@ class Record:
 def _register(db, prefix: str, key: str, profile: dict) -> uuid.UUID:
     user = register_user(db, f"{prefix}{key}", secrets.token_urlsafe(16))
     disclaimer_service.accept(db, user.id, DISCLAIMER_VERSION)
+    for kind in CONSENT_KINDS:
+        consents_service.grant(db, user.id, kind, CONSENT_VERSION)
     update_profile(db, user.id, dict(profile))
     return user.id
 

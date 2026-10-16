@@ -13,7 +13,13 @@
   孕期与坐月子，以及几个英文词干。英文的 dr、doc 太短，只按整词算（前后不是英文字母，“dr说”“my dr”算，
   “drink”“document”不算），在保留空白的归一文字上查。
 - 指令式的话一律拒绝（原因是 INSTRUCTION_REASON）：偏好会写进系统指令，所以含有【】、指令、忽略、规则、
-  system prompt、ignore（不分大小写）的内容不记。
+  system prompt、ignore（不分大小写）的内容不记；步骤 12 起再加短语级的回答与身份操控（回答都、每次回复、必须先、
+  先推荐、不要告诉、扮演、你是等）与外部引流（网址、网站、链接、二维码、微信号、公众号、http、www、prompt、assistant）
+  的说法，以及像网址的写法（_DOMAIN，例如 example.com）。只收短语，不收“总是”“必须”“以后”这类宽泛的词。
+  短语还在去掉标点、符号、表情、组合附加符（含变体选择符）与谚文填充字之后再查一次（“回·答·都”“网️址”同样拒绝）；
+  繁体对照表也覆盖这些短语用到的字（“附上外賣網址”“關注某某公眾號”同样拒绝）。
+- 读出写进系统指令时（assembly._read_preferences）再按 check_preference 过滤一次：旧规则下记进去的偏好同样受新规则约束；
+  偏好列表接口不过滤，用户仍能看到并删除它们。
 - “忌口”本身不拒绝：用户自己的口味取舍（“我不吃香菜”）可以记；但把忌口和医嘱、医生、疾病联系在一起的写法
   （例如“忌口（因医嘱）”“医生让我少吃盐”）会命中上面的词，因此被拒。
 - 空白文字、超过 MAX_PREFERENCE_CHARS 个字的文字同样被拒。
@@ -62,8 +68,18 @@ HARD_INFO_WORDS = (
 LATIN_WHOLE_WORDS = ("dr", "doc")
 _LATIN_WHOLE = re.compile(rf"(?<![a-z])(?:{'|'.join(LATIN_WHOLE_WORDS)})(?![a-z])")
 
-# 指令式的说法：偏好会写进系统指令，这些一律不记
-INSTRUCTION_WORDS = ("【", "】", "指令", "忽略", "规则", "systemprompt", "ignore")
+# 指令式的说法：偏好会写进系统指令，这些一律不记。步骤 12 加上短语级的回答与身份操控、外部引流说法；
+# 不收单字或宽泛的词（例如“总是”“必须”“以后”“回答”“模型”），免得误伤“晚上总是饿”“以后都少吃甜”这类日常说法
+INSTRUCTION_WORDS = (
+    "【", "】", "指令", "忽略", "规则", "systemprompt", "ignore",
+    # 回答与身份操控
+    "回答都", "回复都", "回答前", "回复前", "每次回答", "每次回复", "必须先", "总是先", "先推荐", "不要告诉",
+    "扮演", "你是", "你现在是",
+    # 外部引流
+    "网址", "网站", "链接", "二维码", "微信号", "公众号", "http", "www", "prompt", "assistant",
+)
+# 像网址的写法（在归一后的文字上查）。按 ASCII 判断词边界：“abc.com的”这类后面紧跟汉字的写法也算
+_DOMAIN = re.compile(r"[a-z0-9-]+\.(com|cn|net|org|io|top|xyz|cc|me|app|co)\b", re.ASCII)
 
 # 日常说法，匹配前先去掉，避免“病、慢性、药、医院、炎、肝、肾”这些词误伤普通口味
 SAFE_PHRASES = (
@@ -71,15 +87,20 @@ SAFE_PHRASES = (
     "猪肝", "鸡肝", "鸭肝", "鹅肝", "牛肝", "羊肝", "猪肾", "羊肾", "鸡肾",
 )
 
-# 常见繁体字到简体字的对照（覆盖词表里用到的字和常见说法）
-_TRADITIONAL = "醫藥過對說鹽處劑確診斷術後壓膽腎瘍療護懷備囑營養師飲結腫臟風體檢複為讓雙華島應當臨與閱發歲濟暈潰"
-_SIMPLIFIED = "医药过对说盐处剂确诊断术后压胆肾疡疗护怀备嘱营养师饮结肿脏风体检复为让双华岛应当临与阅发岁济晕溃"
+# 常见繁体字到简体字的对照（覆盖两张词表里用到的字和常见说法；第二行是指令与引流短语用到的字）
+_TRADITIONAL = ("醫藥過對說鹽處劑確診斷術後壓膽腎瘍療護懷備囑營養師飲結腫臟風體檢複為讓雙華島應當臨與閱發歲濟暈潰"
+                "網鏈號眾維碼現覆復規則點總須薦訴賣關掃這餓統")
+_SIMPLIFIED = ("医药过对说盐处剂确诊断术后压胆肾疡疗护怀备嘱营养师饮结肿脏风体检复为让双华岛应当临与阅发岁济晕溃"
+               "网链号众维码现复复规则点总须荐诉卖关扫这饿统")
 TRADITIONAL_TO_SIMPLIFIED = dict(zip(_TRADITIONAL, _SIMPLIFIED, strict=True))
 
 _TO_SIMPLIFIED = str.maketrans(TRADITIONAL_TO_SIMPLIFIED)
 
 REJECT_REASON = "这是医嘱或健康状况信息，请在医嘱或档案里记录，不放进偏好记忆"
-INSTRUCTION_REASON = "偏好里不能有指令式的内容（例如“忽略”“规则”“指令”、英文 ignore、system prompt 或【】符号），请只写口味或习惯"
+INSTRUCTION_REASON = (
+    "偏好里不能有指令式的内容、链接或网址（例如“忽略”“规则”“指令”“以后回答都先……”、英文 ignore、system prompt 或【】符号），"
+    "请只写口味或习惯"
+)
 
 
 def collapse_whitespace(text: str) -> str:
@@ -102,6 +123,27 @@ _NORMALIZED_WORDS = tuple(_normalize(word) for word in HARD_INFO_WORDS)
 _NORMALIZED_SAFE = tuple(_normalize(phrase) for phrase in SAFE_PHRASES)
 
 
+# 短语匹配前再去掉的字符：Unicode 类别为 M*（含变体选择符 U+FE0F、CGJ U+034F）、P*（标点）、S*（符号与表情），
+# 以及类别是字母却显示为空白的谚文填充字；“回·答·都”“回😀答😀都”“网️址”因此与“回答都”“网址”同样命中
+_FILLERS = frozenset("ᅟᅠㅤﾠ")
+_ALLOWED_SEPARATOR = "\x1f"  # 放行短语去掉后留下的分隔符（控制字符，不会被上面的规则去掉），两侧文字不会拼成新词
+
+
+def _bare(normalized: str) -> str:
+    return "".join(ch for ch in normalized if ch not in _FILLERS and unicodedata.category(ch)[0] not in "MPS")
+
+
+def instruction_like(text: str, allowed: tuple[str, ...] = ()) -> bool:
+    """含有 INSTRUCTION_WORDS 里的任何一项（在归一文字与再去掉 M、P、S 类字符的文字上各查一次；【】只在前者里有），
+    或有像网址的写法（_DOMAIN，只在归一文字上查，否则“.”会被去掉）。allowed 里的说法先去掉再查（开场改写用）。"""
+    normalized = _normalize(text)
+    for phrase in allowed:
+        normalized = normalized.replace(_normalize(phrase), _ALLOWED_SEPARATOR)
+    bare = _bare(normalized)
+    return (any(word in normalized or word in bare for word in INSTRUCTION_WORDS)
+            or _DOMAIN.search(normalized) is not None)
+
+
 def check_preference(text: str) -> str | None:
     """返回拒绝原因；可以记就返回 None。"""
     normalized = _normalize(text)
@@ -109,7 +151,7 @@ def check_preference(text: str) -> str | None:
         return "偏好内容不能为空"
     if len(collapse_whitespace(text)) > MAX_PREFERENCE_CHARS:
         return f"偏好最多 {MAX_PREFERENCE_CHARS} 个字，请精简后再记"
-    if any(word in normalized for word in INSTRUCTION_WORDS):
+    if instruction_like(text):
         return INSTRUCTION_REASON
     for phrase in _NORMALIZED_SAFE:
         normalized = normalized.replace(phrase, "/")

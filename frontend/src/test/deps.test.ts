@@ -67,4 +67,12 @@ describe('dependencies', () => {
       entry.startsWith('@react-spring+') || ANIMATION_LIBRARIES.some((name) => entry.startsWith(`${name}@`)))
     expect(transitive).toEqual([])
   })
+
+  it('pins the font tool version in the subset script', () => {
+    const script = readFileSync(new URL('scripts/subset-fonts.mjs', root), 'utf8')
+    const specs = [...script.matchAll(/'--(?:from|with)', '(fonttools(?:\[woff\])?[^']*)'/g)].map((match) => match[1])
+    expect(specs.length).toBeGreaterThanOrEqual(3)
+    expect(specs.filter((spec) => !/^fonttools(\[woff\])?==\d+\.\d+\.\d+$/.test(spec ?? ''))).toEqual([])
+    expect(new Set(specs.map((spec) => spec?.split('==')[1])).size).toBe(1)
+  })
 })

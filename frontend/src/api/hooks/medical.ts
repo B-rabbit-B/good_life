@@ -3,29 +3,29 @@ import { api } from '../client'
 import { invalidateDomain } from '../invalidation'
 import { qk } from '../keys'
 import type { EventOut, MedicalItemOut } from '../types'
-import { useCapabilities } from './profile'
+import { useModuleReady } from './consents'
 
 // 对话页也用的部分（待处理列表、条目与事件、继续遵守、不解除）放在这里；只有医嘱页用的（医嘱单、证据、修改、确认、
 // 作废、解除、审计）在 medicalPage.ts，免得进对话页的首屏。
 export const base = '/api/medical'
 
-/** 需要本人处理的条目：待复核的，以及仍在生效但带着解除建议的（只在医嘱模块开放时请求） */
+/** 需要本人处理的条目：待复核的，以及仍在生效但带着解除建议的（只在医嘱模块开放且已单独同意时请求） */
 export function useMedicalReviews() {
-  const caps = useCapabilities()
+  const ready = useModuleReady('medical')
   return useQuery({
     queryKey: qk.reviews,
     queryFn: ({ signal }) => api<MedicalItemOut[]>(`${base}/reviews`, { signal }),
-    enabled: caps.data?.medical === true,
+    enabled: ready,
   })
 }
 
 /** 全部医嘱条目 */
 export function useMedicalItems() {
-  const caps = useCapabilities()
+  const ready = useModuleReady('medical')
   return useQuery({
     queryKey: qk.medicalItems,
     queryFn: ({ signal }) => api<MedicalItemOut[]>(`${base}/items`, { signal }),
-    enabled: caps.data?.medical === true,
+    enabled: ready,
   })
 }
 

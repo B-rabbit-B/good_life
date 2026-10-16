@@ -140,7 +140,7 @@ class MealOut(BaseModel):
 class NeedsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    status: Literal["ok", "insufficient_profile"]
+    status: Literal["ok", "insufficient_profile", "minor"]
     missing_fields: list[str]
     energy_kcal: int | None
     energy_kcal_low: int | None

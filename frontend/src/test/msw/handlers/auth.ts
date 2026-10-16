@@ -1,5 +1,6 @@
 // 入口流程的接口：注册、登录、退出、免责正文与确认，以及建档与“我的”页测试用的可变档案。
-// 规则照后端：注册 201；登录失败 401 invalid_credentials；确认的版本不是当前版本时 409 disclaimer_outdated。
+// 规则照后端：注册 201（没有确认年满 14 周岁时 422 validation_error）；登录失败 401 invalid_credentials；
+// 确认的版本不是当前版本时 409 disclaimer_outdated。
 import { http, HttpResponse, type HttpHandler } from 'msw'
 import type { Capabilities, ProfileOut, ProfileUpdate, RegisterRequest } from '../../../api/types'
 import { DISCLAIMER_VERSION, TEST_TOKEN, testUser } from '../../fixtures/core'
@@ -19,6 +20,15 @@ export function authHandlers(): HttpHandler[] {
   return [
     http.post('/api/auth/register', async ({ request }) => {
       const body = (await request.json()) as RegisterRequest
+      if (body.age_confirmed !== true) {
+        return HttpResponse.json({
+          error: {
+            code: 'validation_error',
+            message: '请求参数不合法',
+            details: [{ field: 'age_confirmed', message: '请确认你已年满 14 周岁', type: 'value_error' }],
+          },
+        }, { status: 422 })
+      }
       return HttpResponse.json(testUser({ username: body.username.toLowerCase() }), { status: 201 })
     }),
     http.post('/api/auth/login', () => HttpResponse.json({ access_token: TEST_TOKEN, token_type: 'bearer' })),

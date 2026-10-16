@@ -7,13 +7,11 @@
 import json
 import uuid
 from datetime import date
-from urllib.parse import parse_qs, urlsplit
 
 import httpx2
 import pytest
 from sqlalchemy import text
 
-from app.config import Settings
 from app.db import Base, get_db, get_engine, get_sessionmaker
 from app.errors import AppError
 from app.llm import service as llm_service
@@ -21,98 +19,24 @@ from app.nutrition.catalog import load_catalog
 from app.nutrition.engine import DISCLAIMER
 from app.restaurants import amap
 from app.restaurants import service as restaurant_service
-from app.restaurants.amap import AmapClient, Poi, navigation_url, use_transport
+from app.restaurants.amap import AmapClient, Poi, navigation_url
 from app.restaurants.coords import wgs84_to_gcj02
 from app.restaurants.needs import MODEL_PROMPT, load_needs, match_rules
 from app.restaurants.schemas import SearchIn
 from app.security.crypto import decrypt_value
 from tests.agent_fake import connect, fail, say, scripted  # noqa: F401
+from tests.amap_fake import BASE, CITY_LEVEL, KEY, POIS, fake, settings  # noqa: F401
 from tests.helpers import ready_user
 
-KEY = "amap-flow-key-0123456789abcdef"
-BASE = "https://amap.example.com"
 URL = "/api/restaurants"
 NOTICE = "到店可点与应避开是基于餐厅类别的一般性建议，不代表该店真实菜单，也不保证该店有这些菜。"
 UNCHECKED_TIP = "无法判断这家店的类别，请到店自行留意。"
 GPS = {"lng": 116.461234, "lat": 39.909876}
 CATALOG_NAMES = {food.name for food in load_catalog().foods.values()}
 NEED_TEXT_WITHOUT_RULES = "随便来点好吃的"
-
-
-def _poi(poi_id, name, typecode, distance, rating, lng, lat, address):
-    return {"id": poi_id, "name": name, "location": f"{lng},{lat}", "typecode": typecode,
-            "type": "餐饮服务", "address": address, "distance": distance,
-            "business": {"rating": rating} if rating else []}
-
-
-POIS = [
-    _poi("B001", "老川菜馆", "050102", "120", "4.6", 116.462, 39.910, "建国路 1 号"),
-    _poi("B002", "张记粥铺", "050100", "300", "4.2", 116.463, 39.911, "建国路 2 号"),
-    _poi("B003", "绿叶轻食", "050000", "450", "4.8", 116.464, 39.912, "建国路 3 号"),
-    _poi("B004", "老码头火锅", "050117", "200", "4.5", 116.465, 39.913, "建国路 4 号"),
-    _poi("B005", "杨记麻辣烫", "050000", "150", "4.0", 116.466, 39.914, "建国路 5 号"),
-    _poi("B006", "张姐面馆", "050100", "600", "", 116.467, 39.915, "建国路 6 号"),
-    _poi("B007", "某某餐厅", "050000", "80", "", 116.468, 39.916, "建国路 7 号"),
-]
-GUOMAO = {"formatted_address": "北京市朝阳区国贸", "district": "朝阳区", "adcode": "110105", "city": [],
-          "province": "北京市", "location": "116.458000,39.908000"}
-# 只匹配到城市：区县与城市都是空数组（直辖市），名称只能来自省份
-CITY_LEVEL = {"formatted_address": "北京市", "district": [], "city": [], "province": "北京市", "adcode": "110000",
-              "location": "116.407000,39.904000"}
-REGEO = {"formatted_address": "北京市朝阳区建国门外大街", "addressComponent": {
-    "district": "朝阳区", "adcode": "110105", "city": [], "province": "北京市"}}
 # 不设区的地级市：没有区县，逆地理的地址名称细到街道
 DONGGUAN_REGEO = {"formatted_address": "广东省东莞市南城街道鸿福路 100 号", "addressComponent": {
     "district": [], "adcode": "441900", "city": "东莞市", "province": "广东省"}}
-
-
-def ok(body: dict) -> httpx2.Response:
-    return httpx2.Response(200, json={"status": "1", "info": "OK", "infocode": "10000", **body})
-
-
-class FakeAmap:
-    """模拟高德：记录每次请求的路径与参数，以及请求时测试登记的数据库会话是否开着事务。"""
-
-    def __init__(self):
-        self.requests: list[tuple[str, dict[str, str]]] = []
-        self.sessions: list = []
-        self.in_transaction: list[bool] = []
-        self.override: httpx2.Response | None = None
-        self.regeo = REGEO
-        self.geocodes = {"国贸": [GUOMAO], "北京": [CITY_LEVEL]}
-
-    def __call__(self, request: httpx2.Request) -> httpx2.Response:
-        self.in_transaction.append(any(session.in_transaction() for session in self.sessions))
-        params = {k: v[0] for k, v in parse_qs(urlsplit(str(request.url)).query).items()}
-        self.requests.append((request.url.path, params))
-        if self.override is not None:
-            return self.override
-        if request.url.path == "/v5/place/around":
-            return ok({"count": str(len(POIS)), "pois": POIS})
-        if request.url.path == "/v3/geocode/geo":
-            found = self.geocodes.get(params["address"], [])
-            return ok({"count": str(len(found)), "geocodes": found})
-        if request.url.path == "/v3/geocode/regeo":
-            return ok({"regeocode": self.regeo})
-        return httpx2.Response(404)
-
-    def calls(self, path: str) -> list[dict[str, str]]:
-        return [params for request_path, params in self.requests if request_path == path]
-
-
-def _settings(**overrides) -> Settings:
-    return Settings(_env_file=None, database_url="postgresql+psycopg://u:p@localhost:5433/db", jwt_secret="x" * 32,
-                    field_encryption_key="MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=", **overrides)
-
-
-@pytest.fixture
-def fake(client, monkeypatch):
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings(amap_key=KEY, amap_base_url=BASE))
-    restaurant_service.reset_rate_limit()
-    model = FakeAmap()
-    with use_transport(httpx2.MockTransport(model)):
-        yield model
-    restaurant_service.reset_rate_limit()
 
 
 def _search(client, headers, **body):
@@ -574,7 +498,7 @@ def test_unknown_need_key_is_rejected_before_any_network_call(client, fake):
 
 
 def test_missing_amap_key_is_503(client, fake, monkeypatch):
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings())
+    monkeypatch.setattr(amap, "get_settings", lambda: settings())
     headers = ready_user(client, "ned")
     response = _search(client, headers, place="国贸")
     assert response.status_code == 503

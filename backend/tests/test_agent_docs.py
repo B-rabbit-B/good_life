@@ -43,7 +43,7 @@ from app.agent.openings import (
     PROFILE_STALE_DAYS,
     TEMPLATES,
 )
-from app.agent.preferences import INSTRUCTION_REASON, MAX_PREFERENCE_CHARS, MAX_PREFERENCES
+from app.agent.preferences import INSTRUCTION_REASON, INSTRUCTION_WORDS, MAX_PREFERENCE_CHARS, MAX_PREFERENCES
 from app.agent.router import SSE_CHUNK_CHARS
 from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES, SAFE_REPLIES
 from app.agent.schemas import MAX_MESSAGE_CHARS
@@ -57,7 +57,7 @@ TESTS = ROOT / "backend" / "tests"
 AGENT_SOURCES = ROOT / "backend" / "app" / "agent"
 EXPECTED_DOCS = {"智能体行为设计.md", "主动开场规则表.md", "安全边界清单.md", "输出检查规则说明.md", "端到端场景脚本.md",
                  "接口清单.md", "验收记录.md"}
-RISK_ORDER = ["self_harm", "severe_symptom", "pregnancy", "medication", "extreme_diet"]
+RISK_ORDER = ["self_harm", "severe_symptom", "pregnancy", "medication", "extreme_diet", "minor_weight_loss"]
 
 
 def _read(name: str) -> str:
@@ -120,7 +120,7 @@ def test_acceptance_record_counts_match_the_code():
     assert "迁移版本到 0014" in record and "共二十六张表" in record
     for model in (AgentConversation, AgentMessage, AgentPreference, AgentOpening, AgentSettings):
         assert model.__tablename__ in record, model.__tablename__
-    assert f"新增 {len(_agent_routes())} 个接口" in record
+    assert "新增 13 个接口" in record  # 步骤 08 验收当时的数字；步骤 12 加了清空全部对话，共 14 个（见接口清单测试）
     assert "能力表 27 项加站内的“记住偏好”，一轮最多提供 28 个、最少 18 个" in record
     note = next(line for line in record.splitlines() if line.startswith("补充说明（步骤 10）"))
     assert f"共 {len(agent_registry()) + 6} 项能力、MCP 工具 {len(agent_registry())} 个" in note
@@ -183,7 +183,7 @@ def _agent_routes():
 def test_interface_doc_lists_every_agent_route_and_every_error_code():
     doc = _read("接口清单.md")
     routes = _agent_routes()
-    assert len(routes) == 13
+    assert len(routes) == 14
     for route in routes:
         for method in route.methods:
             assert f"{method} {route.path}" in doc, (method, route.path)
@@ -229,6 +229,16 @@ def test_behavior_doc_numbers_and_fixed_texts_match_the_code(monkeypatch):
         assert word in doc, word
     for text in (DATA_NOTICE, RECORD_CHECK, INSTRUCTION_REASON):
         assert text in doc, text
+
+
+def test_behavior_doc_lists_the_step_12_preference_filter_with_existing_tests():
+    section = _read("智能体行为设计.md").split("### 步骤 12 收紧的偏好过滤")[1].split("\n## ")[0]
+    for word in INSTRUCTION_WORDS[INSTRUCTION_WORDS.index("回答都"):]:
+        assert word in section, word
+    refs = re.findall(r"(test_\w+\.py)::(test_\w+)", section)
+    assert ("test_preference_injection.py", "test_persistent_injection_chain_is_cut") in refs
+    for file_name, test_name in refs:
+        assert f"def {test_name}(" in (TESTS / file_name).read_text(encoding="utf-8"), test_name
 
 
 def test_scenario_script_covers_the_five_user_kinds_and_the_live_check_inputs():

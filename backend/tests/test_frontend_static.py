@@ -28,6 +28,8 @@ def dist():
     (root / ".vite").mkdir()
     (root / ".vite" / "manifest.json").write_text("{}", encoding="utf-8")
     (root / "favicon.ico").write_text("icon", encoding="utf-8")
+    (root / ".well-known").mkdir()
+    (root / ".well-known" / "security.txt").write_text("Contact: none", encoding="utf-8")
     (parent / "secret.txt").write_text(SECRET, encoding="utf-8")
     yield root
     shutil.rmtree(parent, ignore_errors=True)
@@ -189,3 +191,29 @@ def test_create_app_mounts_the_configured_dist(dist, monkeypatch):
     finally:
         monkeypatch.undo()
         get_settings.cache_clear()
+
+
+def test_not_found_and_head_responses_carry_security_headers(served):
+    responses = {
+        "GET /missing.js": served.get("/missing.js"),
+        "GET /assets/nope.js": served.get("/assets/nope.js"),
+        "GET /.vite/manifest.json": served.get("/.vite/manifest.json"),
+        "POST /chat": served.post("/chat"),
+        "HEAD /": served.head("/"),
+        "HEAD /chat": served.head("/chat"),
+        "HEAD /assets/app.123.js": served.head("/assets/app.123.js"),
+        "HEAD /missing.js": served.head("/missing.js"),
+    }
+    assert responses["GET /missing.js"].status_code == 404 and responses["HEAD /chat"].status_code == 200
+    for label, response in responses.items():
+        for name, value in SECURITY_HEADERS.items():
+            assert response.headers.get(name) == value, (label, name)
+
+
+def test_well_known_files_are_served_but_other_dot_paths_are_not(served, dist):
+    response = served.get("/.well-known/security.txt")
+    assert response.status_code == 200 and response.text == "Contact: none"
+    assert _file_in(dist, "/.well-known/security.txt") == dist / ".well-known" / "security.txt"
+    for path in ("/.well-known/missing", "/.well-known/missing.txt", "/.well-known/", "/x/.well-known/security.txt",
+                 "/.well-known/%2e%2e/index.html", "/.vite/manifest.json"):
+        assert _is_error_json(served.get(path)), path

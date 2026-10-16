@@ -29,6 +29,7 @@ DEFAULT_HINTS: dict[str, str] = {
 }
 
 DISCLAIMER_HINT = "请让用户先在应用里阅读并确认免责声明"
+CONSENT_HINT = "请让用户在应用里完成单独同意"
 
 _INVALID_INPUT_STATUSES = {400, 413, 415, 422}
 
@@ -65,6 +66,8 @@ def from_app_error(err: AppError) -> SdkError:
         kind = "module_unavailable"
     elif status == 403 and code == "disclaimer_not_accepted":
         kind, hint = "needs_user_confirmation", DISCLAIMER_HINT
+    elif status == 403 and code == "consent_required":
+        kind, hint = "needs_user_confirmation", CONSENT_HINT
     elif status == 403:
         kind = "forbidden"
     elif status == 404:

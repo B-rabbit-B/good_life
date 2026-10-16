@@ -1,8 +1,13 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+
+from app.common.age import MIN_AGE, age_in_years
+from app.common.clock import get_today
+
+UNDER_AGE_MESSAGE = "本应用暂不面向 14 周岁以下的用户，请确认出生年份"
 
 Gender = Literal["female", "male", "other"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
@@ -45,8 +50,15 @@ class ProfileUpdate(BaseModel):
     @field_validator("birth_year")
     @classmethod
     def not_in_future(cls, value: int | None) -> int | None:
-        if value is not None and value > datetime.now(UTC).year:
+        if value is not None and value > get_today().year:
             raise ValueError("出生年份不能晚于今年")
+        return value
+
+    @field_validator("birth_year")
+    @classmethod
+    def not_under_min_age(cls, value: int | None) -> int | None:
+        if value is not None and age_in_years(value, get_today()) < MIN_AGE:
+            raise ValueError(UNDER_AGE_MESSAGE)
         return value
 
 

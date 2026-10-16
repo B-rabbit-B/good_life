@@ -8,9 +8,13 @@
 .login-p{margin:0 var(--gutter) 18px;color:var(--ink-2);font-size:.9375rem}
 .login-plate{padding:12px var(--plate-pad) 16px}
 .login-plate .ttabs{margin:0 0 2px}
+/* 注册分段的年龄确认：整行勾选（44 高），贴在密码下面 */
+.login-age{margin-top:10px}
 .login-submit{margin-top:22px}
 .login-next{margin:12px 0 0}
 .foot-note{margin:auto var(--gutter) 0;padding:16px 0 12px;font-size:var(--fs-12);color:var(--ink-2);line-height:1.6}
+/* 删除账号之后：页题下面一行状态文字（role="status" 播报） */
+.login-deleted{color:var(--ink);font-weight:500}
 /* 登录已过期：页题下面一块瓷胎面板（role="status" 播报），状态组件自己的页边去掉 */
 .login-expired{margin-top:0}
 .login-expired .state{padding:12px 0 14px}

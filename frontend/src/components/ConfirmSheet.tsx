@@ -19,6 +19,10 @@ export type ConfirmSheetProps = SheetTitle & {
   confirmVariant?: 'primary' | 'danger'
   /** 必须勾选的一句话（不可撤销的动作），勾选后确认按钮才可用 */
   ack?: string
+  /** 写在清单与勾选之间的内容（例如重新输入密码的输入框） */
+  children?: ReactNode
+  /** 调用方的前提还没满足（例如密码没填）：确认按钮停用 */
+  confirmDisabled?: boolean
   /** 次按钮；isPending 时它自己的请求在进行中（例如撤销解除建议）：确认按钮与关闭也一起停用 */
   secondary?: { label: string; onPress: () => void; isPending?: boolean }
   note?: string
@@ -33,15 +37,17 @@ type BodyProps = Omit<ConfirmSheetProps, 'isOpen' | 'titleKey' | 'title'> & {
   onBusyChange: (busy: boolean) => void
 }
 
-function ConfirmBody({ quote, will, confirmLabel, confirmVariant, ack, secondary, note, onConfirm, onClose, error, resultText, onBusyChange }:
-  BodyProps) {
+function ConfirmBody({
+  quote, will, confirmLabel, confirmVariant, ack, children, confirmDisabled, secondary, note, onConfirm, onClose, error, resultText,
+  onBusyChange,
+}: BodyProps) {
   const [acked, setAcked] = useState(false)
   const [pending, setPending] = useState(false)
   // 双击时 pending 还没来得及渲染，第二次按下照样会进来：用 ref 守住，同一时间只确认一次
   const flight = useSingleFlight()
   const confirm = () => {
     // 纵深防御：按钮已经按勾选停用，这里再拦一次
-    if (ack && !acked) return
+    if ((ack && !acked) || confirmDisabled) return
     const run = flight(() => {
       setPending(true)
       onBusyChange(true)
@@ -65,6 +71,7 @@ function ConfirmBody({ quote, will, confirmLabel, confirmVariant, ack, secondary
           <WillList items={will} />
         </>
       )}
+      {children}
       {ack && <Checkbox isSelected={acked} onChange={setAcked}>{ack}</Checkbox>}
       {error && (
         <div className="err" role="alert">
@@ -75,7 +82,7 @@ function ConfirmBody({ quote, will, confirmLabel, confirmVariant, ack, secondary
       <div className="sheet-foot">
         <Button
           variant={confirmVariant === 'danger' ? 'danger' : 'primary'} block
-          isDisabled={(Boolean(ack) && !acked) || secondaryPending} isPending={pending} onPress={confirm}
+          isDisabled={(Boolean(ack) && !acked) || confirmDisabled === true || secondaryPending} isPending={pending} onPress={confirm}
         >
           {confirmLabel}
         </Button>

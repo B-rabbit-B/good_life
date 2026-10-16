@@ -96,6 +96,8 @@ test('lays out the three medical tabs with the deck sizes and covers their conte
   // seedProposal 走的是本人的接口（来源 user），所以写“你提出了”
   await expect(page.getByText('你提出了一条解除建议')).toBeVisible()
   await expect(page.getByRole('tab', { name: '生效中 3' })).toBeVisible()
+  // 同意守门放行、内容渲染完才核对敏感区
+  await expect(page.locator('[data-sensitive]').first()).toBeVisible()
   await expectTextTabs(page)
   await expectPageRules(page)
   await expectSensitiveAreas(page)
@@ -106,6 +108,8 @@ test('lays out the three medical tabs with the deck sizes and covers their conte
   await expect(page.locator('.fields dd', { hasText: EXTRACTED })).toBeVisible()
   await expect(page.getByText(/之后仍未确认，会自动作废$/)).toBeVisible()
   await expect(page.getByText('没有写明。确认后不设复查日期，可先补上')).toBeVisible()
+  // 同意守门放行、内容渲染完才核对敏感区
+  await expect(page.locator('[data-sensitive]').first()).toBeVisible()
   await expectTextTabs(page)
   await expectPageRules(page)
   await expectSensitiveAreas(page)
@@ -118,6 +122,8 @@ test('lays out the three medical tabs with the deck sizes and covers their conte
   const due = page.locator('.audit li', { hasText: '进入待复核' })
   await expect(due).toContainText('来源：系统（打开应用时检查，已到复查日期，请确认是否还需要继续遵守）')
   await expect(due.locator('time')).not.toContainText('00:00')
+  // 同意守门放行、内容渲染完才核对敏感区
+  await expect(page.locator('[data-sensitive]').first()).toBeVisible()
   await expectTextTabs(page)
   await expectPageRules(page)
   await expectSensitiveAreas(page)

@@ -5,7 +5,10 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.common.request_log import route_template
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,8 @@ class AppError(Exception):
         self.code = code
         self.message = message
 
+
+UNIQUE_VIOLATION = "23505"  # PostgreSQL 的 unique_violation
 
 VALIDATION_FALLBACK = "输入内容不符合要求，请检查后重试"
 
@@ -129,7 +134,15 @@ def register_error_handlers(app: FastAPI) -> None:
             headers=getattr(exc, "headers", None),
         )
 
-    @app.exception_handler(Exception)
-    async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-        logger.exception("未处理的异常：%s %s", request.method, request.url.path)
-        return JSONResponse(status_code=500, content=_body("internal_error", "服务器内部错误"))
+    @app.exception_handler(IntegrityError)
+    async def handle_integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
+        orig = getattr(exc, "orig", None)
+        if getattr(orig, "sqlstate", None) != UNIQUE_VIOLATION:
+            # 非唯一约束的冲突（非空、外键、检查约束）是程序错误：按未处理的异常记类名，返回 500。
+            raise exc
+        # 并发写入撞上唯一约束：异常文字带数据库的 DETAIL（键值原样出现），只记约束名。
+        constraint = getattr(getattr(orig, "diag", None), "constraint_name", None) or "unknown"
+        logger.warning("数据冲突：%s %s（%s）", request.method, route_template(request.app, request.scope), constraint)
+        return JSONResponse(status_code=409, content=_body("conflict", "数据刚刚被修改过，请刷新后重试"))
+
+    # 未处理的异常不在这里处理：common/request_log.py 的 RequestLogMiddleware 兜底，只记类名、方法与路由模板。

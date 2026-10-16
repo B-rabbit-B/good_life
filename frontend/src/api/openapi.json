@@ -14,6 +14,28 @@
         "title": "AcceptRequest",
         "type": "object"
       },
+      "AccountDelete": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm": {
+            "description": "用户勾选了“我知道删除后不能恢复”，必须为 true",
+            "title": "Confirm",
+            "type": "boolean"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "confirm"
+        ],
+        "title": "AccountDelete",
+        "type": "object"
+      },
       "AreaOut": {
         "properties": {
           "name": {
@@ -621,6 +643,20 @@
         "title": "ConnectionReportOut",
         "type": "object"
       },
+      "ConsentGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "ConsentGrant",
+        "type": "object"
+      },
       "ConsentIn": {
         "additionalProperties": false,
         "properties": {
@@ -637,6 +673,81 @@
           "consent"
         ],
         "title": "ConsentIn",
+        "type": "object"
+      },
+      "ConsentOut": {
+        "properties": {
+          "current_version": {
+            "title": "Current Version",
+            "type": "string"
+          },
+          "granted": {
+            "title": "Granted",
+            "type": "boolean"
+          },
+          "granted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted At"
+          },
+          "granted_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted Version"
+          },
+          "kind": {
+            "enum": [
+              "cycle",
+              "medical"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "withdrawn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn At"
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "text",
+          "current_version",
+          "granted",
+          "granted_at",
+          "granted_version",
+          "withdrawn_at"
+        ],
+        "title": "ConsentOut",
         "type": "object"
       },
       "ConstraintOut": {
@@ -3503,7 +3614,8 @@
           "status": {
             "enum": [
               "ok",
-              "insufficient_profile"
+              "insufficient_profile",
+              "minor"
             ],
             "title": "Status",
             "type": "string"
@@ -3836,6 +3948,23 @@
           }
         },
         "title": "OverridesUpdate",
+        "type": "object"
+      },
+      "PasswordConfirm": {
+        "additionalProperties": false,
+        "description": "敏感操作前复核本人密码。",
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "PasswordConfirm",
         "type": "object"
       },
       "PeriodCreate": {
@@ -5117,6 +5246,11 @@
       },
       "RegisterRequest": {
         "properties": {
+          "age_confirmed": {
+            "description": "用户确认已年满 14 周岁，必须为 true；只做校验，不入库",
+            "title": "Age Confirmed",
+            "type": "boolean"
+          },
           "password": {
             "maxLength": 128,
             "minLength": 8,
@@ -5133,7 +5267,8 @@
         },
         "required": [
           "username",
-          "password"
+          "password",
+          "age_confirmed"
         ],
         "title": "RegisterRequest",
         "type": "object"
@@ -7029,6 +7164,134 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/account/consents/{kind}/withdraw": {
+      "post": {
+        "description": "撤回单独同意：同一个事务里清除该模块的全部数据并记下撤回时间，模块随即关闭。",
+        "operationId": "withdraw_consent_api_account_consents__kind__withdraw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "cycle",
+                "medical"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Withdraw Consent",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/delete": {
+      "post": {
+        "description": "重新输入密码并勾选确认后，立即彻底删除账号与全部数据（不可恢复）；登录令牌与智能体授权随之失效。",
+        "operationId": "delete_my_account_api_account_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete My Account",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/export": {
+      "post": {
+        "description": "重新输入密码后导出本人全部数据（压缩包，禁止缓存）；成功后记一行审计 account.export。",
+        "operationId": "export_data_api_account_export_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "压缩包：每个模块一份 JSON、原件、照片与说明"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Data",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/agent-grants": {
       "get": {
         "operationId": "list_grants_api_agent_grants_get",
@@ -7217,6 +7480,24 @@
       }
     },
     "/api/agent/conversations": {
+      "delete": {
+        "description": "清空全部对话历史，开场问候一并清掉。",
+        "operationId": "clear_conversations_api_agent_conversations_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Clear Conversations",
+        "tags": [
+          "agent"
+        ]
+      },
       "get": {
         "operationId": "list_conversations_api_agent_conversations_get",
         "responses": {
@@ -7854,6 +8135,97 @@
         "summary": "Register",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/consents": {
+      "get": {
+        "operationId": "list_consents_api_consents_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentOut"
+                  },
+                  "title": "Response List Consents Api Consents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Consents",
+        "tags": [
+          "consents"
+        ]
+      }
+    },
+    "/api/consents/{kind}": {
+      "post": {
+        "operationId": "grant_consent_api_consents__kind__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "cycle",
+                "medical"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentGrant"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Grant Consent",
+        "tags": [
+          "consents"
         ]
       }
     },

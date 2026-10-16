@@ -60,6 +60,27 @@ describe('models page', { timeout: 15_000 }, () => {
     await waitFor(() => expect(llm.record.tests[1]).toEqual({ id: deepseek.id, body: {} }))
   })
 
+  it('deletes a provider after confirming', async () => {
+    const user = userEvent.setup()
+    const { llm } = renderModels()
+    await screen.findByRole('list', { name: '模型服务' })
+    expect(screen.getByRole('list', { name: '当前用途' })).toHaveTextContent('日常对话qwen-plus（通义千问）')
+    await user.click(within(row('通义千问')).getByRole('button', { name: '删除' }))
+    const dialog = await screen.findByRole('dialog', { name: '删除这个模型服务' })
+    expect(within(dialog).getByText('通义千问')).toBeInTheDocument()
+    expect(within(dialog).getByText('模型与用途分配', { exact: false })).toBeInTheDocument()
+    expect(within(dialog).getByText('密钥', { exact: false })).toBeInTheDocument()
+    expect(llm.record.deletes).toEqual([])
+    await user.click(within(dialog).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => expect(llm.record.deletes).toEqual([qwen.id]))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(within(screen.getByRole('list', { name: '模型服务' })).getAllByRole('listitem')).toHaveLength(1))
+    expect(row('DeepSeek')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('list', { name: '当前用途' })).toHaveTextContent('日常对话未设置'))
+    expect(await screen.findByText('已删除')).toBeInTheDocument()
+  })
+
   it('shows the current assignments', async () => {
     renderModels()
     const uses = await screen.findByRole('list', { name: '当前用途' })

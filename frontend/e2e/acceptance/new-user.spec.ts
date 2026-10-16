@@ -20,6 +20,7 @@ test('a new user completes the whole flow through the ui only', async ({ page, r
   await page.getByRole('tab', { name: '注册' }).click()
   await page.getByLabel('用户名').fill(username)
   await page.getByLabel('密码', { exact: true }).fill(PASSWORD)
+  await page.getByText('我已年满 14 周岁').click()
   await page.getByRole('button', { name: '注册并继续' }).click()
 
   // 免责：勾选后才能确认

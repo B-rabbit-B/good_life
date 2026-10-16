@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sys
 from datetime import date
@@ -102,6 +103,28 @@ async def test_unprintable_tool_name_is_still_audited(client):
     with get_engine().connect() as conn:
         rows = conn.execute(text("SELECT capability, outcome, client_name FROM sdk_call_audits")).all()
     assert rows == [("ab", "error", "pytest")]
+
+
+@pytest.mark.anyio
+async def test_handler_failure_logs_only_tool_name_and_class(client, caplog):
+    headers = ready_user(client, "alice")
+    secret = "canary-mcp-4e7a 一周内忌食辛辣"
+
+    def boom(credential, capability, arguments=None, *, client_name="sdk"):
+        raise RuntimeError(secret)
+
+    sdk = GoodLife(today=lambda: TODAY)
+    sdk.call = boom
+    server = build_server(sdk, lambda: AgentGrantToken(_token(client, headers)), "pytest")
+    caplog.set_level(logging.DEBUG)
+    async with Client(server) as mcp:
+        result = await mcp.call_tool("profile_get_capabilities", {"note": secret})
+    assert result.is_error and result.structured_content["error"]["code"] == "internal_error"
+    errors = [record for record in caplog.records if record.name == "app.mcp_server.server"]
+    assert [record.getMessage() for record in errors] == ["MCP 工具调用出错：profile_get_capabilities RuntimeError"]
+    assert all(record.exc_info is None for record in errors)
+    text = "\n".join(caplog.handler.format(record) for record in caplog.records)
+    assert "canary-mcp-4e7a" not in text and "忌食辛辣" not in text and "Traceback" not in text
 
 
 @pytest.mark.anyio

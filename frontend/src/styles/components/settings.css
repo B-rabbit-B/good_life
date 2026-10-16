@@ -9,7 +9,9 @@
 .prov{padding:14px 0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;border-bottom:1px solid var(--line)}
 .prov:last-child{border-bottom:0}
 .prov b{font-size:var(--fs-16);font-weight:600;overflow-wrap:anywhere}
-.prov .mask,.prov-r{grid-column:1/-1}
+.prov .mask{grid-column:1}
+.prov-r{grid-column:1/-1}
+.prov-del{grid-column:2;margin-right:-8px}
 .prov-test{grid-column:2;grid-row:1/3;align-self:start;margin-right:-8px}
 .prov-r{font-size:.8125rem;color:var(--ink-2);line-height:1.6;margin-top:6px}
 .prov-r .vd{margin-right:8px}
@@ -50,6 +52,8 @@
 .area-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:56px}
 .area-row b{font-size:var(--fs-16);font-weight:600;overflow-wrap:anywhere}
 .area-row .t-cap{display:block;color:var(--ink-2)}
+.pv-act{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding-top:14px;padding-bottom:16px}
+.pv-act p{margin:0;font-size:var(--fs-14);color:var(--ink-2);line-height:1.65}
 .pv-empty{margin:0;padding:14px 0;font-size:var(--fs-14);color:var(--ink-2)}
 .grants,.audits{list-style:none;margin:0;padding:0}
 .grant{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}

@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.nutrition.needs import estimate_needs
+from app.nutrition.needs import MINOR_NOTE, estimate_needs
 
 TODAY = date(2026, 10, 6)
 
@@ -38,10 +38,20 @@ def test_missing_profile_fields():
     assert needs.energy_kcal is None
 
 
-def test_unspecified_gender_and_minor_notes():
+def test_unspecified_gender_note():
     needs = estimate_needs(
-        gender=None, birth_year=2012, height_cm=150, weight_kg=40, activity_level="light", goal=None, today=TODAY,
+        gender=None, birth_year=1996, height_cm=150, weight_kg=40, activity_level="light", goal=None, today=TODAY,
     )
     assert needs.status == "ok"
     assert any("中间值" in note for note in needs.notes)
-    assert any("医生或营养师" in note for note in needs.notes)
+    assert MINOR_NOTE not in needs.notes
+
+
+def test_minor_needs_have_no_numbers_and_only_the_minor_note():
+    needs = estimate_needs(
+        gender=None, birth_year=2012, height_cm=150, weight_kg=40, activity_level="light", goal="lose_fat", today=TODAY,
+    )
+    assert needs.status == "minor"
+    assert (needs.energy_kcal, needs.energy_kcal_low, needs.energy_kcal_high, needs.protein_g) == (None,) * 4
+    assert needs.notes == (MINOR_NOTE,)
+    assert "医生或营养师" in MINOR_NOTE

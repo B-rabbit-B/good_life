@@ -1,6 +1,6 @@
 """步骤 10：附近餐厅作为只读 SDK 能力 nutrition.nearby_restaurants，经 SDK、MCP 与站内智能体使用。
 
-高德一律由 tests/test_restaurant_flow.py 的模拟服务（MockTransport）回答，模型一律用 tests/agent_fake.py 的模拟服务，
+高德一律由 tests/amap_fake.py 的模拟服务（MockTransport）回答，模型一律用 tests/agent_fake.py 的模拟服务，
 绝不访问真实网络。
 """
 
@@ -30,7 +30,7 @@ from app.sdk.registry import REGISTRY
 from app.sdk.tooling import TOOL_USAGE, exposed_capabilities
 from tests.agent_fake import call, connect, say, scripted  # noqa: F401
 from tests.helpers import ready_user
-from tests.test_restaurant_flow import BASE, KEY, FakeAmap, _poi, _settings, ok
+from tests.amap_fake import BASE, KEY, FakeAmap, ok, poi, settings
 
 TODAY = date(2026, 10, 7)
 CAPABILITY = "nutrition.nearby_restaurants"
@@ -55,7 +55,7 @@ def sdk():
 
 @pytest.fixture
 def fake(client, monkeypatch):
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings(amap_key=KEY, amap_base_url=BASE))
+    monkeypatch.setattr(amap, "get_settings", lambda: settings(amap_key=KEY, amap_base_url=BASE))
     restaurant_service.reset_rate_limit()
     model = FakeAmap()
     with use_transport(httpx2.MockTransport(model)):
@@ -66,7 +66,7 @@ def fake(client, monkeypatch):
 @pytest.fixture
 def unconfigured(client, monkeypatch):
     """服务端没有配置高德密钥；若真的发出请求，模拟服务会记下来。"""
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings())
+    monkeypatch.setattr(amap, "get_settings", lambda: settings())
     restaurant_service.reset_rate_limit()
     model = FakeAmap()
     with use_transport(httpx2.MockTransport(model)):
@@ -143,7 +143,7 @@ def test_sdk_passes_city_needs_and_radius(client, sdk, fake):
 def test_sdk_without_a_place_uses_the_saved_area_and_returns_at_most_eight(client, sdk, fake):
     headers = ready_user(client, "cid")
     _rest(client, headers, place="国贸", remember_area=True)
-    many = [_poi(f"C{i:03d}", f"张记粥铺{i}号店", "050100", str(100 + i), "4.0", 116.46, 39.91, "建国路")
+    many = [poi(f"C{i:03d}", f"张记粥铺{i}号店", "050100", str(100 + i), "4.0", 116.46, 39.91, "建国路")
             for i in range(12)]
     fake.override = ok({"count": str(len(many)), "pois": many})
     before = len(fake.requests)
@@ -314,12 +314,12 @@ def test_agent_gets_the_tool_and_the_prompt_sentence_only_with_an_amap_key(clien
     headers = ready_user(client, "ivy")
     connect(client, headers)
 
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings(amap_key=KEY, amap_base_url=BASE))
+    monkeypatch.setattr(amap, "get_settings", lambda: settings(amap_key=KEY, amap_base_url=BASE))
     _send(client, headers, "不想做饭，附近有什么吃的")
     with_key = scripted.requests[-1]
     assert TOOL in with_key.tool_names and RESTAURANT_NOTE in with_key.system
 
-    monkeypatch.setattr(amap, "get_settings", lambda: _settings())
+    monkeypatch.setattr(amap, "get_settings", lambda: settings())
     _send(client, headers, "不想做饭，附近有什么吃的")
     without_key = scripted.requests[-1]
     assert TOOL not in without_key.tool_names and RESTAURANT_NOTE not in without_key.system

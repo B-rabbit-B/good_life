@@ -17,14 +17,18 @@ from app.agent.openings import OPENING_KINDS
 from app.agent.safety import HEALTH_DISCLAIMER, RISK_CATEGORIES
 from app.agent.schemas import MAX_MESSAGE_CHARS
 from app.auth import service as auth_service
+from app.common.age import MIN_AGE
+from app.consents import deps as consent_deps
+from app.consents import service as consent_service
 from app.cycle.schemas import DayLogIn
 from app.disclaimer import deps as disclaimer_deps
+from app.disclaimer.content import POSITIONING_STATEMENT, REFERENCE_LABEL
 from app.errors import AppError
 from app.llm import service as llm_service
 from app.llm import urls as llm_urls
 from app.medical import items as medical_items
 from app.medical.items import _due_reason, validate_item_dates
-from app.medical.orders import MAX_EVIDENCE_BYTES
+from app.medical.orders import MAX_EVIDENCE_BYTES, MAX_EVIDENCE_PER_ORDER
 from app.medical.schemas import Content, OrderCreate, Reason
 from app.nutrition.engine import PENDING_REVIEW_NOTE, SOURCE_NAMES
 from app.photos import service as photo_service
@@ -104,6 +108,9 @@ ERROR_CODES = {
     "AGENT_MODEL_NOT_CONFIGURED": ("agent_model_not_configured", 409, agent_loop),
     "DISCLAIMER_NOT_ACCEPTED": ("disclaimer_not_accepted", 403, disclaimer_deps),
     "RESTAURANT_LOCATION_NOT_GRANTED": ("restaurant_location_not_granted", 409, restaurant_service),
+    "CONSENT_REQUIRED": ("consent_required", 403, consent_deps),
+    "CONSENT_OUTDATED": ("consent_outdated", 409, consent_service),
+    "PASSWORD_INCORRECT": ("password_incorrect", 403, auth_service),
 }
 
 
@@ -149,6 +156,8 @@ def test_contract_copies_match_the_backend():
     scalars = _scalars(text)
     expected_scalars = {
         "HEALTH_DISCLAIMER": _ts_string(HEALTH_DISCLAIMER),
+        "POSITIONING_STATEMENT": _ts_string(POSITIONING_STATEMENT),
+        "REFERENCE_LABEL": _ts_string(REFERENCE_LABEL),
         "NOTICE_HEADER_PREFIX": _ts_string(NOTICE_HEADER.split("{foods}")[0]),
         "PENDING_REVIEW_NOTE": _ts_string(PENDING_REVIEW_NOTE),
         "LOW_CONFIDENCE": repr(REVIEW_CONFIDENCE),
@@ -194,6 +203,8 @@ def test_contract_limits_and_error_codes_match_the_backend():
         "MAX_NOTE": _max_length(DayLogIn.model_fields["note"].metadata),
         "MAX_NAME_LENGTH": MAX_NAME_LENGTH,
         "MAX_TEXT": _max_length(OrderCreate.model_fields["text"].metadata),
+        "MIN_AGE": MIN_AGE,
+        "MAX_EVIDENCE_FILES": MAX_EVIDENCE_PER_ORDER,
     }
     assert {name: scalars.get(name) for name in limits} == {name: str(value) for name, value in limits.items()}, HINT
     assert "MAX_EVIDENCE_BYTES" in scalars, f"{HINT}：找不到 MAX_EVIDENCE_BYTES"

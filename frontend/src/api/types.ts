@@ -11,6 +11,8 @@ export type ProfileOut = S['ProfileOut']
 export type ProfileUpdate = S['ProfileUpdate']
 export type DisclaimerOut = S['DisclaimerOut']
 export type DisclaimerStatus = S['DisclaimerStatus']
+export type ConsentOut = S['ConsentOut']
+export type ConsentKind = ConsentOut['kind']
 
 export type ConversationOut = S['ConversationOut']
 export type ConversationDetailOut = S['ConversationDetailOut']

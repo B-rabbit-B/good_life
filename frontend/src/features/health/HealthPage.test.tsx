@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { activeItem, dueItem, order, pendingItem, proposalItem } from '../../test/fixtures/medical'
+import { consentHandlers } from '../../test/msw/handlers/consents'
 import { medicalHandlers, type MedicalOptions } from '../../test/msw/handlers/medical'
 import { server } from '../../test/msw/server'
 import { renderRoute } from '../../test/render'
@@ -62,5 +63,32 @@ describe('health page', { timeout: 15_000 }, () => {
     medical.items().push(activeItem({ id: '00000000-0000-4000-8000-0000000000d7', content: '新的一条' }))
     await user.click(screen.getByRole('button', { name: '刷新' }))
     expect(await screen.findByText('新的一条', { selector: '.mo-c' })).toBeInTheDocument()
+  })
+
+  it('shows the consent panel before the cycle view', async () => {
+    const user = userEvent.setup()
+    renderHealth('/health/cycle')
+    const consents = consentHandlers({ granted: { cycle: false } })
+    server.use(...consents.handlers)
+    expect(await screen.findByRole('heading', { name: '单独同意：经期记录' })).toBeInTheDocument()
+    // 分段仍在（可以去医嘱），经期内容不出现
+    expect(screen.getByRole('tablist', { name: '健康分段' })).toBeInTheDocument()
+    expect(document.querySelector('[data-sensitive-area="content"]')).toBeNull()
+    await user.click(screen.getByRole('checkbox', { name: '我已阅读并同意' }))
+    await user.click(screen.getByRole('button', { name: '同意并开始使用' }))
+    await waitFor(() => expect(document.querySelector('[data-sensitive-area="content"]')).not.toBeNull())
+    expect(screen.queryByRole('heading', { name: '单独同意：经期记录' })).not.toBeInTheDocument()
+    expect(consents.record.grants.map((g) => g.kind)).toEqual(['cycle'])
+  })
+
+  it('shows the consent panel before the medical tabs', async () => {
+    renderHealth('/health/medical?tab=pending', { items: [dueItem(), pendingItem()] })
+    server.use(...consentHandlers({ granted: { medical: false } }).handlers)
+    expect(await screen.findByRole('heading', { name: '单独同意：医嘱' })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist', { name: '医嘱分类' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /录入医嘱/ })).not.toBeInTheDocument()
+    // 医嘱段没有待处理徽标（未同意时不请求待处理列表）
+    const segments = screen.getByRole('tablist', { name: '健康分段' })
+    expect(within(segments).getByRole('tab', { name: /^医嘱/ }).querySelector('.cnt')).toBeNull()
   })
 })

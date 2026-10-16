@@ -28,7 +28,7 @@ export function useUpdateProfile() {
     mutationFn: (body: ProfilePatch) => api<ProfileOut>('/api/profile', { method: 'PATCH', json: body }),
     onSuccess: async (profile) => {
       queryClient.setQueryData(qk.profile, profile)
-      await invalidateDomain(queryClient, 'profile')
+      await invalidateDomain(queryClient, 'profile', { profile: true }) // 响应就是新档案，不再重取
     },
   })
 }

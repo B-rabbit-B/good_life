@@ -56,22 +56,28 @@ export function e2eInfo(request: APIRequestContext): Promise<E2EInfo> {
   return call<E2EInfo>(request, 'GET', '/__e2e/info')
 }
 
-/** 新注册一个用户并登录；默认女性、已接受免责声明、档案已填满。 */
+/** 新注册一个用户并登录；默认女性、已接受免责声明、已单独同意经期与医嘱、档案已填满。 */
 export async function createUser(
   request: APIRequestContext,
-  opts: { gender?: 'female' | 'male'; disclaimer?: boolean; profile?: 'complete' | 'empty' } = {},
+  opts: { gender?: 'female' | 'male'; disclaimer?: boolean; consents?: boolean; profile?: 'complete' | 'empty' } = {},
 ): Promise<TestUser> {
-  const { gender = 'female', disclaimer = true, profile = 'complete' } = opts
+  const { gender = 'female', disclaimer = true, consents = true, profile = 'complete' } = opts
   const stamp = Date.now().toString(36)
   const random = Math.random().toString(36).slice(2, 8)
   const username = `u${stamp}_${random}` // 小写字母、数字与下划线，不超过 32 位
-  await call(request, 'POST', '/api/auth/register', { data: { username, password: PASSWORD } })
+  await call(request, 'POST', '/api/auth/register', { data: { username, password: PASSWORD, age_confirmed: true } })
   const { access_token: token } = await call<Schemas['TokenResponse']>(request, 'POST', '/api/auth/login', {
     data: { username, password: PASSWORD },
   })
   if (disclaimer) {
     const { version } = await call<Schemas['DisclaimerOut']>(request, 'GET', '/api/disclaimer', { token })
     await call(request, 'POST', '/api/disclaimer/accept', { token, data: { version } })
+    // 单独同意要在确认免责之后才能给出；按后端返回的当前版本同意两项
+    if (consents) {
+      for (const consent of await call<Schemas['ConsentOut'][]>(request, 'GET', '/api/consents', { token })) {
+        await call(request, 'POST', `/api/consents/${consent.kind}`, { token, data: { version: consent.current_version } })
+      }
+    }
   }
   if (profile === 'complete') {
     await call(request, 'PATCH', '/api/profile', { token, data: { ...COMPLETE_PROFILE, gender } })
@@ -189,6 +195,16 @@ export async function sendMessage(
     token, data: { text, stream: false },
   })
   return { ...turn, conversation_id: id }
+}
+
+/** 准备一段对话：新建一个会话并发一句话（要先用 seedModelService 配好对话模型），返回会话编号 */
+export async function seedConversation(request: APIRequestContext, token: string, text: string): Promise<string> {
+  return (await sendMessage(request, token, text)).conversation_id
+}
+
+/** 本人现有的会话数 */
+export async function conversationCount(request: APIRequestContext, token: string): Promise<number> {
+  return (await call<Schemas['ConversationOut'][]>(request, 'GET', '/api/agent/conversations', { token })).length
 }
 
 /** 上传一张测试图片识别为草稿（看图模型是本地模拟服务：meal.jpg 认作麻婆豆腐加米饭） */

@@ -6,7 +6,7 @@ import { RouterProvider } from 'react-router/dom'
 import { onTestFinished } from 'vitest'
 import { clearToken, setToken } from '../api/token'
 import type { Capabilities, ProfileOut } from '../api/types'
-import { NETWORK_MODE } from '../app/queryClient'
+import { consentCaches, NETWORK_MODE } from '../app/queryClient'
 import { routes } from '../app/routes'
 import { CoverProvider } from '../components/cover'
 import { GlassModeProvider } from '../components/glass/GlassModeProvider'
@@ -15,14 +15,16 @@ import { TEST_TOKEN } from './fixtures/core'
 import { coreHandlers } from './msw/handlers/core'
 import { server } from './msw/server'
 
-/** 与应用的查询客户端相同的网络模式（离线时照样发请求、报网络错误），只是不重试 */
+/** 与应用的查询客户端相同的网络模式（离线时照样发请求、报网络错误）与出错处理（consent_required 时重读同意），只是不重试 */
 export function createTestQueryClient(): QueryClient {
-  return new QueryClient({
+  const client: QueryClient = new QueryClient({
+    ...consentCaches(() => client),
     defaultOptions: {
       queries: { retry: false, networkMode: NETWORK_MODE },
       mutations: { retry: false, networkMode: NETWORK_MODE },
     },
   })
+  return client
 }
 
 export function renderWithProviders(

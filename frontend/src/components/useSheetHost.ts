@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 const FOCUS_CHECK_MS = 400
 
 const lost = (el: Element | null) => el === null || el === document.body || !el.isConnected
+// 触发按钮所在的区域被遮盖层置为 inert（例如同意守门盖住页面）时，焦点还给它会落空或被浏览器丢弃
+const unusable = (el: Element) => lost(el) || el.closest('[inert]') !== null
 
 /**
  * 一个子标签里的底部面板：同一时间只开一个，面板拿着打开时的条目（确认、作废、解除之后条目会从列表里消失，
@@ -51,7 +53,7 @@ export function useSheetHost<S>(fallback: () => HTMLElement | null = selectedSub
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       if (!lost(document.activeElement) || opened.current) return
-      const target = origin.current && !lost(origin.current) ? origin.current : fallbackRef.current()
+      const target = origin.current && !unusable(origin.current) ? origin.current : fallbackRef.current()
       target?.focus()
     }, FOCUS_CHECK_MS)
   }, [])

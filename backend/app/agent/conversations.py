@@ -1,10 +1,10 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.agent.models import AgentConversation, AgentMessage
+from app.agent.models import AgentConversation, AgentMessage, AgentOpening
 from app.common.ownership import get_owned_or_404, owned_by
 
 ROLES = ("user", "assistant", "tool")
@@ -32,6 +32,16 @@ def get_conversation(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID
 
 def delete_conversation(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID) -> None:
     db.delete(get_conversation(db, user_id, conversation_id))  # 消息由外键级联删除
+    db.commit()
+
+
+def clear_all(db: Session, user_id: uuid.UUID) -> None:
+    """清空本人全部对话历史：删除全部会话（消息由外键级联删除），再删除全部开场记录，一个事务提交。
+
+    开场问候可能带医嘱内容或经期预测日期，所以与对话一并清掉；删除之后当天可以重新开场。偏好与设置不动。
+    """
+    db.execute(delete(AgentConversation).where(AgentConversation.user_id == user_id))
+    db.execute(delete(AgentOpening).where(AgentOpening.user_id == user_id))
     db.commit()
 
 

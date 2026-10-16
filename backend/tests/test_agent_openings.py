@@ -1,5 +1,6 @@
 """主动开场：全部经接口，今天固定为运行时的今天（档案更新时间是真实时间），模型由 ScriptedModel 模拟。"""
 
+import logging
 import uuid
 from datetime import date, timedelta
 
@@ -365,6 +366,14 @@ def test_unreadable_rule_does_not_fire_and_others_still_do(client, monkeypatch):
 
     monkeypatch.setitem(openings.RULES, "no_meal_today", broken)
     assert _get(client, headers) is None
+
+
+def test_rules_for_unconsented_modules_do_not_fire_and_log_nothing(client, caplog):
+    ready_user(client, "una2", {**FULL_PROFILE, "gender": "female"}, consents=False)
+    caplog.set_level(logging.DEBUG)
+    kinds = [kind for kind, _ in candidate_kinds(_user_id("una2"), TODAY)]
+    assert "review_due" not in kinds and "period_soon" not in kinds
+    assert [r.getMessage() for r in caplog.records if r.name == "app.agent.openings"] == []
 
 
 # ---------- 并发 ----------

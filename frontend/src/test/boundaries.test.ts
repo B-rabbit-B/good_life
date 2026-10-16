@@ -34,7 +34,7 @@ function sources(dir: string): string[] {
   })
 }
 
-const IMPORT = /(?:from\s+|import\s*\(\s*|import\s+)'(\.{1,2}\/[^']+)'/g
+const IMPORT = /(?:from\s+|import\s*\(\s*|import\s+)(['"])(\.{1,2}\/[^'"]+)\1/g
 
 /** 每条相对导入：导入方与被导入模块（相对 src，不带扩展名） */
 function edges(): { from: string; to: string }[] {
@@ -43,7 +43,7 @@ function edges(): { from: string; to: string }[] {
     const text = readFileSync(file, 'utf-8')
     return [...text.matchAll(IMPORT)].map((match) => ({
       from,
-      to: posix.normalize(posix.join(posix.dirname(from), match[1] ?? '')).replace(/\.tsx?$/, ''),
+      to: posix.normalize(posix.join(posix.dirname(from), match[2] ?? '')).replace(/\.tsx?$/, ''),
     }))
   })
 }
@@ -61,6 +61,22 @@ describe('module boundaries', () => {
     const all = edges()
     expect(all.length).toBeGreaterThan(500)
     expect(all).toContainEqual({ from: 'app/routes', to: 'app/guards' })
+  })
+
+  it('reads imports in either quote style', () => {
+    const text = [
+      "import a from './single'",
+      'import b from "./double"',
+      "export { c } from '../up/single'",
+      'export { d } from "../up/double"',
+      "const e = lazy(() => import('./lazy-single'))",
+      'const f = lazy(() => import("./lazy-double"))',
+      "import g from 'package'",
+      'import h from "package/sub"',
+    ].join('\n')
+    expect([...text.matchAll(IMPORT)].map((match) => match[2])).toEqual([
+      './single', './double', '../up/single', '../up/double', './lazy-single', './lazy-double',
+    ])
   })
 
   it('keeps lib free of api', () => {

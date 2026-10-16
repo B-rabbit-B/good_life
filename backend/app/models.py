@@ -3,6 +3,7 @@
 from app.agent import models as agent_models  # noqa: F401
 from app.agent_grants import models as agent_grants_models  # noqa: F401
 from app.auth import models as auth_models  # noqa: F401
+from app.consents import models as consents_models  # noqa: F401
 from app.cycle import models as cycle_models  # noqa: F401
 from app.disclaimer import models as disclaimer_models  # noqa: F401
 from app.fitness import models as fitness_models  # noqa: F401

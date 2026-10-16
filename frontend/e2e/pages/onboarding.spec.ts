@@ -1,5 +1,6 @@
 // 入口流程与“我的”：登录、免责、建档三步、我的、修改档案各页在 390 与 360 两个宽度下的触控目标、最小字号与横向滚动；
-// 设计稿的几个尺寸（刻度尺容器宽、165 厘米时 160 的标签位置、分段每段 44、输入框 52 与聚焦描边）；我的与修改档案的遮盖。
+// 设计稿的几个尺寸（刻度尺容器宽、165 厘米时 160 的标签位置、分段每段 44、输入框 52 与聚焦描边、注册的年龄确认行）；
+// 建档第 1 步出生年份被拒绝时的说明位置与朱色描边；我的与修改档案的遮盖。
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../../src/api/schema'
 import {
@@ -10,6 +11,10 @@ import { expect, test } from '../support/test'
 
 const PASSWORD = 'e2e-pass-123'
 const ACCENT_RING = /rgb\(31, 88, 168\) 0px 0px 0px 2px inset/
+const DANGER_RING = /rgb\(179, 38, 30\) 0px 0px 0px 2px inset/
+const AGE_CONFIRMATION = '我已年满 14 周岁'
+/** app.profile.schemas.UNDER_AGE_MESSAGE */
+const UNDER_AGE = '本应用暂不面向 14 周岁以下的用户，请确认出生年份'
 /** 设计稿：刻度尺放在瓷胎面板里，容器宽 = 视口 − 面板外边 12 × 2 − 内边 16 × 2 */
 const RULER_WIDTH = { 360: 304, 390: 334 } as const
 
@@ -53,6 +58,7 @@ test('a new user registers, accepts the disclaimer and fills the profile', async
   await page.getByLabel('用户名').fill(username)
   await page.getByLabel('密码', { exact: true }).fill(PASSWORD)
   await expectPageRules(page)
+  await page.getByText(AGE_CONFIRMATION).click()
   await page.getByRole('button', { name: '注册并继续' }).click()
 
   // 01b 免责声明：没有返回键，勾选后才能确认
@@ -110,6 +116,44 @@ test('a new user registers, accepts the disclaimer and fills the profile', async
   await expectPageRules(page)
   await page.getByRole('button', { name: '完成' }).click()
   await expect(page).toHaveURL(/\/chat$/)
+})
+
+test('register shows the age confirmation as a 44 high row', async ({ page, request }) => {
+  await page.goto('/login')
+  await expect(page.getByRole('heading', { level: 1, name: '登录' })).toBeVisible()
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await page.getByRole('tab', { name: '注册' }).click()
+  const row = page.locator('.login-age .chk')
+  await expect(row).toBeVisible()
+  expect((await row.boundingBox())?.height ?? 0, '勾选行高不小于 44').toBeGreaterThanOrEqual(44)
+  const box = await row.locator('.box').boundingBox()
+  expect([box?.width, box?.height], '勾选框 22 × 22').toEqual([22, 22])
+  const submit = page.getByRole('button', { name: '注册并继续' })
+  await expect(submit).toBeDisabled()
+  await expectPageRules(page)
+  await page.getByText(AGE_CONFIRMATION).click()
+  await expect(page.getByRole('checkbox', { name: AGE_CONFIRMATION })).toBeChecked()
+  await expect(submit).toBeEnabled()
+
+  // 建档第 1 步：不满 14 周岁的出生年份被拒绝，说明写在出生年份下拉框下面，框为朱色描边
+  const user = await createUser(request, { profile: 'empty' })
+  await openAs(page, user.token, '/onboarding/1')
+  await expect(page.getByRole('heading', { level: 1, name: '基本信息' })).toBeVisible()
+  const year = page.getByLabel('出生年份')
+  await year.selectOption(String(new Date().getFullYear() - 13))
+  await page.locator('.opt', { hasText: '女' }).click()
+  await page.getByRole('button', { name: '下一步' }).click()
+  const message = page.locator('.onb-year .err', { hasText: UNDER_AGE })
+  await expect(message).toBeVisible()
+  await expect(year).toHaveAttribute('aria-invalid', 'true')
+  const select = page.locator('.onb-year .sel')
+  await expect(select, '出错时朱色内描边').toHaveCSS('box-shadow', DANGER_RING)
+  const selectBox = await select.boundingBox()
+  const messageBox = await message.boundingBox()
+  if (!selectBox || !messageBox) throw new Error('量不到出生年份下拉框或说明')
+  expect(messageBox.y, '说明在下拉框下面').toBeGreaterThanOrEqual(selectBox.y + selectBox.height)
+  await expect(page).toHaveURL(/\/onboarding\/1$/)
+  await expectPageRules(page)
 })
 
 test('the me page meets the layout rules and covers the profile', async ({ page, request }) => {

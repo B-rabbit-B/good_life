@@ -209,11 +209,14 @@ def chat_steps(story: Story) -> None:
     api = story.api
 
     # 1 账号、档案与模型
-    api("POST", "/api/auth/register", json={"username": story.username, "password": DEMO_PASSWORD})
+    api("POST", "/api/auth/register",
+        json={"username": story.username, "password": DEMO_PASSWORD, "age_confirmed": True})
     token = api("POST", "/api/auth/login", json={"username": story.username, "password": DEMO_PASSWORD})
     story.headers = {"Authorization": f"Bearer {token['access_token']}"}
     version = api("GET", "/api/disclaimer")["version"]
     api("POST", "/api/disclaimer/accept", json={"version": version})
+    for consent in api("GET", "/api/consents"):  # 经期与医嘱各需一次单独同意
+        api("POST", f"/api/consents/{consent['kind']}", json={"version": consent["current_version"]})
     api("PATCH", "/api/profile", json=PROFILE)
     caps = api("GET", "/api/me/capabilities")
     provider = api("POST", "/api/llm/providers", json={
@@ -222,7 +225,7 @@ def chat_steps(story: Story) -> None:
     assignment = api("PUT", "/api/llm/assignments/chat", json={"model_id": model["id"]})
     story.provider_id = provider["id"]
     story.step("账号、档案与模型", bool(caps["cycle"]) and assignment["model"]["model_id"] == DEMO_MODEL_ID,
-               f"注册并登录 {story.username}，接受免责声明 {version}，填好档案（女、1996 年生、162 厘米、54 公斤、"
+               f"注册并登录 {story.username}，接受免责声明 {version} 与经期、医嘱两项单独同意，填好档案（女、1996 年生、162 厘米、54 公斤、"
                "轻度活动、减脂）；按档案开放的模块：" + "、".join(k for k, v in caps.items() if v),
                f"添加模型服务“{provider['name']}”（密钥只显示提示 {provider['key_hint']}），手动添加模型 {DEMO_MODEL_ID}，"
                "分配给日常对话")

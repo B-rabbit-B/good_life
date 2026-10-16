@@ -4,6 +4,12 @@
 /** app.agent.safety.HEALTH_DISCLAIMER：拼在助手回答末尾的免责句 */
 export const HEALTH_DISCLAIMER = '以上内容仅供日常生活参考，不能替代医生的诊断和建议。'
 
+/** app.disclaimer.content.POSITIONING_STATEMENT：全站的定位声明（登录页底部） */
+export const POSITIONING_STATEMENT = '只提供生活方式建议，不做医疗诊断，不替代医生。'
+
+/** app.disclaimer.content.REFERENCE_LABEL：全站统一的“仅供参考”小标签 */
+export const REFERENCE_LABEL = '仅供参考'
+
 /** app.agent.guard.NOTICE_HEADER 在 {foods} 之前的部分：输出检查附加的医嘱提醒以它开头 */
 export const NOTICE_HEADER_PREFIX = '按你当前生效的医嘱，以下食物不建议：'
 
@@ -52,7 +58,7 @@ export const MAX_NEEDS = 3
 
 /** app.agent.loop.RISK_FLAG_PREFIX 与 app.agent.safety.RISK_CATEGORIES：助手回答的风险标记是 risk_ 加类别 */
 export const RISK_FLAG_PREFIX = 'risk_'
-export const RISK_CATEGORIES = ['medication', 'pregnancy', 'severe_symptom', 'extreme_diet', 'self_harm'] as const
+export const RISK_CATEGORIES = ['medication', 'pregnancy', 'severe_symptom', 'extreme_diet', 'self_harm', 'minor_weight_loss'] as const
 export type RiskCategory = (typeof RISK_CATEGORIES)[number]
 
 /** app.agent.loop.FLAG_CLUE：回答里有医嘱解除的线索（只给“去医嘱页处理”） */
@@ -100,8 +106,12 @@ export const MAX_NOTE = 500
 export const MAX_NAME_LENGTH = 30
 /** app.medical.schemas.OrderCreate.text：医嘱原文的长度上限 */
 export const MAX_TEXT = 5000
+/** app.common.age.MIN_AGE：注册时确认“已年满 N 周岁”的 N（档案的出生年份不满这个年龄时后端拒绝） */
+export const MIN_AGE = 14
 /** app.medical.orders.MAX_EVIDENCE_BYTES：医嘱原件文件的大小上限 */
 export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
+/** app.medical.orders.MAX_EVIDENCE_PER_ORDER：每份医嘱最多上传的原件份数 */
+export const MAX_EVIDENCE_FILES = 10
 
 /** 界面按错误码分支的几个接口错误码（后端没有常量，test_frontend_contract.py 按抛出处的源码原文核对） */
 export const STILL_DUE = 'still_due'
@@ -112,6 +122,9 @@ export const PHOTO_GRAMS_OUT_OF_RANGE = 'photo_grams_out_of_range'
 export const AGENT_MODEL_NOT_CONFIGURED = 'agent_model_not_configured'
 export const DISCLAIMER_NOT_ACCEPTED = 'disclaimer_not_accepted'
 export const RESTAURANT_LOCATION_NOT_GRANTED = 'restaurant_location_not_granted'
+export const CONSENT_REQUIRED = 'consent_required'
+export const CONSENT_OUTDATED = 'consent_outdated'
+export const PASSWORD_INCORRECT = 'password_incorrect'
 
 /**
  * 会改动用户数据的智能体工具（app.sdk.tooling.agent_registry 里 level 为 write 的，加上 app.agent.assembly 的 remember_preference）

@@ -49,16 +49,17 @@ function run(command, args) {
 
 // 去掉 CFF 提示、展开子程序：字形不变（手机高分屏不用提示），woff2 压缩后宋体子集小约四分之一
 // 名称记录保留 0（版权）、13 与 14（许可证说明与网址），以及 1 到 6（字体名，随后由 font_names.py 改名）
-const PYFTSUBSET = ['--from', 'fonttools[woff]', 'pyftsubset', '--no-hinting', '--desubroutinize',
+// fonttools 钉确切版本（uvx 当前缓存里用的版本），换版本前先核对子集结果与 docs/01-交付物/依赖许可证.md
+const PYFTSUBSET = ['--from', 'fonttools[woff]==4.66.1', 'pyftsubset', '--no-hinting', '--desubroutinize',
   '--name-IDs=0,1,2,3,4,5,6,13,14']
 
 function rename(file, family, style, note) {
-  run('uv', ['run', '--no-project', '--with', 'fonttools[woff]', 'python', 'scripts/font_names.py', file, family, style,
+  run('uv', ['run', '--no-project', '--with', 'fonttools[woff]==4.66.1', 'python', 'scripts/font_names.py', file, family, style,
     note])
 }
 
 function fontMetrics(font, coversFile) {
-  const args = ['run', '--no-project', '--with', 'fonttools', 'python', 'scripts/font_metrics.py', font]
+  const args = ['run', '--no-project', '--with', 'fonttools==4.66.1', 'python', 'scripts/font_metrics.py', font]
   if (coversFile) args.push('--covers', coversFile)
   return JSON.parse(run('uv', args))
 }
@@ -93,7 +94,7 @@ try {
   delete serif.covered
 
   // 数字子集：先固定成 500 字重、16 号光学尺寸的静态字体，再取数字与符号
-  run('uvx', ['--from', 'fonttools[woff]', 'fonttools', 'varLib.instancer', NUM_SOURCE, 'wght=500', 'opsz=16',
+  run('uvx', ['--from', 'fonttools[woff]==4.66.1', 'fonttools', 'varLib.instancer', NUM_SOURCE, 'wght=500', 'opsz=16',
     '-o', NUM_INSTANCE])
   run('uvx', [...PYFTSUBSET, NUM_INSTANCE, `--text=${NUM_CHARS}`, '--flavor=woff2',
     '--layout-features=tnum,lnum', `--output-file=${NUM_OUT}`])

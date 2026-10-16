@@ -269,12 +269,14 @@ export async function expectForcedColorsSmoke(page: Page): Promise<void> {
  * 里这一页的区域。expected 是按数据才出现的区域的子集（默认全部）。
  */
 export async function expectSensitiveAreas(page: Page, expected?: readonly SensitiveArea[]): Promise<void> {
-  const { marker, present } = await page.evaluate(({ pageAttr, areaAttr, unnamed }) => ({
-    marker: document.querySelector(`[${pageAttr}]`)?.getAttribute(pageAttr) ?? null,
-    present: Array.from(document.querySelectorAll('[data-sensitive]')).map((el) => el.getAttribute(areaAttr) ?? unnamed),
-  }), { pageAttr: SENSITIVE_PAGE_ATTR, areaAttr: SENSITIVE_AREA_ATTR, unnamed: UNNAMED_AREA })
-  const result = compareSensitiveAreas(marker, present, expected)
-  expect(result.page, '页面没有登记敏感区').not.toBeNull()
-  expect({ missing: result.missing, unexpected: result.unexpected }, '敏感区与登记表不一致')
-    .toEqual({ missing: [], unexpected: [] })
+  // 同意守门与数据请求会让敏感区晚一点才出现（或登记晚一点才生效）：重试到一致，超时才算不一致
+  await expect.poll(async () => {
+    const { marker, present } = await page.evaluate(({ pageAttr, areaAttr, unnamed }) => ({
+      marker: document.querySelector(`[${pageAttr}]`)?.getAttribute(pageAttr) ?? null,
+      present: Array.from(document.querySelectorAll('[data-sensitive]')).map((el) => el.getAttribute(areaAttr) ?? unnamed),
+    }), { pageAttr: SENSITIVE_PAGE_ATTR, areaAttr: SENSITIVE_AREA_ATTR, unnamed: UNNAMED_AREA })
+    const result = compareSensitiveAreas(marker, present, expected)
+    return { registered: result.page !== null, missing: result.missing, unexpected: result.unexpected }
+  }, { message: '敏感区与登记表不一致（含页面没有登记敏感区）', timeout: 5_000 })
+    .toEqual({ registered: true, missing: [], unexpected: [] })
 }

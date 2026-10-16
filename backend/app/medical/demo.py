@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import User
 from app.auth.service import register_user
+from app.consents import service as consents_service
+from app.consents.content import CONSENT_KINDS, CONSENT_VERSION
 from app.db import get_sessionmaker
 from app.disclaimer import service as disclaimer_service
 from app.disclaimer.content import DISCLAIMER_VERSION
@@ -22,6 +24,8 @@ def seed(db: Session, today: date) -> bool:
         return False
     user = register_user(db, DEMO_USERNAME, DEMO_PASSWORD)
     disclaimer_service.accept(db, user.id, DISCLAIMER_VERSION)
+    for kind in CONSENT_KINDS:
+        consents_service.grant(db, user.id, kind, CONSENT_VERSION)
     for text in SAMPLE_ORDERS.values():
         orders.create_order(db, user.id, text, today, today)
     return True

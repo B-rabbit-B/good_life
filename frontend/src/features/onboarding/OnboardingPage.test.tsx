@@ -24,6 +24,9 @@ function open(path: string, profile: ProfileOut) {
 /** 按标签文字找到整组字段（标签组的列表为空时没有可用的名字，所以从标签找） */
 const fieldOf = (label: string) => screen.getByText(label, { selector: '.fld-l' }).closest('.fld') as HTMLElement
 
+/** app.profile.schemas.UNDER_AGE_MESSAGE（后端的字段说明，界面原样显示） */
+const UNDER_AGE = '本应用暂不面向 14 周岁以下的用户，请确认出生年份'
+
 const basicsDone =(over: Partial<ProfileOut> = {}) =>
   emptyProfile({ gender: 'female', birth_year: 1996, height_cm: 162, weight_kg: 54, ...over })
 
@@ -47,6 +50,33 @@ describe('onboarding', () => {
     await landsOn(router, '/onboarding/2')
     expect(store.patches).toEqual([{ gender: 'male', birth_year: 1993, height_cm: 167, weight_kg: 59.5 }])
     expect(await screen.findByRole('heading', { level: 1, name: '活动与目标' })).toBeInTheDocument()
+  })
+
+  it('shows the under age refusal under the birth year', async () => {
+    const user = userEvent.setup()
+    const { router } = open('/onboarding/1', emptyProfile({ gender: 'female' }))
+    server.use(http.patch('/api/profile', () => HttpResponse.json({
+      error: {
+        code: 'validation_error',
+        message: '请求参数不合法',
+        details: [{ field: 'birth_year', message: UNDER_AGE, type: 'value_error' }],
+      },
+    }, { status: 422 })))
+    expect(await screen.findByRole('heading', { level: 1, name: '基本信息' })).toBeInTheDocument()
+    const year = screen.getByLabelText('出生年份')
+    expect(year).not.toHaveAttribute('aria-invalid')
+    await user.selectOptions(year, String(new Date().getFullYear() - 13))
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+
+    await waitFor(() => expect(year).toHaveAccessibleDescription(UNDER_AGE))
+    expect(year).toHaveAttribute('aria-invalid', 'true')
+    expect(year.closest('.sel')).toHaveClass('bad')
+    // 说明写在出生年份这一项里、下拉框的下面，不归到表单底部
+    const message = screen.getByText(UNDER_AGE)
+    expect(message.closest('.fld')).toBe(fieldOf('出生年份'))
+    expect(year.closest('.sel')?.compareDocumentPosition(message)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/onboarding/1')
   })
 
   it('resumes at the first incomplete step', async () => {

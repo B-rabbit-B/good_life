@@ -6,7 +6,8 @@ from tests.helpers import register_and_login
 
 
 def test_register_returns_user_without_password(client):
-    response = client.post("/api/auth/register", json={"username": "Alice", "password": "secret-pass-1"})
+    response = client.post("/api/auth/register",
+                           json={"username": "Alice", "password": "secret-pass-1", "age_confirmed": True})
     assert response.status_code == 201
     body = response.json()
     assert body["username"] == "alice"
@@ -14,8 +15,9 @@ def test_register_returns_user_without_password(client):
 
 
 def test_duplicate_username_is_rejected_case_insensitively(client):
-    client.post("/api/auth/register", json={"username": "alice", "password": "secret-pass-1"})
-    response = client.post("/api/auth/register", json={"username": "ALICE", "password": "another-pass-2"})
+    client.post("/api/auth/register", json={"username": "alice", "password": "secret-pass-1", "age_confirmed": True})
+    response = client.post("/api/auth/register", json={"username": "ALICE", "password": "another-pass-2",
+                                                           "age_confirmed": True})
     assert response.status_code == 409
     error = response.json()["error"]
     assert error["code"] == "username_taken"
@@ -23,7 +25,7 @@ def test_duplicate_username_is_rejected_case_insensitively(client):
 
 
 def test_register_validates_input(client):
-    response = client.post("/api/auth/register", json={"username": "a!", "password": "short"})
+    response = client.post("/api/auth/register", json={"username": "a!", "password": "short", "age_confirmed": True})
     assert response.status_code == 422
     error = response.json()["error"]
     assert error["code"] == "validation_error"
@@ -33,7 +35,7 @@ def test_register_validates_input(client):
 
 
 def test_login_with_wrong_password_or_unknown_user_is_rejected(client):
-    client.post("/api/auth/register", json={"username": "alice", "password": "secret-pass-1"})
+    client.post("/api/auth/register", json={"username": "alice", "password": "secret-pass-1", "age_confirmed": True})
     wrong = client.post("/api/auth/login", json={"username": "alice", "password": "wrong-pass-9"})
     unknown = client.post("/api/auth/login", json={"username": "nobody", "password": "secret-pass-1"})
     assert wrong.status_code == unknown.status_code == 401

@@ -66,8 +66,9 @@ def build_server(
             return _result(await anyio.to_thread.run_sync(call), is_error=False)
         except SdkError as err:
             return _result(error_envelope(err), is_error=True)
-        except Exception:
-            logger.exception("MCP 工具调用出错：%s", str(params.name)[:64])
+        except Exception as err:
+            # 只记工具名与异常类名：异常文字与堆栈里可能带参数或返回内容。
+            logger.error("MCP 工具调用出错：%s %s", str(params.name)[:64], type(err).__name__)
             return _result(error_envelope(SdkError("internal", "internal_error", "服务内部出错")), is_error=True)
 
     return Server(SERVER_NAME, version=SDK_VERSION, instructions=INSTRUCTIONS, on_list_tools=on_list_tools,

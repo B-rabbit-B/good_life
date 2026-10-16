@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# 两个任务互不依赖、并行运行，各自带一个全新的数据库容器（后端测试与端到端测试都会清空测试库，所以不共用）。
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: goodlife
+          POSTGRES_PASSWORD: goodlife
+          POSTGRES_DB: goodlife_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U goodlife"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433/goodlife_test
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Run backend tests with warnings as errors
+        working-directory: backend
+        run: uv run pytest -q -W error
+
+  frontend:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: goodlife
+          POSTGRES_PASSWORD: goodlife
+          POSTGRES_DB: goodlife_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U goodlife"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://goodlife:goodlife@127.0.0.1:5433/goodlife_test
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
+      - name: Type check
+        working-directory: frontend
+        run: pnpm typecheck
+      - name: Unit tests
+        working-directory: frontend
+        run: pnpm test:ci
+      - name: Build and first-screen budget
+        working-directory: frontend
+        run: pnpm build:check
+      - name: Install browsers
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: End-to-end tests on two devices
+        working-directory: frontend
+        run: pnpm e2e
+      - name: Upload failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: frontend/test-results
+          retention-days: 7

@@ -2,22 +2,30 @@ import { onlineManager } from '@tanstack/react-query'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
+import { createMemoryRouter } from 'react-router'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { api } from '../../api/client'
-import { getToken } from '../../api/token'
+import { clearToken, getToken } from '../../api/token'
+import type { LoginState } from '../../app/guards'
+import { routes } from '../../app/routes'
+import { MIN_AGE, POSITIONING_STATEMENT } from '../../lib/contract'
 import { TEST_TOKEN } from '../../test/fixtures/core'
 import { TEST_PASSWORD } from '../../test/fixtures/profile'
 import { server } from '../../test/msw/server'
-import { renderRoute } from '../../test/render'
+import { renderRoute, renderRouter } from '../../test/render'
 
 type Router = ReturnType<typeof renderRoute>['router']
+
+const AGE_CONFIRMATION = `我已年满 ${MIN_AGE} 周岁`
 
 const landsOn = (router: Router, pathname: string) =>
   waitFor(() => expect(router.state.location.pathname).toBe(pathname))
 
+/** 填写用户名与密码后提交；注册时先勾选年龄确认 */
 async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>, button: string, username = 'zhou_ning') {
   await user.type(screen.getByLabelText('用户名'), username)
   await user.type(screen.getByLabelText('密码'), TEST_PASSWORD)
+  if (button === '注册并继续') await user.click(screen.getByRole('checkbox', { name: AGE_CONFIRMATION }))
   await user.click(screen.getByRole('button', { name: button }))
 }
 
@@ -43,10 +51,53 @@ describe('login page', () => {
     await fillAndSubmit(user, '注册并继续')
 
     await landsOn(router, '/disclaimer')
-    const body = JSON.stringify({ username: 'zhou_ning', password: TEST_PASSWORD })
-    expect(calls).toEqual([`register ${body}`, `login ${body}`])
+    const login = JSON.stringify({ username: 'zhou_ning', password: TEST_PASSWORD })
+    const registered = JSON.stringify({ username: 'zhou_ning', password: TEST_PASSWORD, age_confirmed: true })
+    expect(calls).toEqual([`register ${registered}`, `login ${login}`])
     expect(getToken()).toBe(TEST_TOKEN)
     expect(await screen.findByRole('heading', { name: '免责声明' })).toBeInTheDocument()
+  })
+
+  it('keeps register disabled until the age confirmation is checked', async () => {
+    const user = userEvent.setup()
+    renderRoute('/login', { token: null })
+    await user.click(await screen.findByRole('tab', { name: '注册' }))
+    await user.type(screen.getByLabelText('用户名'), 'zhou_ning')
+    await user.type(screen.getByLabelText('密码'), TEST_PASSWORD)
+    const submit = screen.getByRole('button', { name: '注册并继续' })
+    const confirm = screen.getByRole('checkbox', { name: AGE_CONFIRMATION })
+    expect(confirm).not.toBeChecked()
+    expect(submit).toBeDisabled()
+    await user.click(confirm)
+    expect(submit).toBeEnabled()
+    await user.click(confirm)
+    expect(submit).toBeDisabled()
+  })
+
+  it('sends age_confirmed with the registration', async () => {
+    const user = userEvent.setup()
+    const { router } = renderRoute('/login', { token: null, accepted: false })
+    const bodies: unknown[] = []
+    server.use(http.post('/api/auth/register', async ({ request }) => {
+      bodies.push(await request.json())
+      return HttpResponse.json({ id: '1', username: 'zhou_ning', created_at: '2026-10-12T08:00:00Z' }, { status: 201 })
+    }))
+    await user.click(await screen.findByRole('tab', { name: '注册' }))
+    await fillAndSubmit(user, '注册并继续')
+    await landsOn(router, '/disclaimer')
+    expect(bodies).toEqual([{ username: 'zhou_ning', password: TEST_PASSWORD, age_confirmed: true }])
+  })
+
+  it('hides the age confirmation when logging in', async () => {
+    const user = userEvent.setup()
+    renderRoute('/login', { token: null })
+    expect(await screen.findByRole('heading', { level: 1, name: '登录' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: '注册' }))
+    expect(screen.getByRole('checkbox', { name: AGE_CONFIRMATION })).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: '登录' }))
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '登录' })).toBeEnabled()
   })
 
   it('shows username_taken under the username field', async () => {
@@ -93,6 +144,16 @@ describe('login page', () => {
     expect(screen.getByText('请重新登录，记录不会丢失。')).toBeInTheDocument()
     expect(notice.closest('[role="status"]')).not.toBeNull()
     // 页题在前，过期说明在后
+    const title = screen.getByRole('heading', { level: 1, name: '登录' })
+    expect(title.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('says the account was deleted after deletion', async () => {
+    clearToken()
+    renderRouter(createMemoryRouter(routes, { initialEntries: [{ pathname: '/login', state: { deleted: true } satisfies LoginState }] }))
+    const notice = await screen.findByText('账号与全部数据已删除')
+    expect(notice).toHaveAttribute('role', 'status')
+    expect(screen.queryByRole('heading', { name: '登录已过期' })).not.toBeInTheDocument()
     const title = screen.getByRole('heading', { level: 1, name: '登录' })
     expect(title.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
@@ -172,5 +233,10 @@ describe('login page', () => {
 
     const cached = () => JSON.stringify(queryClient.getMutationCache().getAll().map((mutation) => mutation.state))
     await waitFor(() => expect(cached()).not.toContain(TEST_PASSWORD))
+  })
+
+  it('shows the positioning statement from the contract', async () => {
+    renderRoute('/login', { token: null })
+    expect(await screen.findByText(POSITIONING_STATEMENT)).toHaveClass('foot-note')
   })
 })

@@ -1,17 +1,21 @@
 // 登录与注册（设计稿 01）：分段切换登录与注册；注册成功立即登录，然后去免责页。
 // 两句提示只是界面说明，是否合格以后端为准：后端的字段说明原样写在对应字段下面，用户名或密码错误写在表单上。
+// 注册分段多一个“我已年满 14 周岁”的勾选（年龄取自 contract.ts 的 MIN_AGE），不勾选时“注册并继续”不可用；
+// 注册请求带 age_confirmed，登录请求不带。
 import { useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useLogin, useRegister } from '../../api/hooks/auth'
 import type { LoginState } from '../../app/guards'
 import { PATHS } from '../../app/paths'
 import { Button } from '../../components/Button'
+import { Checkbox } from '../../components/Checkbox'
 import { PasswordField } from '../../components/PasswordField'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { AuthNeededState } from '../../components/states/AuthNeededState'
 import { TextField } from '../../components/TextField'
 import { Title } from '../../components/Title'
 import '../../styles/components/login.css'
+import { MIN_AGE, POSITIONING_STATEMENT } from '../../lib/contract'
 import { errorsOf, otherErrors, useFocusFirstInvalid } from '../../lib/formErrors'
 import { FormError } from '../../components/FormError'
 
@@ -29,6 +33,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
@@ -43,7 +48,7 @@ export default function LoginPage() {
     let registered = false
     try {
       if (registering) {
-        await register.mutateAsync(body)
+        await register.mutateAsync({ ...body, age_confirmed: ageConfirmed })
         registered = true
       }
       await login.mutateAsync(body)
@@ -72,6 +77,7 @@ export default function LoginPage() {
       <div className="wm"><b>good-life</b><span>个人档案驱动的健康生活助手</span></div>
       <div className="login-h"><Title k={mode} level="display" as="h1" /></div>
       <p className="login-p">之后的饮食、训练与医嘱记录，都只保存在你的账号下。</p>
+      {state?.deleted && <p className="login-p login-deleted" role="status">账号与全部数据已删除</p>}
       {state?.expired && (
         <div className="plate login-expired" role="status">
           <AuthNeededState titleKey="sessionExpired" body="请重新登录，记录不会丢失。" />
@@ -91,15 +97,23 @@ export default function LoginPage() {
           autoComplete={registering ? 'new-password' : 'current-password'}
           hint={registering ? '至少 8 位' : undefined} error={errors.password}
         />
+        {registering && (
+          <div className="login-age">
+            <Checkbox isSelected={ageConfirmed} onChange={setAgeConfirmed}>我已年满 {MIN_AGE} 周岁</Checkbox>
+          </div>
+        )}
         <FormError messages={otherErrors(errors, FIELDS)} />
         <div className="login-submit">
-          <Button variant="primary" block type="submit" isPending={pending} onPress={() => undefined}>
+          <Button
+            variant="primary" block type="submit" isPending={pending} isDisabled={registering && !ageConfirmed}
+            onPress={() => undefined}
+          >
             {registering ? '注册并继续' : '登录'}
           </Button>
         </div>
         {registering && <p className="t-cap login-next">下一步会请你阅读并确认免责声明，确认后才能开始使用。</p>}
       </form>
-      <p className="foot-note">只提供生活方式建议，不做医疗诊断，不替代医生。</p>
+      <p className="foot-note">{POSITIONING_STATEMENT}</p>
     </div>
   )
 }

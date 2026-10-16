@@ -1,4 +1,4 @@
-"""风险话题：用户消息命中用药、孕期异常、严重症状、极端节食、自伤时，不调用模型，直接给固定的安全回复。
+"""风险话题：用户消息命中用药、孕期异常、严重症状、极端节食、自伤、未成年减重时，不调用模型，直接给固定的安全回复。
 
 规则是关键词加简单正则，按 自伤、严重症状、孕期异常、用药、极端节食 的优先级逐类判断，命中第一类就返回：
 - 匹配前先归一：NFKC（全角转半角）、去掉空白与不可见格式字符、英文转小写、常见繁体字换成简体。
@@ -21,6 +21,9 @@
   “早餐也不吃饭”算；“饭局”不算）、断食与辟谷（轻断食、
   间歇性断食、16:8 不算，但带天数的如“轻断食三天”算）、连续几天不吃东西或饿几天、一天只吃一顿或一样东西
   （“一天只吃两顿”“只吃早餐和午餐”“一天只吃一次甜食”不算）、每天低于 500 千卡、催吐、减肥药。
+- 未成年减重（只对未成年用户，排在前五类之后）：前五类都没命中时，减肥、减脂、减重、瘦身、节食、热量、卡路里、大卡、
+  千卡、掉秤、变瘦、瘦下来、控制体重、kcal、想瘦、怎么瘦（后面紧跟“肉”的不算，例如“怎么瘦肉炒更好吃”）任一出现就算；
+  “少吃点”这类太常见的说法不收，交给系统指令里的未成年一句。
 - 关键词总有漏网的说法，系统指令里另有“安全边界”一节作为第二道防线。
 """
 
@@ -30,7 +33,7 @@ from dataclasses import dataclass
 
 from app.agent.preferences import TRADITIONAL_TO_SIMPLIFIED
 
-RISK_CATEGORIES = ("medication", "pregnancy", "severe_symptom", "extreme_diet", "self_harm")
+RISK_CATEGORIES = ("medication", "pregnancy", "severe_symptom", "extreme_diet", "self_harm", "minor_weight_loss")
 
 HEALTH_DISCLAIMER = "以上内容仅供日常生活参考，不能替代医生的诊断和建议。"
 
@@ -56,6 +59,11 @@ SAFE_REPLIES: dict[str, str] = {
         "长时间不吃饭、断食、极低热量、催吐或使用减肥药都可能伤害身体，我不能为这类做法提供具体指导。"
         "想调整体重的话，建议咨询医生或注册营养师，制定安全的计划；如果已经出现头晕、心慌、晕倒等不适，"
         "请立即就医或拨打 120。如果觉得饮食上的困扰难以控制，也可以拨打 12356 心理援助热线。"
+    ),
+    "minor_weight_loss": (
+        "你正处在生长发育的阶段，身体需要足够的能量和营养，要不要减重、怎样控制热量，需要由医生或注册营养师根据你的情况判断，"
+        "我不能给出减重、热量目标或节食方面的建议。可以和家长一起去咨询医生或营养师；如果已经出现头晕、心慌、晕倒等不适，"
+        "请立即就医或拨打 120。如果对体重或饮食感到困扰，也可以拨打 12356 心理援助热线。"
     ),
 }
 
@@ -173,6 +181,7 @@ _DAILY_CALORIES = re.compile(
 )
 _BURN_WORDS = ("消耗", "燃烧", "烧掉", "运动", "跑步", "训练")
 EXTREME_KCAL = 500
+_MINOR_DIET = re.compile(r"减肥|减脂|减重|瘦身|节食|热量|卡路里|大卡|千卡|掉秤|变瘦|瘦下来|控制体重|kcal|(想|怎么)瘦(?!肉)")
 
 
 def _low_daily_calories(text: str) -> str | None:
@@ -241,11 +250,18 @@ _RULES = (
 )
 
 
-def classify_risk(text: str) -> RiskHit | None:
-    """按优先级返回第一类命中的风险话题；都不命中返回 None。"""
+def classify_risk(text: str, *, minor: bool = False) -> RiskHit | None:
+    """按优先级返回第一类命中的风险话题；都不命中返回 None。
+
+    minor 为真（用户未成年）时，前五类都没命中再看未成年减重（minor_weight_loss）。
+    """
     normalized = normalize(text)
     for category, rule in _RULES:
         matched = rule(normalized)
         if matched:
             return RiskHit(category, matched)
+    if minor:
+        matched = _search(_MINOR_DIET, normalized)
+        if matched:
+            return RiskHit("minor_weight_loss", matched)
     return None

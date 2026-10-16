@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { networkError } from '../../api/client'
 import { asApiError } from '../../api/errors'
 import { useConversation, useConversations, useCreateConversation, useOpening } from '../../api/hooks/agent'
+import { useModuleConsent } from '../../api/hooks/consents'
 import { useAssignments } from '../../api/hooks/llm'
 import { useMedicalReviews } from '../../api/hooks/medical'
 import { useCapabilities } from '../../api/hooks/profile'
@@ -68,8 +69,10 @@ export default function ChatPage() {
   const { live, send, retry, toolsByMessage, userKeyByAnswer } = useChatStream(conversationId, ensureConversation)
 
   const messages = conversation.data?.messages ?? NO_MESSAGES
-  const reviewItems = caps.medical ? (reviews.data ?? []) : []
-  const reviewsSettled = !caps.medical || reviews.isSuccess || reviews.isError
+  // 医嘱模块开放且已单独同意时才有待处理列表；同意状态还在读时也要等（否则待处理条会在消息流画好之后才冒出来）
+  const medical = useModuleConsent('medical')
+  const reviewItems = medical === 'ready' ? (reviews.data ?? []) : []
+  const reviewsSettled = medical === 'closed' || reviews.isSuccess || reviews.isError
   const openingSettled = opening.isSuccess || opening.isError
   const conversationReady = conversations.data !== undefined && (conversationId === null || conversation.data !== undefined)
   const ready = conversationReady && reviewsSettled

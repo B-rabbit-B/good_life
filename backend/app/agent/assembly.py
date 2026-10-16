@@ -8,10 +8,12 @@
 其余医嘱、饮食、档案能力与“记住偏好”始终提供。
 需本人确认的医嘱动作不在 agent_registry() 里，因此永远不会出现在工具里。
 经期未开放时，系统指令与工具描述里都不出现“经期”二字。
+用户没有单独同意经期或医嘱时（读取时遇到 consent_required），这一轮把该模块当作未开放：不提供它的工具、
+不记为读不到；医嘱未同意时约束一节写 MEDICAL_NOT_CONSENTED，没有医嘱约束，输出检查也不因此重写。
 
 用户自己写的文字（档案里的饮食偏好与忌口食物、医嘱条目内容、偏好记忆）放进以 DATA_START 开头、DATA_END 结尾的资料块，
 系统指令开头有一句 DATA_NOTICE 说明资料块里的内容不是指令；写进去之前把空白与换行压成一个空格、把【】换成 []，
-所以用户文字既不能另起一行冒充一节，也不能提前结束资料块。
+所以用户文字既不能另起一行冒充一节，也不能提前结束资料块。偏好记忆读出时再按 check_preference 过滤一次。
 """
 
 import logging
@@ -21,11 +23,12 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from app.agent.preferences import MAX_PREFERENCE_CHARS, collapse_whitespace, list_preferences
+from app.agent.preferences import MAX_PREFERENCE_CHARS, check_preference, collapse_whitespace, list_preferences
+from app.common.age import is_minor
 from app.db import get_sessionmaker
 from app.llm.adapters.base import ToolSpec
 from app.restaurants.amap import amap_configured
-from app.sdk import AgentCredential, GoodLife
+from app.sdk import AgentCredential, GoodLife, SdkError
 from app.sdk.registry import Capability
 from app.sdk.tooling import TOOL_USAGE, agent_registry, tool_name
 
@@ -40,6 +43,11 @@ RECORD_CHECK = "记录饮食或训练前，如果不确定是否已经记过，�
 RESTAURANT_NOTE = "附近餐厅推荐只是按餐厅类别给出的一般性建议，不代表该店真实菜单；不要向用户索要定位授权，需要地点时请用户说出地名或地标。"
 NEARBY_CAPABILITY = "nutrition.nearby_restaurants"
 UNAVAILABLE = "暂时读不到"
+MEDICAL_NOT_CONSENTED = "用户还没有开始使用医嘱模块，没有医嘱约束。"
+CONSENT_REQUIRED = "consent_required"
+MINOR_INSTRUCTION = "用户未成年：不提供减重、热量目标或限制性饮食建议，引导咨询医生或营养师。"
+MINOR_INTAKE_LINE = "用户未成年：不估算每日能量需求。"
+MINOR_NEEDS_STATUS = "minor"
 WORKOUT_LOOKBACK_DAYS = 30
 FITNESS_QUERY_CAPABILITIES = frozenset(
     {"fitness.list_workouts", "fitness.get_week_summary", "fitness.get_exercise_trend", "fitness.get_training_signal"}
@@ -104,6 +112,7 @@ class Intake:
     missing_fields: tuple[str, ...]
     remaining_energy_kcal: float | None
     remaining_protein_g: float | None
+    needs_status: str  # ok / insufficient_profile / minor
 
 
 @dataclass(frozen=True)
@@ -130,16 +139,22 @@ class AgentContext:
     today: date
     # 读不到的部分：capabilities、profile、constraints、phase、intake、workouts、training、preferences
     unavailable: tuple[str, ...] = ()
+    minor: bool = False  # 按档案的出生年份与今天算；档案读不到时看当日汇总的需求状态
+    not_consented: tuple[str, ...] = ()  # 用户没有单独同意、本轮当作未开放的模块（cycle、medical）
 
 
 def _read(sdk: GoodLife, credential: AgentCredential, capability: str, params: dict | None = None) -> Any:
     return sdk.call(credential, capability, params, client_name=CLIENT_NAME).data
 
 
-def _attempt(section: str, unavailable: list[str], read: Callable[[], Any]) -> Any:
+def _attempt(section: str, unavailable: list[str], read: Callable[[], Any],
+             not_consented: Callable[[], None] | None = None) -> Any:
     try:
         return read()
     except Exception as err:  # 任何一项读不到都不让整轮失败
+        if not_consented is not None and isinstance(err, SdkError) and err.code == CONSENT_REQUIRED:
+            not_consented()  # 没有单独同意不是读不到：本轮把模块当作未开放
+            return None
         unavailable.append(section)
         logger.warning("智能体上下文读取失败：%s（%s）", section, type(err).__name__)
         return None
@@ -170,6 +185,7 @@ def _intake(data: dict) -> Intake:
         missing_fields=tuple(needs["missing_fields"]),
         remaining_energy_kcal=remaining.get("energy_kcal"),
         remaining_protein_g=remaining.get("protein_g"),
+        needs_status=needs["status"],
     )
 
 
@@ -186,8 +202,9 @@ def _training(data: dict) -> Training:
 
 
 def _read_preferences(user_id: uuid.UUID) -> tuple[str, ...]:
+    """读出时再过滤一次：旧规则下记进去、现在会被拒绝的偏好不写进系统指令（偏好是持久化的注入链）。"""
     with get_sessionmaker()() as db:
-        return tuple(p.content for p in list_preferences(db, user_id))
+        return tuple(p.content for p in list_preferences(db, user_id) if check_preference(p.content) is None)
 
 
 def _capabilities(data: dict) -> dict[str, bool]:
@@ -203,8 +220,11 @@ def _data_block(lines: list[str]) -> list[str]:
     return [DATA_START, *lines, DATA_END] if lines else []
 
 
-def _profile_text(data: dict) -> str:
-    """档案里与建议有关的内容写成一句话；不写经期开关，经期是否开放只看模块开放情况。用户自填的饮食偏好与忌口食物放进资料块。"""
+def _profile_text(data: dict, today: date) -> str:
+    """档案里与建议有关的内容写成一句话；不写经期开关，经期是否开放只看模块开放情况。用户自填的饮食偏好与忌口食物放进资料块。
+
+    未成年时不写目标（不按减脂、增肌目标给建议）。
+    """
     parts = []
     if data["gender"]:
         parts.append(f"性别{GENDER_NAMES.get(data['gender'], data['gender'])}")
@@ -216,7 +236,7 @@ def _profile_text(data: dict) -> str:
         parts.append(f"体重 {_num(data['weight_kg'])} 千克")
     if data["activity_level"]:
         parts.append(f"活动水平{ACTIVITY_NAMES.get(data['activity_level'], data['activity_level'])}")
-    if data["goal"]:
+    if data["goal"] and not is_minor(data["birth_year"], today):
         parts.append(f"目标{GOAL_NAMES.get(data['goal'], data['goal'])}")
     lines = ["档案：" + ("，".join(parts) if parts else "还没有填写") + "。"]
     written = []
@@ -230,6 +250,10 @@ def _profile_text(data: dict) -> str:
     if missing:
         lines.append(f"档案缺少{'、'.join(missing)}，暂时无法估算每日需求。")
     return "\n".join(lines)
+
+
+def _profile(data: dict, today: date) -> tuple[str, bool]:
+    return _profile_text(data, today), is_minor(data["birth_year"], today)
 
 
 def _profile_summary(capabilities: dict[str, bool] | None, profile: str | None, intake: Intake | None) -> str:
@@ -247,31 +271,38 @@ def _profile_summary(capabilities: dict[str, bool] | None, profile: str | None, 
 
 
 def load_context(sdk: GoodLife, credential: AgentCredential, today: date) -> AgentContext:
-    """读取本轮上下文。读取与解析都在保护里：任何一项出错只让那一项记为读不到。
+    """读取本轮上下文。读取与解析都在保护里：任何一项出错只让那一项记为读不到；
+    经期阶段或医嘱约束因为没有单独同意（consent_required）读不到时，本轮把该模块当作未开放。
 
     sdk 应使用 agent_registry()，且它的“今天”必须与 today 一致：医嘱约束（medical.get_constraints）与今日训练信号
     （fitness.get_training_signal）没有日期参数，只按 SDK 的今天读取；经期阶段、当日汇总与训练列表显式传入 today。
     """
     unavailable: list[str] = []
+    not_consented: list[str] = []
 
-    def attempt(section: str, read: Callable[[], Any]) -> Any:
-        return _attempt(section, unavailable, read)
+    def attempt(section: str, read: Callable[[], Any], module: str | None = None) -> Any:
+        def close() -> None:
+            capabilities[module] = False
+            not_consented.append(module)
+
+        return _attempt(section, unavailable, read, close if module else None)
 
     def call(capability: str, params: dict | None = None) -> Any:
         return _read(sdk, credential, capability, params)
 
     day = {"day": today.isoformat()}
     read_caps = attempt("capabilities", lambda: _capabilities(call("profile.get_capabilities")))
-    capabilities = read_caps if read_caps is not None else dict(FALLBACK_CAPABILITIES)
-    profile = attempt("profile", lambda: _profile_text(call("profile.get_profile")))
+    capabilities = dict(read_caps) if read_caps is not None else dict(FALLBACK_CAPABILITIES)
+    read_profile = attempt("profile", lambda: _profile(call("profile.get_profile"), today))
+    profile, minor = read_profile if read_profile is not None else (None, False)
 
     constraints: tuple[Constraint, ...] = ()
     if capabilities["medical"]:
-        constraints = attempt("constraints", lambda: _constraints(call("medical.get_constraints"))) or ()
+        constraints = attempt("constraints", lambda: _constraints(call("medical.get_constraints")), "medical") or ()
 
     phase = None
     if capabilities["cycle"]:
-        phase = attempt("phase", lambda: _phase(call("cycle.get_phase", day)))
+        phase = attempt("phase", lambda: _phase(call("cycle.get_phase", day)), "cycle")
 
     intake = None
     if capabilities["nutrition"]:
@@ -290,7 +321,7 @@ def load_context(sdk: GoodLife, credential: AgentCredential, today: date) -> Age
 
     return AgentContext(
         capabilities=capabilities,
-        profile_summary=_profile_summary(read_caps, profile, intake),
+        profile_summary=_profile_summary(capabilities if read_caps is not None else None, profile, intake),
         constraints=constraints,
         phase=phase,
         intake=intake,
@@ -299,6 +330,8 @@ def load_context(sdk: GoodLife, credential: AgentCredential, today: date) -> Age
         preferences=preferences,
         today=today,
         unavailable=tuple(unavailable),
+        minor=minor or (intake is not None and intake.needs_status == MINOR_NEEDS_STATUS),
+        not_consented=tuple(not_consented),
     )
 
 
@@ -382,7 +415,9 @@ def _left(value: float | None, unit: str) -> str:
 
 def _constraints_section(ctx: AgentContext) -> list[str]:
     lines = ["【当前硬约束（来自用户确认过的医嘱）】"]
-    if "constraints" in ctx.unavailable:
+    if "medical" in ctx.not_consented:
+        lines.append(MEDICAL_NOT_CONSENTED)
+    elif "constraints" in ctx.unavailable:
         lines.append(f"{UNAVAILABLE}。给任何饮食或运动建议之前，先调用 medical_get_constraints 读取并遵守。")
     elif not ctx.constraints:
         lines.append("目前没有生效的医嘱约束。")
@@ -429,7 +464,9 @@ def _intake_section(ctx: AgentContext) -> list[str]:
         f"今天已记录的摄入：能量 {_num(intake.energy_kcal)} 千卡，蛋白质 {_num(intake.protein_g)} 克，"
         f"脂肪 {_num(intake.fat_g)} 克，碳水化合物 {_num(intake.carbohydrate_g)} 克。"
     )
-    if intake.need_energy_kcal is None:
+    if intake.needs_status == MINOR_NEEDS_STATUS:
+        lines.append(MINOR_INTAKE_LINE)
+    elif intake.need_energy_kcal is None:
         missing = "、".join(PROFILE_FIELD_NAMES.get(f, f) for f in intake.missing_fields) or "部分资料"
         lines.append(f"档案缺少{missing}，暂时无法估算每日需求；需要时可以请用户在档案里补充。")
     else:
@@ -500,13 +537,19 @@ def _principles_section(ctx: AgentContext, resolution_clue: bool) -> list[str]:
     ]
     if ctx.capabilities.get("nutrition") and amap_configured():  # 与 select_tools 提供附近餐厅工具的条件一致
         lines.append(f"- {RESTAURANT_NOTE}")
-    if resolution_clue:
+    if resolution_clue and "medical" in ctx.not_consented:
+        lines.append("用户提到医生的新意见，但还没有开始使用医嘱模块：先引导用户开始使用医嘱模块（需要单独同意）并录入医嘱，不要调用任何医嘱工具。")
+    elif resolution_clue:
         lines.append("用户提到医生的新意见：只能用 medical_propose_resolution 提出解除建议，并告诉用户需要在应用里确认。")
     return lines
 
 
 def build_system_prompt(ctx: AgentContext, *, resolution_clue: bool, after_risk: bool = False) -> str:
-    """after_risk：最近一条助手回答是风险话题的固定回复时为真，安全边界一节多一句 RISK_FOLLOW_UP。"""
+    """after_risk：最近一条助手回答是风险话题的固定回复时为真，安全边界一节多一句 RISK_FOLLOW_UP。
+    用户未成年（ctx.minor）时，安全边界一节末尾再加一句 MINOR_INSTRUCTION。
+    """
+    safety = [*SAFETY_SECTION, *([f"- {RISK_FOLLOW_UP}"] if after_risk else []),
+              *([f"- {MINOR_INSTRUCTION}"] if ctx.minor else [])]
     sections = [
         [
             "你是 good-life 应用里的生活方式助手，帮用户把饮食、运动和日常安排得更合适。"
@@ -520,7 +563,7 @@ def build_system_prompt(ctx: AgentContext, *, resolution_clue: bool, after_risk:
         _intake_section(ctx),
         _training_section(ctx),
         _preferences_section(ctx),
-        [*SAFETY_SECTION, *([f"- {RISK_FOLLOW_UP}"] if after_risk else [])],
+        safety,
         _principles_section(ctx, resolution_clue),
     ]
     return "\n\n".join("\n".join(section) for section in sections if section)

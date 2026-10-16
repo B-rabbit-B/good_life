@@ -1,5 +1,5 @@
 // 我的（设计稿 13a）：用户名与注册日期；档案摘要（三列事实格、忌口与健康状况）；修改档案；两个开关（主动提问、经期记录）；
-// 设置链接（模型服务、隐私与数据、免责声明）；退出登录。档案摘要与两个开关在敏感区里。
+// 单独同意（经期与医嘱，可撤回）；设置链接（模型服务、隐私与数据、免责声明）；退出登录。档案摘要与两个开关在敏感区里。
 // 经期记录开关只给女性用户；切换后由后端的能力清单决定导航（useUpdateProfile 等能力清单刷新完才算完成）。
 import { Link } from 'react-router'
 import { useAgentSettings, useUpdateAgentSettings } from '../../api/hooks/agent'
@@ -23,6 +23,7 @@ import { todayISO } from '../../lib/dates'
 import { fmtNum } from '../../lib/format'
 import { ACTIVITY_LABELS, GENDER_LABELS, GOAL_LABELS } from '../../lib/labels'
 import '../../styles/components/me.css'
+import { ConsentRows } from '../consent'
 
 const MISSING = '未填'
 
@@ -144,6 +145,7 @@ export default function MePage() {
             <OpeningsSwitch />
             {p.gender === 'female' && <CycleSwitch profile={p} />}
           </Sensitive>
+          <ConsentRows />
           <SettingLinks />
           <div className="me-out">
             <Button variant="text" ink isPending={logout.isPending} onPress={() => logout.mutate()}>退出登录</Button>

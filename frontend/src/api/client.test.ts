@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../test/msw/server'
-import { api, apiBlob, ApiError, handleErrorResponse, isSessionEnded, networkError, onUnauthorized } from './client'
+import { api, apiBlob, apiDownload, ApiError, handleErrorResponse, isSessionEnded, networkError, onUnauthorized } from './client'
 import { getToken, setToken, TOKEN_KEY } from './token'
 
 async function caught(promise: Promise<unknown>): Promise<ApiError> {
@@ -209,6 +209,50 @@ describe('api blob', () => {
     expect(error).toMatchObject({ status: 401, code: 'invalid_token' })
     expect(getToken()).toBeNull()
     expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('downloads a blob with the filename from the response', async () => {
+    setToken('tok-download')
+    let seen: { method: string; auth: string | null; type: string | null; query: string; body: unknown } | null = null
+    server.use(http.post('/api/account/export', async ({ request }) => {
+      seen = {
+        method: request.method, auth: request.headers.get('Authorization'), type: request.headers.get('Content-Type'),
+        query: new URL(request.url).search, body: await request.json(),
+      }
+      return new HttpResponse(new Uint8Array([0x50, 0x4b, 3, 4]), {
+        headers: { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="good-life-export-20261014.zip"' },
+      })
+    }))
+    const { blob, filename } = await apiDownload('/api/account/export', { password: 'pw-123' })
+    expect(filename).toBe('good-life-export-20261014.zip')
+    expect(blob.size).toBe(4)
+    expect(seen).toEqual({
+      method: 'POST', auth: 'Bearer tok-download', type: 'application/json',
+      query: '', body: { password: 'pw-123' },
+    })
+  })
+
+  it('maps download errors like any other request', async () => {
+    setToken('tok-download')
+    server.use(http.post('/api/account/export', () => HttpResponse.json(
+      { error: { code: 'password_incorrect', message: '密码不正确，请重新输入' } }, { status: 403 },
+    )))
+    expect(await caught(apiDownload('/api/account/export', { password: 'wrong' })))
+      .toMatchObject({ status: 403, code: 'password_incorrect', message: '密码不正确，请重新输入' })
+    expect(getToken()).toBe('tok-download')
+
+    const listener = vi.fn()
+    const off = onUnauthorized(listener)
+    server.use(http.post('/api/account/export', () => HttpResponse.json(
+      { error: { code: 'invalid_token', message: '登录已失效' } }, { status: 401 },
+    )))
+    expect(await caught(apiDownload('/api/account/export', { password: 'pw' }))).toMatchObject({ code: 'invalid_token' })
+    off()
+    expect(getToken()).toBeNull()
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    server.use(http.post('/api/account/export', () => HttpResponse.error()))
+    expect(await caught(apiDownload('/api/account/export', { password: 'pw' }))).toMatchObject({ code: 'network_error' })
   })
 
   it('gives the network error when fetch is rejected and rethrows an abort', async () => {

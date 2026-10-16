@@ -4,7 +4,10 @@ from fastapi import Depends
 from fastapi.testclient import TestClient
 
 from app.auth.models import User
+from app.db import get_sessionmaker
+from app.disclaimer.content import DISCLAIMER_VERSION
 from app.disclaimer.deps import require_disclaimer_user
+from app.disclaimer.models import DisclaimerAcceptance
 from app.main import create_app
 from tests.helpers import accept_disclaimer, register_and_login
 
@@ -61,3 +64,25 @@ def test_acceptance_is_per_user(client):
     bob = register_and_login(client, "bob")
     accept_disclaimer(client, alice)
     assert client.get("/api/disclaimer/status", headers=bob).json()["accepted"] is False
+
+
+def test_disclaimer_names_plaintext_columns_instead_of_claiming_everything_is_encrypted(client):
+    text = client.get("/api/disclaimer").json()["text"]
+    assert "健康相关信息会加密保存" not in text
+    assert "明文" in text and "加密" in text
+    assert "模型服务" in text and "高德" in text
+
+
+def test_existing_users_must_reaccept_after_the_version_change(client):
+    headers = register_and_login(client, "alice")
+    user_id = client.get("/api/auth/me", headers=headers).json()["id"]
+    assert DISCLAIMER_VERSION != "2026-09-30"
+    with get_sessionmaker()() as db:
+        db.add(DisclaimerAcceptance(user_id=user_id, version="2026-09-30"))
+        db.commit()
+    assert client.get("/api/disclaimer/status", headers=headers).json()["accepted"] is False
+    blocked = client.get("/api/profile", headers=headers)
+    assert blocked.status_code == 403
+    assert blocked.json()["error"]["code"] == "disclaimer_not_accepted"
+    accept_disclaimer(client, headers)
+    assert client.get("/api/profile", headers=headers).status_code == 200

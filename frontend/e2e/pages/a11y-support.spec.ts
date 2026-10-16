@@ -36,11 +36,23 @@ test('a hidden control without a label fails the touch target check', async ({ p
 
 const profilePage = (extra: string) => `<main data-sensitive-page="me">
   <div data-sensitive data-sensitive-area="profile">身高</div>
-  <div data-sensitive data-sensitive-area="switches">开关</div>${extra}
+  <div data-sensitive data-sensitive-area="switches">开关</div>
+  <div data-sensitive data-sensitive-area="consents">单独同意</div>${extra}
 </main>`
 
 test('the sensitive area check passes when the page matches its registration', async ({ page }) => {
   await page.setContent(profilePage(''))
+  await expectSensitiveAreas(page)
+})
+
+test('the sensitive area check waits for areas that render late', async ({ page }) => {
+  // 同意守门、数据请求等会让敏感区晚一点才出现：断言要重试，而不是读一次就判
+  await page.setContent(`<main data-sensitive-page="me"></main><script>
+    setTimeout(() => {
+      document.querySelector('main').innerHTML = ${JSON.stringify(profilePage('')
+        .replace('<main data-sensitive-page="me">', '').replace('</main>', ''))}
+    }, 600)
+  </script>`)
   await expectSensitiveAreas(page)
 })
 

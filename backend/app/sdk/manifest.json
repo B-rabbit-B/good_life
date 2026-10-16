@@ -6052,7 +6052,8 @@
               "status": {
                 "enum": [
                   "ok",
-                  "insufficient_profile"
+                  "insufficient_profile",
+                  "minor"
                 ],
                 "title": "Status",
                 "type": "string"

@@ -31,6 +31,7 @@ SOURCE_NAMES = {"medical": "医嘱", "cycle": "经期提示", "goal": "健身目
 DISCLAIMER = "以上判断基于规则与营养数据，仅供参考，不构成医疗建议；有医嘱时以医嘱为准。"
 PENDING_REVIEW_NOTE = "这条医嘱正在待复核，确认解除之前仍按原要求执行。"
 NEEDS_UNKNOWN_MESSAGE = "档案信息不完整，无法估算今天的剩余额度"
+NEEDS_MINOR_MESSAGE = "未满 18 周岁不估算每日能量，这里不按今天的剩余额度判断"
 AVOID_CATEGORIES = ("diet_avoid", "medication_diet")
 REQUIRE_CATEGORY = "diet_require"
 PHASE_NAMES = {"menstrual": "月经期", "follicular": "卵泡期", "ovulation": "排卵期", "luteal": "黄体期"}
@@ -373,6 +374,8 @@ def _training_reasons(food: Food, training: TrainingContext | None, bonus: int, 
 
 
 def _intake_reasons(portion: Nutrients, day_totals: Nutrients, needs: Needs | None, bonus: int = 0) -> list[Reason]:
+    if needs is not None and needs.status == "minor":
+        return [Reason("intake", "info", "needs_minor", NEEDS_MINOR_MESSAGE, "needs")]
     if needs is None or needs.status != "ok":
         return [Reason("intake", "info", "needs_unknown", NEEDS_UNKNOWN_MESSAGE, "needs")]
     total = day_totals.plus(portion)

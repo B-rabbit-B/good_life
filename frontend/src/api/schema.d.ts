@@ -1,5 +1,65 @@
 // 由 pnpm api:gen 生成，不要手改
 export interface paths {
+    "/api/account/consents/{kind}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw Consent
+         * @description 撤回单独同意：同一个事务里清除该模块的全部数据并记下撤回时间，模块随即关闭。
+         */
+        post: operations["withdraw_consent_api_account_consents__kind__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete My Account
+         * @description 重新输入密码并勾选确认后，立即彻底删除账号与全部数据（不可恢复）；登录令牌与智能体授权随之失效。
+         */
+        post: operations["delete_my_account_api_account_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/account/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Data
+         * @description 重新输入密码后导出本人全部数据（压缩包，禁止缓存）；成功后记一行审计 account.export。
+         */
+        post: operations["export_data_api_account_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent-grants": {
         parameters: {
             query?: never;
@@ -64,7 +124,11 @@ export interface paths {
         put?: never;
         /** Create Conversation */
         post: operations["create_conversation_api_agent_conversations_post"];
-        delete?: never;
+        /**
+         * Clear Conversations
+         * @description 清空全部对话历史，开场问候一并清掉。
+         */
+        delete: operations["clear_conversations_api_agent_conversations_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -279,6 +343,40 @@ export interface paths {
         put?: never;
         /** Register */
         post: operations["register_api_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Consents */
+        get: operations["list_consents_api_consents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/consents/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grant Consent */
+        post: operations["grant_consent_api_consents__kind__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1575,6 +1673,16 @@ export interface components {
             /** Version */
             version: string;
         };
+        /** AccountDelete */
+        AccountDelete: {
+            /**
+             * Confirm
+             * @description 用户勾选了“我知道删除后不能恢复”，必须为 true
+             */
+            confirm: boolean;
+            /** Password */
+            password: string;
+        };
         /** SettingsOut */
         app__agent__schemas__SettingsOut: {
             /** Openings Enabled */
@@ -1981,6 +2089,11 @@ export interface components {
             /** Sample Models */
             sample_models: string[];
         };
+        /** ConsentGrant */
+        ConsentGrant: {
+            /** Version */
+            version: string;
+        };
         /** ConsentIn */
         ConsentIn: {
             /**
@@ -1988,6 +2101,28 @@ export interface components {
              * @enum {string}
              */
             consent: "granted" | "denied";
+        };
+        /** ConsentOut */
+        ConsentOut: {
+            /** Current Version */
+            current_version: string;
+            /** Granted */
+            granted: boolean;
+            /** Granted At */
+            granted_at: string | null;
+            /** Granted Version */
+            granted_version: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cycle" | "medical";
+            /** Text */
+            text: string;
+            /** Title */
+            title: string;
+            /** Withdrawn At */
+            withdrawn_at: string | null;
         };
         /** ConstraintOut */
         ConstraintOut: {
@@ -3001,7 +3136,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "ok" | "insufficient_profile";
+            status: "ok" | "insufficient_profile" | "minor";
         };
         /** NeedsUsedOut */
         NeedsUsedOut: {
@@ -3104,6 +3239,14 @@ export interface components {
             tools?: boolean | null;
             /** Vision */
             vision?: boolean | null;
+        };
+        /**
+         * PasswordConfirm
+         * @description 敏感操作前复核本人密码。
+         */
+        PasswordConfirm: {
+            /** Password */
+            password: string;
         };
         /** PeriodCreate */
         PeriodCreate: {
@@ -3513,6 +3656,11 @@ export interface components {
         };
         /** RegisterRequest */
         RegisterRequest: {
+            /**
+             * Age Confirmed
+             * @description 用户确认已年满 14 周岁，必须为 true；只做校验，不入库
+             */
+            age_confirmed: boolean;
             /** Password */
             password: string;
             /** Username */
@@ -4006,6 +4154,99 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    withdraw_consent_api_account_consents__kind__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "cycle" | "medical";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_my_account_api_account_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_data_api_account_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordConfirm"];
+            };
+        };
+        responses: {
+            /** @description 压缩包：每个模块一份 JSON、原件、照片与说明 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_grants_api_agent_grants_get: {
         parameters: {
             query?: never;
@@ -4170,6 +4411,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    clear_conversations_api_agent_conversations_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -4572,6 +4831,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_consents_api_consents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentOut"][];
+                };
+            };
+        };
+    };
+    grant_consent_api_consents__kind__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "cycle" | "medical";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsentGrant"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentOut"];
                 };
             };
             /** @description Validation Error */

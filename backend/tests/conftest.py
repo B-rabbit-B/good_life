@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 import app.models  # noqa: F401
+from app.auth import limiter
 from app.db import Base, get_engine
 from app.main import create_app
 
@@ -38,6 +39,13 @@ def clean_tables():
     if tables:
         with get_engine().begin() as conn:
             conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+
+
+@pytest.fixture(autouse=True)
+def reset_login_limits():
+    """登录与密码复核的失败计数在进程内：每个测试结束清零，测试之间互不影响。"""
+    yield
+    limiter.reset_all()
 
 
 @pytest.fixture

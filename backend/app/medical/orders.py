@@ -103,6 +103,7 @@ def add_manual_item(db: Session, user_id: uuid.UUID, order_id: uuid.UUID, fields
 
 
 MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
+MAX_EVIDENCE_PER_ORDER = 10
 EVIDENCE_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "application/pdf": ".pdf"}
 
 
@@ -125,6 +126,11 @@ def add_evidence(
     order = get_order(db, user_id, order_id)
     if not content:
         raise AppError(422, "evidence_empty", "上传的文件是空的")
+    # 锁住医嘱单行再数，并发上传不会一起越过上限
+    db.execute(select(MedicalOrder.id).where(MedicalOrder.id == order.id).with_for_update())
+    count = db.scalar(select(func.count()).select_from(MedicalEvidence).where(MedicalEvidence.order_id == order.id))
+    if count >= MAX_EVIDENCE_PER_ORDER:
+        raise AppError(409, "evidence_limit_reached", f"每份医嘱最多上传 {MAX_EVIDENCE_PER_ORDER} 个文件")
     if len(content) > MAX_EVIDENCE_BYTES:
         raise AppError(413, "evidence_too_large", "文件不能超过 10 MB")
     content_type = sniff_content_type(content)

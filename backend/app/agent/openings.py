@@ -8,7 +8,9 @@
   并发时撞上唯一约束的一方返回刚占住名额的那一条（它是 asked）；若那一条已被处理，则改问下一类。
 - pick_opening 先把固定模板记为 asked 占住名额并提交，再改写措辞；调用模型期间不占事务。
   模型没配置、任何出错、返回空或过长、丢了模板里的关键事实、写了模板里没有的经期说法（经期、月经、生理期、例假；
-  没开放经期的用户不能被提到）、或提到了模板里没有的营养库食物时，直接用模板。
+  没开放经期的用户不能被提到）、提到了模板里没有的营养库食物、或含有指令式的话、链接或网址
+  （preferences.instruction_like，与偏好过滤同一套词表；先去掉 HARMLESS_QUESTIONS 里的“你是不是”“你是否”再查，
+  这类无害问法不会因为“你是”退回模板）时，直接用模板。
   医嘱内容被截断时，必须保留的事实是截断后的内容（不含省略号）。
 """
 
@@ -23,14 +25,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.agent import settings as agent_settings
-from app.agent.assembly import CLIENT_NAME, PROFILE_FIELD_NAMES
+from app.agent.assembly import CLIENT_NAME, CONSENT_REQUIRED, PROFILE_FIELD_NAMES
 from app.agent.guard import mentioned_food_ids
 from app.agent.models import AgentOpening
+from app.agent.preferences import instruction_like
 from app.common.ownership import get_owned_or_404, owned_by
 from app.errors import AppError
 from app.llm.adapters.base import ChatMessage
 from app.llm.service import AdapterFactory, complete, resolve_target
-from app.sdk import AgentCredential, GoodLife
+from app.sdk import AgentCredential, GoodLife, SdkError
 from app.sdk.tooling import agent_registry
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,7 @@ MAX_TOKENS = 200
 MAX_CONTENT_CHARS = 40
 ELLIPSIS = "…"
 CYCLE_WORDS = ("经期", "月经", "生理期", "例假")
+HARMLESS_QUESTIONS = ("你是不是", "你是否")  # 开场常见的问法，查指令词之前先去掉（“你是”本身仍算身份操控）
 PURPOSE = "chat"
 ASKED, DECLINED, ANSWERED = "asked", "declined", "answered"
 
@@ -150,6 +154,10 @@ RULES: dict[str, Callable[[_Reads], dict | None]] = {
 def _evaluate(reads: _Reads, kind: str) -> dict | None:
     try:
         return RULES[kind](reads)
+    except SdkError as err:
+        if err.code != CONSENT_REQUIRED:  # 没有单独同意是正常状态：这条规则不触发，不记日志
+            logger.warning("开场规则判断失败：%s（%s）", kind, type(err).__name__)
+        return None
     except Exception as err:  # 读不到或解析不了只表示这条规则不触发，不影响别的规则
         logger.warning("开场规则判断失败：%s（%s）", kind, type(err).__name__)
         return None
@@ -196,6 +204,8 @@ def _acceptable(kind: str, template: str, params: dict, text: str) -> bool:
         return False  # 模板没提经期，模型就不能提（没开放经期的用户不该看到这些词）
     if set(mentioned_food_ids(text)) - set(mentioned_food_ids(template)):
         return False  # 模型擅自提到的食物没经过输出检查，可能是医嘱阻断的
+    if instruction_like(text, allowed=HARMLESS_QUESTIONS):
+        return False  # 指令式的话、链接或网址（与偏好过滤同一套词表）：模型可能照着注入加了引流或指令
     squeezed = _squeeze(text)
     return all(_squeeze(fact) in squeezed for fact in _facts(kind, params))
 

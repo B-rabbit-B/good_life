@@ -1,4 +1,5 @@
 // 建档第 1 步：出生年份、性别、身高、体重（设计稿 02）。“下一步”只提交这四项。
+// 出生年份的后端说明（例如不满 14 周岁被拒绝）写在下拉框下面，其余字段的说明归到表单底部。
 import { useState } from 'react'
 import { useUpdateProfile } from '../../api/hooks/profile'
 import type { ProfileOut } from '../../api/types'
@@ -52,7 +53,7 @@ export function StepBasics({ profile, onSaved }: { profile: ProfileOut; onSaved:
       </div>
       <div className="plate onb-basics">
         <div className="onb-year">
-          <SelectField label="出生年份" value={birthYear} options={options} onChange={setBirthYear} />
+          <SelectField label="出生年份" value={birthYear} options={options} onChange={setBirthYear} error={errors.birth_year} />
         </div>
         <RadioSegment
           label="性别" options={GENDERS} value={gender} onChange={setGender}
@@ -65,7 +66,7 @@ export function StepBasics({ profile, onSaved }: { profile: ProfileOut; onSaved:
           label="体重" unit="千克" value={weight} onChange={setWeight} min={20} max={300} step={0.5} major={5} ppu={16}
           hint="左右拖动刻度，或点数字直接输入。"
         />
-        <FormError messages={otherErrors(errors, [], PROFILE_FIELD_LABELS)} />
+        <FormError messages={otherErrors(errors, ['birth_year'], PROFILE_FIELD_LABELS)} />
       </div>
       <Dock>
         <Button variant="primary" block isDisabled={birthYear === '' || gender === ''} isPending={update.isPending} onPress={next}>

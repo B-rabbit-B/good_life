@@ -1,10 +1,13 @@
 from fastapi import FastAPI
 
+from app.account.router import router as account_router
 from app.agent.router import router as agent_router
 from app.agent_grants.router import router as agent_grants_router
 from app.auth.router import router as auth_router
 from app.common.body_limit import UploadBodyLimitMiddleware
+from app.common.request_log import RequestLogMiddleware, install_log_hygiene
 from app.config import get_settings
+from app.consents.router import router as consents_router
 from app.cycle.router import router as cycle_router
 from app.disclaimer.router import router as disclaimer_router
 from app.errors import register_error_handlers
@@ -20,11 +23,16 @@ from app.restaurants.router import router as restaurants_router
 
 def create_app(*, serve_frontend: bool = True) -> FastAPI:
     settings = get_settings()  # 配置或密钥不合法时启动即失败
+    install_log_hygiene()
     app = FastAPI(title="good-life API", version="0.1.0")
     register_error_handlers(app)
     app.add_middleware(UploadBodyLimitMiddleware)
+    # 后加的在外层：413 也有访问日志；未处理的异常在这里兜住，不再抛给服务器
+    app.add_middleware(RequestLogMiddleware, fastapi_app=app)
     app.include_router(auth_router)
     app.include_router(disclaimer_router)
+    app.include_router(consents_router)
+    app.include_router(account_router)
     app.include_router(profile_router)
     app.include_router(cycle_router)
     app.include_router(medical_router)

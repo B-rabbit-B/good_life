@@ -18,16 +18,16 @@ export const SENSITIVE_AREAS = {
   medicalNew: ['content'],
   /** 经期：全部内容（两个记录按钮除外） */
   cycle: ['content'],
-  /** 我的：全部档案内容与两个开关 */
-  me: ['profile', 'switches'],
+  /** 我的：全部档案内容、两个开关与单独同意两行 */
+  me: ['profile', 'switches', 'consents'],
   /** 修改档案：全部档案内容（设计稿 13b 没有开关，两个开关只在“我的”） */
   profileEdit: ['profile'],
   /** 记一次训练：顶部的运动限制 */
   workoutNew: ['constraints'],
   /** 模型服务：“其他设置”里已保存的大致区域名 */
   models: ['savedArea'],
-  /** 隐私与数据：已保存的大致区域、外部授权列表、调用记录 */
-  privacy: ['savedArea', 'grants', 'audit'],
+  /** 隐私与数据：已保存的大致区域、外部授权列表、调用记录；导出、清空对话与删除账号三块（不含内容，随本页一起遮盖） */
+  privacy: ['savedArea', 'grants', 'audit', 'exportData', 'clearChat', 'deleteAccount'],
 } as const
 
 export type SensitivePage = keyof typeof SENSITIVE_AREAS
