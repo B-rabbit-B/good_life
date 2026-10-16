@@ -1,8 +1,8 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { sensitiveAreaMismatch } from '../../app/sensitiveAreas'
-import { addDays, formatMonthDay, todayISO } from '../../lib/dates'
+import { addDays, addMonths, formatMonthDay, todayISO } from '../../lib/dates'
 import { gate } from '../../test/chat'
 import {
   dayLog, deckPeriods, FEW_CYCLES_NOTE, FOLLICULAR_TIP, INSUFFICIENT_DATA_NOTE, insufficientPrediction, latestStart,
@@ -176,6 +176,53 @@ describe('cycle view', { timeout: 15_000 }, () => {
     expect(screen.getByText('有当天记录')).toBeInTheDocument()
     await user.click(cellOf(today))
     expect(await screen.findByRole('dialog', { name: '记录今天' })).toBeInTheDocument()
+  })
+
+  it('leaves the cells of the neighbouring months empty and unfocusable', async () => {
+    renderCycle(deck({ dayLogs: [dayLog(today)] }))
+    await screen.findByRole('grid')
+    const first = `${today.slice(0, 7)}-01`
+    const last = addDays(addMonths(first, 1), -1)
+    const cells = Array.from(document.querySelectorAll<HTMLElement>('.cal-g .d'))
+    const outside = cells.filter((c) => (c.dataset.date ?? '') < first || (c.dataset.date ?? '') > last)
+    expect(cells.length % 7).toBe(0)
+    expect(outside.length).toBeGreaterThan(0)
+    for (const cell of outside) {
+      expect(cell).toHaveClass('d', 'out')
+      expect(cell).not.toHaveClass('rec', 'prd', 'win', 'log', 'today')
+      expect(cell).toHaveTextContent('')
+      expect(cell).not.toHaveAttribute('tabindex')
+      expect(cell).toHaveAttribute('aria-disabled', 'true')
+    }
+    const before = cells.filter((c) => (c.dataset.date ?? '') < first)
+    expect(before.map((c) => c.textContent)).toEqual(before.map(() => ''))
+    expect(cellOf(first)).toHaveTextContent('1')
+  })
+
+  it('shows a period that crosses the month only as its own days in each month', async () => {
+    const user = userEvent.setup()
+    const first = `${today.slice(0, 7)}-01`
+    renderCycle(deck({ periods: [period(addDays(first, -3), addDays(first, 1))], dayLogs: [] }))
+    await screen.findByRole('grid')
+    const recorded = () => Array.from(document.querySelectorAll<HTMLElement>('.cal-g .d.rec')).map((c) => c.dataset.date)
+    await waitFor(() => expect(recorded()).toEqual([first, addDays(first, 1)]))
+    await user.click(screen.getByRole('button', { name: '上个月' }))
+    await waitFor(() => expect(recorded()).toEqual([addDays(first, -3), addDays(first, -2), addDays(first, -1)]))
+  })
+
+  it('moves between the days of the month with the arrow keys and turns the page at the edge', async () => {
+    const user = userEvent.setup()
+    renderCycle(deck())
+    await screen.findByRole('grid')
+    const first = `${today.slice(0, 7)}-01`
+    act(() => cellOf(first).focus())
+    await user.keyboard('{ArrowRight}')
+    expect(cellOf(addDays(first, 1))).toHaveFocus()
+    await user.keyboard('{ArrowLeft}{ArrowLeft}')
+    const previous = addDays(first, -1)
+    await waitFor(() => expect(cellOf(previous)).toHaveFocus())
+    const [y = '', m = ''] = previous.split('-')
+    expect(screen.getByText(`${y} 年 ${Number(m)} 月`)).toBeInTheDocument()
   })
 
   it('uses no pink colour tokens', async () => {

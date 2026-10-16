@@ -30,8 +30,8 @@
 .cal-g .d.today span{color:var(--accent);font-weight:600;box-shadow:inset 0 0 0 2px var(--accent)}
 .cal-g .d.rec.today span{color:#fff}
 .cal-g .d.log span::before{content:"";position:absolute;top:5px;right:calc(50% - 16px);width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
-.cal-g .d.out{color:var(--ink-3);font-weight:400}
-.cal-g .d.out.rec span{background:var(--ink-2)}
+/* 相邻月份补齐整周的格子：只占位（高 44、方块 36 不变），不显示、不可点、不可聚焦、读屏不可见 */
+.cal-g .d.out{visibility:hidden;pointer-events:none}
 /* 焦点环写在各种格子之后：预计经期的虚线框也是 outline，放在前面会被它盖掉 */
 .cal-g .d[data-focus-visible] span,.cal-g .d.prd[data-focus-visible] span{outline:2px solid var(--accent);outline-offset:2px}
 .cal-leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:12px 0 0;font-size:var(--fs-12);line-height:1.5;color:var(--ink-3)}
@@ -42,6 +42,13 @@
 .cal-leg .l-win{height:3px;background:repeating-linear-gradient(90deg,var(--ink-3) 0 3px,transparent 3px 6px)}
 .cal-leg .l-log{width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
 
+.cyc-list{padding:4px var(--gutter) 6px}
+.cyc-list ul{list-style:none;margin:0;padding:0}
+.cyc-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:48px;font-size:var(--fs-14);line-height:1.5;color:var(--ink)}
+.cyc-list li+li{border-top:1px solid var(--line)}
+.cyc-list li .btn-txt{flex:none;margin-right:-8px}
+.cyc-list .cyc-list-x{margin:2px 0 6px;font-size:var(--fs-12);line-height:1.5;color:var(--ink-3)}
+
 .cyc-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .cyc-load{margin:8px var(--gutter) 0}
 
@@ -49,7 +56,6 @@
   .cal-g .d span,.cal-g .d.win::after,.cal-g .d.log span::before,.cal-leg i{forced-color-adjust:none}
   .cal-g .d span{background:Canvas;color:CanvasText}
   .cal-g .d.rec span{background:CanvasText;color:Canvas}
-  .cal-g .d.out.rec span{background:GrayText;color:Canvas}
   .cal-g .d.prd span{outline-color:CanvasText}
   .cal-g .d.today span{color:Highlight;box-shadow:inset 0 0 0 2px Highlight}
   .cal-g .d.rec.today span{color:Canvas}

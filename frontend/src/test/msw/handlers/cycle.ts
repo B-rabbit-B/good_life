@@ -1,4 +1,4 @@
-// 经期的接口：一个内存里的经期与每日记录仓库（开始 POST、结束 PATCH、当天记录 PUT 整条替换），预测、阶段、提示与统计
+// 经期的接口：一个内存里的经期与每日记录仓库（开始 POST、结束 PATCH、删除 DELETE、当天记录 PUT 整条替换），预测、阶段、提示与统计
 // 返回测试给的数据（不按经期重算）。记下每个写请求供测试核对；errors 里的错误只对那个动作的第一次请求生效，
 // hold 里的 Promise 兑现之前那个动作的请求一直不返回（测试“请求进行中”）。
 import { http, HttpResponse, type HttpHandler } from 'msw'
@@ -14,7 +14,7 @@ export interface CycleError {
   details?: { field: string; message: string }[]
 }
 
-type Action = 'createPeriod' | 'updatePeriod' | 'putDayLog'
+type Action = 'createPeriod' | 'updatePeriod' | 'deletePeriod' | 'putDayLog'
 
 export interface CycleOptions {
   /** 经期，新的在前 */
@@ -44,6 +44,7 @@ export function cycleHandlers(opts: CycleOptions = {}) {
   const record = {
     created: [] as unknown[],
     updated: [] as { id: string; body: unknown }[],
+    deleted: [] as string[],
     putLogs: [] as { date: string; body: DayLogIn }[],
     dayLogRanges: [] as { start: string | null; end: string | null }[],
   }
@@ -89,6 +90,17 @@ export function cycleHandlers(opts: CycleOptions = {}) {
       const next = { ...found, end_date: body.end_date }
       periods = periods.map((p) => (p.id === id ? next : p))
       return HttpResponse.json(next)
+    }),
+    http.delete('/api/cycle/periods/:id', async ({ params }) => {
+      const id = String(params.id)
+      record.deleted.push(id)
+      await opts.hold?.deletePeriod
+      if (failNetwork('deletePeriod')) return HttpResponse.error()
+      const error = take('deletePeriod')
+      if (error) return errorResponse(error)
+      if (!periods.some((p) => p.id === id)) return errorResponse({ status: 404, code: 'not_found', message: '记录不存在' })
+      periods = periods.filter((p) => p.id !== id)
+      return new HttpResponse(null, { status: 204 })
     }),
     http.get('/api/cycle/day-logs', ({ request }) => {
       const params = new URL(request.url).searchParams

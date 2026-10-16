@@ -34,6 +34,8 @@ export function buttonClassName({ variant, size = 'md', block = false, ink = fal
 export interface ButtonProps extends ButtonStyleOptions {
   icon?: IconName
   isDisabled?: boolean
+  /** 读屏名称（文字不够说清是哪一项时，例如列表每行的“删除”） */
+  'aria-label'?: string
   /** 动作进行中：不可重复点，焦点留在按钮上 */
   isPending?: boolean
   onPress: () => void
@@ -42,12 +44,13 @@ export interface ButtonProps extends ButtonStyleOptions {
 }
 
 /** 瓷釉按钮：高 48、圆角 16；小号 36、圆角 10，点按区补到 44（data-hit44）。行为来自 React Aria Button。 */
-export function Button({ variant, size, block, ink, onField, icon, isDisabled, isPending, onPress, type = 'button', children }: ButtonProps) {
+export function Button({ variant, size, block, ink, onField, icon, isDisabled, isPending, onPress, type = 'button', children, 'aria-label': ariaLabel }: ButtonProps) {
   const small = size === 'sm' && variant !== 'text'
   return (
     <AriaButton
       type={type}
       className={buttonClassName({ variant, size, block, ink, onField })}
+      aria-label={ariaLabel}
       isDisabled={isDisabled}
       isPending={isPending}
       onPress={onPress}

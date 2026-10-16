@@ -73,7 +73,61 @@ test('lays out the cycle page at the deck sizes and covers all but the two butto
   await page.getByRole('button', { name: '已遮盖，点按恢复显示', exact: true }).first().click()
 })
 
-test('draws the calendar marks with system colours in forced colours', async ({ page, request }) => {
+test('leaves the calendar cells of the neighbouring months empty', async ({ page, request }) => {
+  const token = await cycleUser(request)
+  await openAs(page, token, '/health/cycle')
+  await expect(page.locator('.cal-g .d.today')).toBeVisible()
+  const month = localDate().slice(0, 7)
+  const cells = await page.locator('.cal-g .d').evaluateAll((els) => els.map((el) => {
+    const box = el.querySelector('span')?.getBoundingClientRect()
+    return {
+      date: el.getAttribute('data-date') ?? '', text: el.textContent ?? '', tabindex: el.getAttribute('tabindex'),
+      visibility: getComputedStyle(el).visibility, square: [box?.width, box?.height],
+    }
+  }))
+  const before = cells.filter((cell) => cell.date < `${month}-01`)
+  const inMonth = cells.filter((cell) => cell.date.startsWith(month))
+  for (const cell of cells.filter((c) => !c.date.startsWith(month))) {
+    expect(cell).toMatchObject({ text: '', tabindex: null, visibility: 'hidden', square: [36, 36] })
+  }
+  expect(before.map((cell) => cell.text).join('')).toBe('')
+  expect(inMonth.length).toBeGreaterThanOrEqual(28)
+  expect(inMonth[0]?.text).toBe('1')
+  expect(inMonth.every((cell) => cell.text !== '' && cell.visibility === 'visible')).toBe(true)
+})
+
+test('records a past period and deletes it from the recorded periods list', async ({ page, request }) => {
+  const token = await cycleUser(request)
+  await openAs(page, token, '/health/cycle')
+  await expect(page.locator('.cal-g .d.today')).toBeVisible()
+  await expect(page.locator('.cal-g .d.today.rec')).toHaveCount(0)
+  const list = page.locator('.cyc-list')
+  await expect(list.getByRole('listitem')).toHaveCount(4)
+
+  await page.getByRole('button', { name: '记录经期开始' }).click()
+  const record = page.getByRole('dialog', { name: '记录经期开始' })
+  await record.getByLabel('结束日期（还没结束可以留空）').fill(localDate())
+  await record.getByRole('button', { name: '保存' }).click()
+  await expect(record).toHaveCount(0)
+  await expect(page.locator('.cal-g .d.today.rec')).toBeVisible()
+  await expect(list.getByRole('listitem')).toHaveCount(5)
+
+  const [year = '', month = '', day = ''] = localDate().split('-')
+  const label = `删除 ${year}年${Number(month)}月${Number(day)}日 开始的经期`
+  await expectPageRules(page)
+  await list.getByRole('button', { name: label }).click()
+  const sheet = page.getByRole('dialog', { name: '删除这次经期记录' })
+  await expect(sheet).toContainText('这次经期当天的每日记录不会被删除。')
+  await waitForSheet(page)
+  await sheet.getByRole('button', { name: '删除这次经期' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(page.getByText('已删除')).toBeVisible()
+  await expect(list.getByRole('listitem')).toHaveCount(4)
+  await expect(page.locator('.cal-g .d.today.rec')).toHaveCount(0)
+  await expect(page.locator('.cal-g .d.today')).toBeVisible()
+})
+
+test('draws the calendar marks with system colours in forced colours',async ({ page, request }) => {
   const token = await cycleUser(request)
   await openAs(page, token, '/health/cycle')
   await expect(page.locator('.cal-g .d.today')).toBeVisible()
@@ -88,7 +142,7 @@ test('draws the calendar marks with system colours in forced colours', async ({ 
     }
     const result = { canvasText: system('CanvasText'), highlight: system('Highlight') }
     probe.remove()
-    const recorded = document.querySelector('.cal-g .d.rec:not(.out) span') as HTMLElement
+    const recorded = document.querySelector('.cal-g .d.rec span') as HTMLElement
     const today = document.querySelector('.cal-g .d.today span') as HTMLElement
     return {
       ...result,
